@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.36] - 2025-12-24
+
+### ✨ 新功能
+
+- 实现完整的技能管理系统 (af6f40f)
+- 添加 Skills 系统支持动态 Prompt 扩展和工具限制 (f2588b6)
+
+
 ## [0.0.35] - 2025-12-24
 
 ### ✨ 新功能
