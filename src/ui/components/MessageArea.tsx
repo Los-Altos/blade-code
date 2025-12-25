@@ -1,5 +1,6 @@
-import { Box, Static } from 'ink';
-import React, { ReactNode, useEffect, useMemo } from 'react';
+import ansiEscapes from 'ansi-escapes';
+import { Box, Static, useStdout } from 'ink';
+import React, { ReactNode, useEffect, useMemo, useRef } from 'react';
 import {
   useClearCount,
   useCurrentThinkingContent,
@@ -53,21 +54,48 @@ export const MessageArea: React.FC = React.memo(() => {
   // 使用 useTerminalWidth hook 获取终端宽度
   const terminalWidth = useTerminalWidth();
 
+  // stdout 用于清屏
+  const { stdout } = useStdout();
+
   // 追踪已渲染到 Static 的消息数量（防止重复渲染）
   const renderedCountRef = React.useRef(0);
+
+  // 追踪 historyExpanded 的前一个值，用于检测变化
+  const prevHistoryExpandedRef = useRef(historyExpanded);
 
   // 当 clearCount 变化时（/clear 命令），重置渲染计数
   useEffect(() => {
     renderedCountRef.current = 0;
   }, [clearCount]);
 
+  // 当 historyExpanded 变化时，需要清屏以避免重复渲染
+  // 因为 Static 组件的内容是累积输出到终端的，key 变化只会新增内容，不会清除旧内容
+  useEffect(() => {
+    if (prevHistoryExpandedRef.current !== historyExpanded) {
+      // historyExpanded 发生变化，清屏
+      if (stdout) {
+        stdout.write(ansiEscapes.clearTerminal);
+      }
+      // 重置渲染计数，让 Static 重新渲染所有需要的消息
+      renderedCountRef.current = 0;
+      prevHistoryExpandedRef.current = historyExpanded;
+    }
+  }, [historyExpanded, stdout]);
+
   // 分离已完成的消息和正在流式传输的消息
   const { completedMessages, streamingMessage } = useMemo(() => {
     // Static 组件的特性：items 只能追加，不能减少
     // 所以 completedMessages 只能增长，不能缩小
+
+    // 判断最后一条消息是否是正在流式传输的 assistant 消息
+    // 只有 assistant 消息才可能是流式传输中，user/tool/system 消息都是完整的
+    const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+    const isLastMessageStreaming =
+      isProcessing && lastMessage && lastMessage.role === 'assistant';
+
     const safeCompletedCount = Math.max(
       renderedCountRef.current,
-      isProcessing && messages.length > 0 ? messages.length - 1 : messages.length
+      isLastMessageStreaming ? messages.length - 1 : messages.length
     );
 
     // 更新已渲染数量

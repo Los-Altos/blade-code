@@ -70,15 +70,20 @@ export const skillCreatorInstructions = `# Skill Creator
 ### 3. 确认保存位置
 
 询问用户希望将 Skill 保存到：
-- **项目级** (\`.blade/skills/\`): 与团队共享，通过 git 同步
+- **项目级** (\`.blade/skills/\`): 与团队共享，通过 git 同步（**默认推荐**）
 - **用户级** (\`~/.blade/skills/\`): 个人使用，跨项目可用
 
+如果用户没有明确指定，默认使用 **项目级** (\`.blade/skills/\`)。
+
 ### 4. 生成文件
+
+**重要：直接使用 Write 工具创建文件，不要使用外部脚本。**
 
 使用 Write 工具创建 SKILL.md 文件：
 
 \`\`\`
-{location}/.blade/skills/{name}/SKILL.md
+.blade/skills/{name}/SKILL.md        # 项目级（默认）
+~/.blade/skills/{name}/SKILL.md      # 用户级
 \`\`\`
 
 文件格式：
@@ -103,13 +108,16 @@ user-invocable: true  # 如果需要 /skill-name 命令
 {使用示例}
 \`\`\`
 
-### 5. 验证
+### 5. 刷新并验证
 
+创建完成后，**必须提示用户执行 \`/skills\` 命令刷新 Skills 列表**，否则新创建的 Skill 不会立即生效。
+
+验证步骤：
 - 检查目录和文件是否创建成功
+- **重要**：告诉用户执行 \`/skills\` 刷新列表
 - 提示用户可以通过以下方式使用新 Skill：
   - AI 自动调用（如果未禁用）
   - \`/skill-name\` 命令（如果启用了 user-invocable）
-  - 执行 \`/skills\` 查看所有 Skills
 
 ## Best Practices
 

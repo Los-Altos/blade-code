@@ -66,10 +66,11 @@ const MARKDOWN_PATTERNS = {
   tableSeparator: /^\|[\s]*:?-+:?[\s]*(\|[\s]*:?-+:?[\s]*)+\|?$/,
   diffStart: /^<<<DIFF>>>$/,
   diffEnd: /^<<<\/DIFF>>>$/,
+  commandMessage: /<command-message>(.*?)<\/command-message>/,
 } as const;
 
 interface ParsedBlock {
-  type: 'text' | 'code' | 'heading' | 'table' | 'list' | 'hr' | 'empty' | 'diff';
+  type: 'text' | 'code' | 'heading' | 'table' | 'list' | 'hr' | 'empty' | 'diff' | 'command-message';
   content: string;
   language?: string;
   level?: number;
@@ -300,6 +301,17 @@ function parseMarkdown(content: string): ParsedBlock[] {
       continue;
     }
 
+    // <command-message> 标签
+    const commandMessageMatch = line.match(MARKDOWN_PATTERNS.commandMessage);
+    if (commandMessageMatch) {
+      blocks.push({
+        type: 'command-message',
+        content: commandMessageMatch[1],
+      });
+      lastLineEmpty = false;
+      continue;
+    }
+
     // 普通文本
     blocks.push({
       type: 'text',
@@ -412,6 +424,22 @@ const TextBlock: React.FC<{ content: string }> = ({ content }) => {
     <Text wrap="wrap">
       <InlineRenderer text={content} />
     </Text>
+  );
+};
+
+/**
+ * 渲染 <command-message> 标签
+ * 显示为带图标的状态消息
+ */
+const CommandMessage: React.FC<{ content: string }> = ({ content }) => {
+  const theme = themeManager.getTheme();
+  return (
+    <Box flexDirection="row" gap={1}>
+      <Text color={theme.colors.info}>⏳</Text>
+      <Text color={theme.colors.text.muted} italic>
+        {content}
+      </Text>
+    </Box>
   );
 };
 
@@ -610,6 +638,8 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
                     matchLine={block.diffData.matchLine}
                     terminalWidth={terminalWidth - (prefix.length + 1)}
                   />
+                ) : block.type === 'command-message' ? (
+                  <CommandMessage content={block.content} />
                 ) : (
                   <TextBlock content={block.content} />
                 )}

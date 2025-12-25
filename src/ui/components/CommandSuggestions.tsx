@@ -37,12 +37,12 @@ export const CommandSuggestions: React.FC<CommandSuggestionsProps> = React.memo(
           const actualIndex = startIndex + displayIndex;
           const isSelected = actualIndex === selectedIndex;
           return (
-            <Box key={suggestion.command} justifyContent="space-between" paddingX={1}>
+            <Box key={suggestion.command} flexDirection="row" paddingX={1} gap={2}>
               <Text color={isSelected ? 'cyan' : 'white'} bold={isSelected}>
                 {suggestion.command}
               </Text>
               <Text color={isSelected ? 'cyan' : 'gray'} dimColor={!isSelected}>
-                {suggestion.description}
+                - {suggestion.description}
               </Text>
             </Box>
           );

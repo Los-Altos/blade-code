@@ -52,3 +52,9 @@ export {
   hasAvailableSkills,
   injectSkillsMetadata,
 } from './injectSkillsMetadata.js';
+
+export {
+  getSkillInstaller,
+  resetSkillInstaller,
+  SkillInstaller,
+} from './SkillInstaller.js';

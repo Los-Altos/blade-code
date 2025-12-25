@@ -6,9 +6,13 @@
  */
 
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { homedir } from 'node:os';
-import { getSkillCreatorContent, skillCreatorMetadata } from './builtin/skill-creator.js';
+import * as path from 'node:path';
+import {
+  getSkillCreatorContent,
+  skillCreatorMetadata,
+} from './builtin/skill-creator.js';
+import { getSkillInstaller } from './SkillInstaller.js';
 import { hasSkillFile, loadSkillContent, loadSkillMetadata } from './SkillLoader.js';
 import type {
   SkillContent,
@@ -67,11 +71,14 @@ export class SkillRegistry {
    * 初始化注册表，扫描所有 skills 目录
    *
    * 优先级（后加载的覆盖先加载的）：
-   * 1. 内置 Skills（builtin）
+   * 1. 内置 Skills（builtin）- 作为 fallback，会被外部同名 Skill 覆盖
    * 2. Claude Code 用户级 Skills（~/.claude/skills/）
    * 3. Blade 用户级 Skills（~/.blade/skills/）
    * 4. Claude Code 项目级 Skills（.claude/skills/）
    * 5. Blade 项目级 Skills（.blade/skills/）- 优先级最高
+   *
+   * 注意：首次启动时，SkillInstaller 会自动下载官方 skill-creator 到
+   * ~/.blade/skills/，因此内置版本仅作为离线 fallback。
    */
   async initialize(): Promise<SkillDiscoveryResult> {
     if (this.initialized) {
@@ -84,11 +91,26 @@ export class SkillRegistry {
     const errors: SkillDiscoveryResult['errors'] = [];
     const discoveredSkills: SkillMetadata[] = [];
 
+    // 0. 确保默认 Skills 已安装（首次启动时从 GitHub 下载）
+    try {
+      const installer = getSkillInstaller(this.config.userSkillsDir);
+      await installer.ensureDefaultSkillsInstalled();
+    } catch (error) {
+      // 下载失败不阻塞启动，内置版本作为 fallback
+      errors.push({
+        path: 'SkillInstaller',
+        error: `Failed to install default skills: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+    }
+
     // 1. 加载内置 Skills（优先级最低，可被覆盖）
     this.loadBuiltinSkills();
 
     // 2. 扫描 Claude Code 用户级 skills（~/.claude/skills/）
-    const claudeUserResult = await this.scanDirectory(this.config.claudeUserSkillsDir, 'user');
+    const claudeUserResult = await this.scanDirectory(
+      this.config.claudeUserSkillsDir,
+      'user'
+    );
     discoveredSkills.push(...claudeUserResult.skills);
     errors.push(...claudeUserResult.errors);
 
@@ -269,7 +291,9 @@ export class SkillRegistry {
     for (const skill of modelInvocableSkills) {
       // 截断过长的描述，保持列表简洁
       const desc =
-        skill.description.length > 100 ? `${skill.description.substring(0, 97)}...` : skill.description;
+        skill.description.length > 100
+          ? `${skill.description.substring(0, 97)}...`
+          : skill.description;
 
       // 如果有 argument-hint，添加到名称后面
       const nameWithHint = skill.argumentHint
@@ -309,7 +333,9 @@ export function getSkillRegistry(config?: SkillRegistryConfig): SkillRegistry {
 /**
  * 初始化并获取所有 skills
  */
-export async function discoverSkills(config?: SkillRegistryConfig): Promise<SkillDiscoveryResult> {
+export async function discoverSkills(
+  config?: SkillRegistryConfig
+): Promise<SkillDiscoveryResult> {
   const registry = getSkillRegistry(config);
   return registry.initialize();
 }
