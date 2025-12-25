@@ -5,7 +5,7 @@
 
 import { Text } from 'ink';
 import React from 'react';
-import { themeManager } from '../themes/ThemeManager.js';
+import { useTheme } from '../../store/selectors/index.js';
 import { hasMarkdownFormat } from '../utils/markdown.js';
 
 interface InlineRendererProps {
@@ -43,7 +43,8 @@ function stableKey(content: string, seq: number): string {
  * <InlineRenderer text="This is **bold** and *italic* text" />
  */
 const InlineRendererInternal: React.FC<InlineRendererProps> = ({ text }) => {
-  const theme = themeManager.getTheme();
+  // 从 Store 获取主题（响应式）
+  const theme = useTheme();
 
   // 性能优化：纯文本快速路径
   if (!hasMarkdownFormat(text)) {

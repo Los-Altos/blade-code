@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { BladeConfig } from '../config/types.js';
 
 export class IdeContext {
@@ -155,35 +157,40 @@ export class IdeContext {
     return [process.cwd()];
   }
 
-  private getProjectName(): string {
+  private readPackageJson(): Record<string, unknown> | null {
     try {
-      const packageJson = require(`${process.cwd()}/package.json`);
-      return packageJson.name || 'unnamed-project';
+      const content = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf-8');
+      return JSON.parse(content);
     } catch {
-      return 'unnamed-project';
+      return null;
     }
   }
 
+  private getProjectName(): string {
+    const packageJson = this.readPackageJson();
+    return (packageJson?.name as string) || 'unnamed-project';
+  }
+
   private getProjectType(): string {
-    try {
-      const packageJson = require(`${process.cwd()}/package.json`);
+    const packageJson = this.readPackageJson();
+    if (!packageJson) return 'node';
 
-      // 基于依赖推测项目类型
-      const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+    // 基于依赖推测项目类型
+    const deps = {
+      ...(packageJson.dependencies as Record<string, string> || {}),
+      ...(packageJson.devDependencies as Record<string, string> || {}),
+    };
 
-      if (deps.react) return 'react';
-      if (deps.vue) return 'vue';
-      if (deps.angular) return 'angular';
-      if (deps.next) return 'nextjs';
-      if (deps.nuxt) return 'nuxt';
-      if (deps.electron) return 'electron';
-      if (deps.express) return 'express';
-      if (deps.koa) return 'koa';
+    if (deps.react) return 'react';
+    if (deps.vue) return 'vue';
+    if (deps.angular) return 'angular';
+    if (deps.next) return 'nextjs';
+    if (deps.nuxt) return 'nuxt';
+    if (deps.electron) return 'electron';
+    if (deps.express) return 'express';
+    if (deps.koa) return 'koa';
 
-      return 'node';
-    } catch {
-      return 'node';
-    }
+    return 'node';
   }
 
   private getPackageManager(): string {
@@ -194,11 +201,11 @@ export class IdeContext {
 
     // 基于存在文件推测
     try {
-      require('fs').accessSync(`${process.cwd()}/pnpm-lock.yaml`);
+      fs.accessSync(path.join(process.cwd(), 'pnpm-lock.yaml'));
       return 'pnpm';
     } catch {
       try {
-        require('fs').accessSync(`${process.cwd()}/yarn.lock`);
+        fs.accessSync(path.join(process.cwd(), 'yarn.lock'));
         return 'yarn';
       } catch {
         return 'npm';
@@ -207,39 +214,24 @@ export class IdeContext {
   }
 
   private getProjectDependencies(): Record<string, string> {
-    try {
-      const packageJson = require(`${process.cwd()}/package.json`);
-      return packageJson.dependencies || {};
-    } catch {
-      return {};
-    }
+    const packageJson = this.readPackageJson();
+    return (packageJson?.dependencies as Record<string, string>) || {};
   }
 
   private getDevDependencies(): Record<string, string> {
-    try {
-      const packageJson = require(`${process.cwd()}/package.json`);
-      return packageJson.devDependencies || {};
-    } catch {
-      return {};
-    }
+    const packageJson = this.readPackageJson();
+    return (packageJson?.devDependencies as Record<string, string>) || {};
   }
 
   private getScripts(): Record<string, string> {
-    try {
-      const packageJson = require(`${process.cwd()}/package.json`);
-      return packageJson.scripts || {};
-    } catch {
-      return {};
-    }
+    const packageJson = this.readPackageJson();
+    return (packageJson?.scripts as Record<string, string>) || {};
   }
 
   private getLanguagesInProject(): string[] {
     const languages = new Set<string>();
 
     try {
-      const fs = require('fs');
-      const path = require('path');
-
       const walkDir = (dir: string) => {
         const files = fs.readdirSync(dir);
 
@@ -389,8 +381,6 @@ class FileWatcher {
 
   public watchFile(filePath: string, callback: () => void): void {
     try {
-      const fs = require('fs');
-      const path = require('path');
       const fullPath = path.join(process.cwd(), filePath);
 
       // 检查文件是否存在

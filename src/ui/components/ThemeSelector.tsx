@@ -156,14 +156,8 @@ export const ThemeSelector: React.FC = () => {
     setIsProcessing(true);
 
     try {
-      // 切换主题
-      themeManager.setTheme(item.value);
-
-      // 使用 configActions 自动同步内存 + 持久化
+      // 使用 configActions 统一更新（同时更新 themeManager + Store + 持久化）
       await configActions().setTheme(item.value);
-
-      // 不显示成功通知（用户反馈：这个提示不需要显示）
-      // 主题切换效果是立即可见的，无需额外通知
 
       // 关闭选择器
       appActions.closeModal();

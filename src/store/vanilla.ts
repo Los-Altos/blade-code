@@ -22,6 +22,7 @@ import type {
   PermissionMode,
 } from '../config/types.js';
 import type { TodoItem } from '../tools/builtin/todo/types.js';
+import { themeManager } from '../ui/themes/ThemeManager.js';
 import {
   createAppSlice,
   createCommandSlice,
@@ -277,10 +278,27 @@ export const configActions = () => ({
    * 设置主题
    * @param theme 主题名称
    * @param options.scope 持久化范围（默认 'global'）
+   *
+   * 同时更新：
+   * 1. Store 中的 config.theme（触发订阅者重渲染）
+   * 2. themeManager 中的当前主题（提供实际主题数据）
+   * 3. 持久化到配置文件
    */
-  setTheme: async (theme: string, options: SaveOptions = {}): Promise<void> => {
-    getState().config.actions.updateConfig({ theme });
-    await getConfigService().save({ theme }, { scope: 'global', ...options });
+  setTheme: async (themeName: string, options: SaveOptions = {}): Promise<void> => {
+    // 1. 更新 themeManager 单例（立即生效）
+    try {
+      themeManager.setTheme(themeName);
+    } catch {
+      // 主题不存在，忽略（保持当前主题）
+      return;
+    }
+    // 2. 更新 Store（触发 React 组件重渲染）
+    getState().config.actions.updateConfig({ theme: themeName });
+    // 3. 持久化到配置文件
+    await getConfigService().save(
+      { theme: themeName },
+      { scope: 'global', ...options }
+    );
   },
 
   /**
@@ -558,5 +576,4 @@ export const configActions = () => ({
       { scope: 'project', ...options }
     );
   },
-
 });

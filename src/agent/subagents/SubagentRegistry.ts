@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import yaml from 'yaml';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
@@ -137,9 +138,6 @@ export class SubagentRegistry {
    * @returns 加载的 subagent 数量
    */
   loadFromStandardLocations(): number {
-    const os = require('node:os');
-    const path = require('node:path');
-
     // 1. 加载用户级配置
     const userAgentsDir = path.join(os.homedir(), '.blade', 'agents');
     this.loadFromDirectory(userAgentsDir);

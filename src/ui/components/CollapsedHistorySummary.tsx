@@ -7,7 +7,7 @@
 
 import { Box, Text } from 'ink';
 import React from 'react';
-import { themeManager } from '../themes/ThemeManager.js';
+import { useTheme } from '../../store/selectors/index.js';
 
 interface CollapsedHistorySummaryProps {
   /** 折叠的消息数量 */
@@ -21,11 +21,11 @@ interface CollapsedHistorySummaryProps {
  */
 export const CollapsedHistorySummary: React.FC<CollapsedHistorySummaryProps> =
   React.memo(({ collapsedCount }) => {
+    const theme = useTheme();
+
     if (collapsedCount <= 0) {
       return null;
     }
-
-    const theme = themeManager.getTheme();
     const mutedColor = theme.colors.text.muted;
 
     return (

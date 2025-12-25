@@ -7,6 +7,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import {
   getBladeStorageRoot,
+  getSessionFilePath,
   unescapeProjectPath,
 } from '../context/storage/pathUtils.js';
 import type { BladeJSONLEntry } from '../context/types.js';
@@ -278,7 +279,6 @@ export class SessionService {
    * 获取会话文件路径
    */
   private static getSessionFilePath(projectPath: string, sessionId: string): string {
-    const { getSessionFilePath } = require('../context/storage/pathUtils.js');
     return getSessionFilePath(projectPath, sessionId);
   }
 }

@@ -12,8 +12,8 @@
 
 import { Box, Text } from 'ink';
 import React from 'react';
+import { useTheme } from '../../store/selectors/index.js';
 import type { MessageRole } from '../../store/types.js';
-import { themeManager } from '../themes/ThemeManager.js';
 import { CodeHighlighter } from './CodeHighlighter.js';
 import { DiffRenderer } from './DiffRenderer.js';
 import { InlineRenderer } from './InlineRenderer.js';
@@ -28,11 +28,12 @@ export interface MessageRendererProps {
   isPending?: boolean; // 🆕 标记是否为流式传输中的消息
 }
 
-// 获取角色样式配置
-const getRoleStyle = (role: MessageRole, metadata?: Record<string, unknown>) => {
-  const theme = themeManager.getTheme();
-  const colors = theme.colors;
-
+// 获取角色样式配置（接受 theme 参数，从 Store 获取）
+const getRoleStyle = (
+  role: MessageRole,
+  colors: ReturnType<typeof useTheme>['colors'],
+  metadata?: Record<string, unknown>
+) => {
   switch (role) {
     case 'user':
       return { color: colors.info, prefix: '> ' };
@@ -70,7 +71,16 @@ const MARKDOWN_PATTERNS = {
 } as const;
 
 interface ParsedBlock {
-  type: 'text' | 'code' | 'heading' | 'table' | 'list' | 'hr' | 'empty' | 'diff' | 'command-message';
+  type:
+    | 'text'
+    | 'code'
+    | 'heading'
+    | 'table'
+    | 'list'
+    | 'hr'
+    | 'empty'
+    | 'diff'
+    | 'command-message';
   content: string;
   language?: string;
   level?: number;
@@ -90,6 +100,11 @@ interface ParsedBlock {
 
 /**
  * 解析 Markdown 内容为结构化块
+ *
+ * 嵌套代码块处理策略：
+ * - 使用嵌套深度计数器跟踪代码块层级
+ * - 只有当深度归零时才真正结束代码块
+ * - `markdown` 语言的代码块会被"解包"，其内容作为普通 markdown 重新解析
  */
 function parseMarkdown(content: string): ParsedBlock[] {
   const blocks: ParsedBlock[] = [];
@@ -98,6 +113,7 @@ function parseMarkdown(content: string): ParsedBlock[] {
   let inCodeBlock = false;
   let codeBlockContent: string[] = [];
   let codeBlockLang: string | null = null;
+  let codeBlockDepth = 0; // 🆕 嵌套深度计数器
 
   let inTable = false;
   let tableHeaders: string[] = [];
@@ -150,20 +166,47 @@ function parseMarkdown(content: string): ParsedBlock[] {
       continue;
     }
 
-    // 代码块处理
+    // 代码块处理（支持嵌套）
     if (inCodeBlock) {
-      const codeBlockMatch = line.match(MARKDOWN_PATTERNS.codeBlock);
-      if (codeBlockMatch) {
-        // 代码块结束
-        blocks.push({
-          type: 'code',
-          content: codeBlockContent.join('\n'),
-          language: codeBlockLang || undefined,
-        });
-        inCodeBlock = false;
-        codeBlockContent = [];
-        codeBlockLang = null;
-        lastLineEmpty = false;
+      const codeBlockStartMatch = line.match(MARKDOWN_PATTERNS.codeBlock);
+      const isCodeBlockEnd = line.trim() === '```'; // 纯结束标记
+
+      if (codeBlockStartMatch && codeBlockStartMatch[1]) {
+        // 遇到新的代码块开始（带语言标识），增加嵌套深度
+        codeBlockDepth++;
+        codeBlockContent.push(line);
+      } else if (isCodeBlockEnd) {
+        // 遇到代码块结束标记
+        if (codeBlockDepth > 0) {
+          // 还在嵌套中，减少深度，继续收集
+          codeBlockDepth--;
+          codeBlockContent.push(line);
+        } else {
+          // 最外层代码块结束
+          const codeContent = codeBlockContent.join('\n');
+
+          // 🆕 特殊处理 markdown 语言的代码块：解包并递归解析
+          if (
+            codeBlockLang?.toLowerCase() === 'markdown' ||
+            codeBlockLang?.toLowerCase() === 'md'
+          ) {
+            // 递归解析 markdown 内容
+            const innerBlocks = parseMarkdown(codeContent);
+            blocks.push(...innerBlocks);
+          } else {
+            blocks.push({
+              type: 'code',
+              content: codeContent,
+              language: codeBlockLang || undefined,
+            });
+          }
+
+          inCodeBlock = false;
+          codeBlockContent = [];
+          codeBlockLang = null;
+          codeBlockDepth = 0;
+          lastLineEmpty = false;
+        }
       } else {
         codeBlockContent.push(line);
       }
@@ -175,6 +218,7 @@ function parseMarkdown(content: string): ParsedBlock[] {
     if (codeBlockMatch) {
       inCodeBlock = true;
       codeBlockLang = codeBlockMatch[1] || null;
+      codeBlockDepth = 0; // 初始化嵌套深度
       lastLineEmpty = false;
       continue;
     }
@@ -322,11 +366,22 @@ function parseMarkdown(content: string): ParsedBlock[] {
 
   // 处理未闭合的代码块
   if (inCodeBlock) {
-    blocks.push({
-      type: 'code',
-      content: codeBlockContent.join('\n'),
-      language: codeBlockLang || undefined,
-    });
+    const codeContent = codeBlockContent.join('\n');
+
+    // 🆕 特殊处理 markdown 语言的代码块：解包并递归解析
+    if (
+      codeBlockLang?.toLowerCase() === 'markdown' ||
+      codeBlockLang?.toLowerCase() === 'md'
+    ) {
+      const innerBlocks = parseMarkdown(codeContent);
+      blocks.push(...innerBlocks);
+    } else {
+      blocks.push({
+        type: 'code',
+        content: codeContent,
+        language: codeBlockLang || undefined,
+      });
+    }
   }
 
   // 处理未闭合的表格
@@ -366,7 +421,7 @@ const Heading: React.FC<{
   content: string;
   level: number;
 }> = ({ content, level }) => {
-  const theme = themeManager.getTheme();
+  const theme = useTheme();
 
   // 根据级别设置样式
   switch (level) {
@@ -407,7 +462,7 @@ const Heading: React.FC<{
  * 渲染水平线
  */
 const HorizontalRule: React.FC<{ terminalWidth: number }> = ({ terminalWidth }) => {
-  const theme = themeManager.getTheme();
+  const theme = useTheme();
   const lineWidth = Math.max(0, Math.min(terminalWidth - 4, 80));
   return (
     <Text dimColor color={theme.colors.text.muted}>
@@ -432,7 +487,7 @@ const TextBlock: React.FC<{ content: string }> = ({ content }) => {
  * 显示为带图标的状态消息
  */
 const CommandMessage: React.FC<{ content: string }> = ({ content }) => {
-  const theme = themeManager.getTheme();
+  const theme = useTheme();
   return (
     <Box flexDirection="row" gap={1}>
       <Text color={theme.colors.info}>⏳</Text>
@@ -455,7 +510,7 @@ const ToolDetailRenderer: React.FC<{
   detail: string;
   terminalWidth: number;
 }> = React.memo(({ detail, terminalWidth }) => {
-  const theme = themeManager.getTheme();
+  const theme = useTheme();
   const MAX_LINES = 50; // 最大显示行数
   const lines = detail.split('\n');
 
@@ -568,10 +623,13 @@ function shallowCompareMetadata(
  */
 export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
   ({ content, role, terminalWidth, metadata, isPending = false }) => {
+    // 从 Store 获取主题（响应式）
+    const theme = useTheme();
+
     // 使用 useMemo 缓存角色样式计算
     const roleStyle = React.useMemo(
-      () => getRoleStyle(role, metadata),
-      [role, metadata]
+      () => getRoleStyle(role, theme.colors, metadata),
+      [role, theme.colors, metadata]
     );
     const { color, prefix } = roleStyle;
 

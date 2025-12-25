@@ -11,7 +11,7 @@
 
 import { Box, Text } from 'ink';
 import React, { useMemo } from 'react';
-import { themeManager } from '../themes/ThemeManager.js';
+import { useTheme } from '../../store/selectors/index.js';
 
 interface ThinkingBlockProps {
   /** 思考过程内容 */
@@ -55,7 +55,7 @@ function countLines(content: string): number {
  */
 export const ThinkingBlock: React.FC<ThinkingBlockProps> = React.memo(
   ({ content, isStreaming = false, isExpanded }) => {
-    const theme = themeManager.getTheme();
+    const theme = useTheme();
 
     const lineCount = useMemo(() => countLines(content), [content]);
     const summary = useMemo(() => generateSummary(content), [content]);

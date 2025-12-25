@@ -10,6 +10,7 @@
 
 import { useShallow } from 'zustand/react/shallow';
 import type { ModelConfig } from '../../config/types.js';
+import { themeManager } from '../../ui/themes/ThemeManager.js';
 import { useBladeStore } from '../index.js';
 import { type ActiveModal, type FocusId, PermissionMode } from '../types.js';
 
@@ -244,6 +245,35 @@ export const useCurrentModel = () =>
  */
 export const useCurrentModelId = () =>
   useBladeStore((state) => state.config.config?.currentModelId);
+
+/**
+ * 派生选择器：当前主题名称
+ * 用于触发主题相关组件的响应式更新
+ */
+export const useCurrentThemeName = () =>
+  useBladeStore((state) => state.config.config?.theme ?? 'default');
+
+/**
+ * 派生选择器：当前主题对象
+ * 订阅 Store 中的主题名称变化，并返回完整的 Theme 对象
+ *
+ * 内部自动同步 themeManager（如果名称不一致）
+ */
+export const useTheme = () =>
+  useBladeStore((state) => {
+    const themeName = state.config.config?.theme ?? 'default';
+
+    // 确保 themeManager 与 Store 同步
+    if (themeManager.getCurrentThemeName() !== themeName) {
+      try {
+        themeManager.setTheme(themeName);
+      } catch {
+        // 主题不存在，保持当前主题
+      }
+    }
+
+    return themeManager.getTheme();
+  });
 
 /**
  * 获取 Config Actions

@@ -2,6 +2,8 @@
  * 内置的 slash commands
  */
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { TokenCounter } from '../context/TokenCounter.js';
 import { getConfig, getCurrentModel, getState, sessionActions } from '../store/vanilla.js';
 import { getVersion } from '../utils/packageInfo.js';
@@ -117,8 +119,6 @@ const statusCommand: SlashCommand = {
   ): Promise<SlashCommandResult> {
     const ui = getUI(context);
     const { cwd } = context;
-    const path = require('path');
-    const fs = require('fs').promises;
 
     try {
       // 检查配置文件状态

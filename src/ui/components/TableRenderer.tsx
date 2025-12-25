@@ -10,7 +10,7 @@
 
 import { Box, Text } from 'ink';
 import React from 'react';
-import { themeManager } from '../themes/ThemeManager.js';
+import { useTheme } from '../../store/selectors/index.js';
 import { getPlainTextLength, truncateText } from '../utils/markdown.js';
 import { InlineRenderer } from './InlineRenderer.js';
 
@@ -36,7 +36,8 @@ export const TableRenderer: React.FC<TableRendererProps> = React.memo(({
   rows,
   terminalWidth,
 }) => {
-  const theme = themeManager.getTheme();
+  // 从 Store 获取主题（响应式）
+  const theme = useTheme();
 
   if (headers.length === 0 || rows.length === 0) {
     return null;

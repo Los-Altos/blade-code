@@ -8,10 +8,9 @@
 
 import { Box, Text } from 'ink';
 import React, { useEffect, useState } from 'react';
-import { useIsProcessing, useIsReady } from '../../store/selectors/index.js';
+import { useIsProcessing, useIsReady, useTheme } from '../../store/selectors/index.js';
 import { useLoadingIndicator } from '../hooks/useLoadingIndicator.js';
 import { useTerminalWidth } from '../hooks/useTerminalWidth.js';
-import { themeManager } from '../themes/ThemeManager.js';
 
 interface LoadingIndicatorProps {
   message?: string; // 自定义消息（向后兼容，优先级低于短语）
@@ -55,7 +54,7 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = React.memo(
     const visible = isProcessing || !isReady;
 
     const [spinnerFrame, setSpinnerFrame] = useState(0);
-    const theme = themeManager.getTheme();
+    const theme = useTheme();
 
     // 使用 useTerminalWidth hook 获取终端宽度
     const terminalWidth = useTerminalWidth();

@@ -4,7 +4,7 @@
 
 import { Box, Text } from 'ink';
 import React from 'react';
-import { themeManager } from '../themes/ThemeManager.js';
+import { useTheme } from '../../store/selectors/index.js';
 
 interface DiffRendererProps {
   patch: string; // unified diff 格式的 patch
@@ -100,7 +100,7 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
   terminalWidth,
   maxLines = 20, // 默认显示 20 行
 }) => {
-  const theme = themeManager.getTheme();
+  const theme = useTheme();
   const parsedLines = parsePatch(patch);
 
   // 计算行号列宽度

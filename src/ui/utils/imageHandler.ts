@@ -4,9 +4,9 @@
  * 负责处理粘贴的图片，包括保存到临时目录、生成引用标签等
  */
 
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { nanoid } from 'nanoid';
 
 /**
@@ -88,9 +88,8 @@ function getExtensionFromMediaType(mediaType: string): string {
  */
 export function cleanupTempImage(filePath: string): void {
   try {
-    const fs = require('node:fs');
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    if (existsSync(filePath)) {
+      unlinkSync(filePath);
       console.log(`[ImageHandler] Cleaned up temp image: ${filePath}`);
     }
   } catch (error) {

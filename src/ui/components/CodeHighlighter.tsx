@@ -5,7 +5,8 @@
 import { Box, Text } from 'ink';
 import { common, createLowlight } from 'lowlight';
 import React from 'react';
-import { themeManager } from '../themes/ThemeManager.js';
+import { useTheme } from '../../store/selectors/index.js';
+import { themeManager } from '../themes/ThemeManager.js'; // highlightLine 函数需要
 import type { SyntaxColors } from '../themes/types.js';
 
 // 创建 lowlight 实例
@@ -121,84 +122,81 @@ function highlightLine(
  * - 长代码块显示隐藏行数提示
  * - 减少不必要的语法高亮计算
  */
-export const CodeHighlighter: React.FC<CodeHighlighterProps> = React.memo(({
-  content,
-  language,
-  showLineNumbers = true,
-  terminalWidth,
-  availableHeight,
-}) => {
-  const theme = themeManager.getTheme();
-  let lines = content.split('\n');
-  let hiddenLinesCount = 0;
+export const CodeHighlighter: React.FC<CodeHighlighterProps> = React.memo(
+  ({ content, language, showLineNumbers = true, terminalWidth, availableHeight }) => {
+    // 从 Store 获取主题（响应式）
+    const theme = useTheme();
+    let lines = content.split('\n');
+    let hiddenLinesCount = 0;
 
-  // 智能截断：仅高亮可见行（性能优化）
-  if (availableHeight && lines.length > availableHeight) {
-    const MINIMUM_MAX_HEIGHT = 5; // 最小显示行数
-    const effectiveHeight = Math.max(availableHeight, MINIMUM_MAX_HEIGHT);
+    // 智能截断：仅高亮可见行（性能优化）
+    if (availableHeight && lines.length > availableHeight) {
+      const MINIMUM_MAX_HEIGHT = 5; // 最小显示行数
+      const effectiveHeight = Math.max(availableHeight, MINIMUM_MAX_HEIGHT);
 
-    if (lines.length > effectiveHeight) {
-      hiddenLinesCount = lines.length - effectiveHeight;
-      lines = lines.slice(hiddenLinesCount); // 只保留底部可见行
+      if (lines.length > effectiveHeight) {
+        hiddenLinesCount = lines.length - effectiveHeight;
+        lines = lines.slice(hiddenLinesCount); // 只保留底部可见行
+      }
     }
-  }
 
-  const totalLines = lines.length + hiddenLinesCount;
-  const lineNumberWidth = String(totalLines).length + 1;
-  // 不再截断代码行，让终端自然换行显示完整内容
-  // const maxCodeWidth = Math.max(20, terminalWidth - lineNumberWidth - 6);
+    const totalLines = lines.length + hiddenLinesCount;
+    const lineNumberWidth = String(totalLines).length + 1;
+    // 不再截断代码行，让终端自然换行显示完整内容
+    // const maxCodeWidth = Math.max(20, terminalWidth - lineNumberWidth - 6);
 
-  return (
-    <Box
-      borderStyle="round"
-      borderColor={theme.colors.border.light}
-      paddingX={1}
-      paddingY={0}
-      marginY={1}
-      flexDirection="column"
-    >
-      {/* 语言标签 */}
-      {language && (
-        <Box marginBottom={0}>
-          <Text color={theme.colors.text.secondary}>{language}</Text>
-        </Box>
-      )}
-
-      {/* 隐藏行数提示 */}
-      {hiddenLinesCount > 0 && (
-        <Box marginBottom={0}>
-          <Text color={theme.colors.text.muted} dimColor>
-            ... {hiddenLinesCount} lines hidden ...
-          </Text>
-        </Box>
-      )}
-
-      {/* 代码内容 */}
-      {lines.map((line, index) => {
-        const actualLineNumber = index + hiddenLinesCount + 1;
-
-        return (
-          <Box key={index} flexDirection="row">
-            {/* 行号 */}
-            {showLineNumbers && (
-              <Box width={lineNumberWidth}>
-                <Text color={theme.colors.text.muted} dimColor>
-                  {String(actualLineNumber).padStart(lineNumberWidth - 1, ' ')}
-                </Text>
-              </Box>
-            )}
-
-            {/* 代码内容 */}
-            <Box flexShrink={1}>
-              {line.trim() === '' ? (
-                <Text> </Text>
-              ) : (
-                highlightLine(line, language, theme.colors.syntax)
-              )}
-            </Box>
+    return (
+      <Box
+        borderStyle="round"
+        borderColor={theme.colors.border.light}
+        paddingX={1}
+        paddingY={0}
+        marginY={1}
+        flexDirection="column"
+      >
+        {/* 语言标签 */}
+        {language && (
+          <Box marginBottom={0}>
+            <Text color={theme.colors.text.secondary}>{language}</Text>
           </Box>
-        );
-      })}
-    </Box>
-  );
-});
+        )}
+
+        {/* 隐藏行数提示 */}
+        {hiddenLinesCount > 0 && (
+          <Box marginBottom={0}>
+            <Text color={theme.colors.text.muted} dimColor>
+              ... {hiddenLinesCount} lines hidden ...
+            </Text>
+          </Box>
+        )}
+
+        {/* 代码内容 */}
+        {lines.map((line, index) => {
+          const actualLineNumber = index + hiddenLinesCount + 1;
+
+          return (
+            <Box key={index} flexDirection="row">
+              {/* 行号 */}
+              {showLineNumbers && (
+                <Box width={lineNumberWidth}>
+                  <Text color={theme.colors.text.muted} dimColor>
+                    {String(actualLineNumber).padStart(lineNumberWidth - 1, ' ')}
+                  </Text>
+                </Box>
+              )}
+
+              {/* 代码内容 */}
+              <Box flexShrink={1}>
+                {line.trim() === '' ? (
+                  <Text> </Text>
+                ) : (
+                  highlightLine(line, language, theme.colors.syntax)
+                )}
+              </Box>
+            </Box>
+          );
+        })}
+      </Box>
+    );
+  }
+);
