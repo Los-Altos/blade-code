@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.38] - 2025-12-25
+
+### ✨ 新功能
+
+- 实现完整的钩子系统与Claude对齐 (dfe8edb)
+- 添加 Todo 列表更新回调并发送 ACP plan 更新 (691a651)
+
+### 🐛 问题修复
+
+- 添加操作中止检查并优化中止处理流程 (27596d4)
+
+
 ## [0.0.37] - 2025-12-25
 
 ### ✨ 新功能
