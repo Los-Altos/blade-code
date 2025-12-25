@@ -116,11 +116,12 @@ function highlightLine(
  * 代码高亮器组件
  *
  * 性能优化
+ * - 使用 React.memo 避免不必要的重渲染
  * - 支持 availableHeight 参数，仅高亮可见行
  * - 长代码块显示隐藏行数提示
  * - 减少不必要的语法高亮计算
  */
-export const CodeHighlighter: React.FC<CodeHighlighterProps> = ({
+export const CodeHighlighter: React.FC<CodeHighlighterProps> = React.memo(({
   content,
   language,
   showLineNumbers = true,
@@ -200,4 +201,4 @@ export const CodeHighlighter: React.FC<CodeHighlighterProps> = ({
       })}
     </Box>
   );
-};
+});

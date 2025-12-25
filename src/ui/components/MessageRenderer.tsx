@@ -543,6 +543,27 @@ const ToolDetailRenderer: React.FC<{
 });
 
 /**
+ * metadata 浅比较（避免 JSON.stringify 的性能开销）
+ * 只比较关键字段，忽略大对象如 detail
+ */
+function shallowCompareMetadata(
+  prev: Record<string, unknown> | undefined,
+  next: Record<string, unknown> | undefined
+): boolean {
+  // 引用相同
+  if (prev === next) return true;
+  // 一个为空另一个不为空
+  if (!prev || !next) return prev === next;
+
+  // 只比较关键字段（避免比较 detail 等大对象）
+  return (
+    prev.toolName === next.toolName &&
+    prev.phase === next.phase &&
+    prev.summary === next.summary
+  );
+}
+
+/**
  * 主要的消息渲染器组件
  */
 export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
@@ -657,8 +678,8 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
       prevProps.role === nextProps.role &&
       prevProps.terminalWidth === nextProps.terminalWidth &&
       prevProps.isPending === nextProps.isPending &&
-      // 对 metadata 进行浅比较
-      JSON.stringify(prevProps.metadata) === JSON.stringify(nextProps.metadata)
+      // 对 metadata 进行浅比较（避免 JSON.stringify 的性能开销）
+      shallowCompareMetadata(prevProps.metadata, nextProps.metadata)
     );
   }
 );

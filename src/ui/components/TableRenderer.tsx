@@ -24,13 +24,14 @@ interface TableRendererProps {
  * 表格渲染器组件
  *
  * 特性：
+ * - 使用 React.memo 避免不必要的重渲染
  * - 自动计算列宽（考虑 Markdown 格式后的真实显示宽度）
  * - 自动缩放以适应终端宽度
  * - 智能截断单元格内容（保留 Markdown 格式）
  * - 美观的 Unicode 边框
  * - 表头特殊样式
  */
-export const TableRenderer: React.FC<TableRendererProps> = ({
+export const TableRenderer: React.FC<TableRendererProps> = React.memo(({
   headers,
   rows,
   terminalWidth,
@@ -157,4 +158,4 @@ export const TableRenderer: React.FC<TableRendererProps> = ({
       {renderBorder('bottom')}
     </Box>
   );
-};
+});

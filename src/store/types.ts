@@ -81,6 +81,8 @@ export interface SessionActions {
   addMessage: (message: SessionMessage) => void;
   addUserMessage: (content: string) => void;
   addAssistantMessage: (content: string, thinkingContent?: string) => void;
+  /** 添加助手消息并同时清空 thinking 内容（原子操作，避免闪烁） */
+  addAssistantMessageAndClearThinking: (content: string) => void;
   addToolMessage: (content: string, metadata?: ToolMessageMetadata) => void;
   setCompacting: (isCompacting: boolean) => void;
   setCommand: (command: string | null) => void;

@@ -19,6 +19,16 @@ const STRIKETHROUGH_MARKER_LENGTH = 2; // ~~
 const _INLINE_CODE_MARKER_LENGTH = 1; // `
 
 /**
+ * 生成稳定的 key（基于内容和序号，而非位置索引）
+ * 避免流式更新时因位置变化导致的不必要重渲染
+ */
+function stableKey(content: string, seq: number): string {
+  // 简单哈希：取内容前 20 字符 + 长度 + 序号
+  const prefix = content.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '');
+  return `${prefix}-${content.length}-${seq}`;
+}
+
+/**
  * 内联 Markdown 渲染器组件
  *
  * 支持的格式：
@@ -42,6 +52,8 @@ const InlineRendererInternal: React.FC<InlineRendererProps> = ({ text }) => {
 
   const nodes: React.ReactNode[] = [];
   let lastIndex = 0;
+  let textSeq = 0; // 纯文本序号
+  let matchSeq = 0; // 匹配项序号
 
   // 统一正则表达式匹配所有内联格式
   // 顺序很重要：粗体在斜体之前，以避免 **text** 被误识别为两个 *
@@ -53,14 +65,13 @@ const InlineRendererInternal: React.FC<InlineRendererProps> = ({ text }) => {
   while ((match = inlineRegex.exec(text)) !== null) {
     // 添加匹配前的普通文本
     if (match.index > lastIndex) {
-      nodes.push(
-        <Text key={`t-${lastIndex}`}>{text.slice(lastIndex, match.index)}</Text>
-      );
+      const plainText = text.slice(lastIndex, match.index);
+      nodes.push(<Text key={stableKey(plainText, textSeq++)}>{plainText}</Text>);
     }
 
     const fullMatch = match[0];
     let renderedNode: React.ReactNode = null;
-    const key = `m-${match.index}`;
+    const key = stableKey(fullMatch, matchSeq++);
 
     try {
       // 粗体：**text**
@@ -170,7 +181,8 @@ const InlineRendererInternal: React.FC<InlineRendererProps> = ({ text }) => {
 
   // 添加最后剩余的普通文本
   if (lastIndex < text.length) {
-    nodes.push(<Text key={`t-${lastIndex}`}>{text.slice(lastIndex)}</Text>);
+    const remaining = text.slice(lastIndex);
+    nodes.push(<Text key={stableKey(remaining, textSeq++)}>{remaining}</Text>);
   }
 
   return <>{nodes.filter((node) => node !== null)}</>;

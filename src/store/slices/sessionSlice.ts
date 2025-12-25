@@ -102,6 +102,32 @@ export const createSessionSlice: StateCreator<BladeStore, [], [], SessionSlice> 
     },
 
     /**
+     * 添加助手消息并同时清空 thinking 内容（原子操作）
+     * 用于流式接收完成后，避免两次 state 更新导致的闪烁
+     *
+     * @param content 消息内容
+     */
+    addAssistantMessageAndClearThinking: (content: string) => {
+      const currentThinking = get().session.currentThinkingContent;
+      const message: SessionMessage = {
+        id: `assistant-${Date.now()}-${Math.random()}`,
+        role: 'assistant',
+        content,
+        timestamp: Date.now(),
+        thinkingContent: currentThinking || undefined,
+      };
+      // 单次 set 调用：同时添加消息和清空 thinking
+      set((state) => ({
+        session: {
+          ...state.session,
+          messages: [...state.session.messages, message],
+          currentThinkingContent: null,
+          error: null,
+        },
+      }));
+    },
+
+    /**
      * 添加工具消息
      */
     addToolMessage: (content: string, metadata?: ToolMessageMetadata) => {

@@ -353,13 +353,10 @@ export const useCommandHandler = (
           },
           // LLM 输出内容
           onContent: (content: string) => {
-            // 获取当前 thinking 内容，保存到消息中
             // 注意：abort 检查已在 Agent 内部统一处理
-            // 注意：这里需要在 addAssistantMessage 之前获取，因为 addMessage 会清空 currentThinkingContent
+            // 使用原子操作：同时添加消息并清空 thinking，避免两次 state 更新导致的闪烁
             if (content.trim()) {
-              sessionActions.addAssistantMessage(content);
-              // 清空流式 thinking 内容（已保存到消息中）
-              sessionActions.setCurrentThinkingContent(null);
+              sessionActions.addAssistantMessageAndClearThinking(content);
             }
           },
           // 工具调用开始
