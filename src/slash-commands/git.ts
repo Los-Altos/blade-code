@@ -157,6 +157,12 @@ async function handleReview(context: SlashCommandContext): Promise<SlashCommandR
 
   // 调用 Agent 进行 Review
   const agent = await Agent.create();
+
+  // 检查 Agent 创建期间是否已被中止
+  if (signal?.aborted) {
+    return { success: false, message: '操作已取消' };
+  }
+
   const sessionId = getState().session.sessionId;
 
   const reviewPrompt = `请对以下 Git 改动进行 Code Review。
@@ -223,6 +229,12 @@ async function handlePreCommit(context: SlashCommandContext): Promise<SlashComma
 
   // 调用 Agent 生成 commit message
   const agent = await Agent.create();
+
+  // 检查 Agent 创建期间是否已被中止
+  if (signal?.aborted) {
+    return { success: false, message: '操作已取消' };
+  }
+
   const sessionId = getState().session.sessionId;
 
   const commitPrompt = generateCommitPrompt(fileList, diff, recentCommits);
@@ -279,6 +291,12 @@ async function handleCommit(context: SlashCommandContext): Promise<SlashCommandR
 
   // 调用 Agent 生成 commit message
   const agent = await Agent.create();
+
+  // 检查 Agent 创建期间是否已被中止
+  if (signal?.aborted) {
+    return { success: false, message: '操作已取消' };
+  }
+
   const sessionId = getState().session.sessionId;
 
   const commitPrompt = generateCommitPrompt(fileList, diff, recentCommits);

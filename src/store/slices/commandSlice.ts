@@ -44,8 +44,16 @@ export const createCommandSlice: StateCreator<
 
     /**
      * 创建 AbortController
+     * 如果已存在未被中止的 controller，返回现有的
+     * 如果已被中止或不存在，创建新的
      */
     createAbortController: () => {
+      const existing = get().command.abortController;
+      // 如果已有未被中止的 controller，直接返回
+      if (existing && !existing.signal.aborted) {
+        return existing;
+      }
+      // 创建新的 controller
       const controller = new AbortController();
       set((state) => ({
         command: { ...state.command, abortController: controller },
@@ -68,8 +76,8 @@ export const createCommandSlice: StateCreator<
      * - 重置 isProcessing（乐观更新，立即响应用户）
      * - 清空待处理队列
      *
-     * 采用乐观更新策略：立即重置状态让 UI 响应，
-     * 后续 LLM 返回的结果会被 abortMessageSentRef 机制过滤掉。
+     * 注意：不清空 abortController，让后续代码能通过 signal.aborted 检测到中止状态
+     * abortController 会在 clearAbortController() 中清理
      */
     abort: () => {
       const { abortController } = get().command;
@@ -79,12 +87,12 @@ export const createCommandSlice: StateCreator<
         abortController.abort();
       }
 
-      // 重置 command 状态并清空队列
+      // 重置 command 状态并清空队列（保留 abortController 供后续检测）
       set((state) => ({
         command: {
           ...state.command,
           isProcessing: false,
-          abortController: null,
+          // 不清空 abortController，让后续代码能检测 signal.aborted
           pendingCommands: [],
         },
       }));

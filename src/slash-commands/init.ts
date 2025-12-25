@@ -65,6 +65,12 @@ const initCommand: SlashCommand = {
 
         // 创建 Agent 并分析现有文件
         const agent = await Agent.create();
+
+        // 检查 Agent 创建期间是否已被中止
+        if (signal?.aborted) {
+          return { success: false, message: '操作已取消' };
+        }
+
         const analysisPrompt = `Please analyze the existing BLADE.md file and provide improvement suggestions.
 
 **Important**:
@@ -164,6 +170,12 @@ const initCommand: SlashCommand = {
 
       // 创建 Agent 并生成内容
       const agent = await Agent.create();
+
+      // 检查 Agent 创建期间是否已被中止
+      if (signal?.aborted) {
+        return { success: false, message: '操作已取消' };
+      }
+
       const analysisPrompt = `Please analyze this codebase and generate BLADE.md content.
 
 **Important**: After each step, briefly describe what you found before proceeding.

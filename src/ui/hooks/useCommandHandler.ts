@@ -210,15 +210,16 @@ export const useCommandHandler = (
       return;
     }
 
-    // 乐观更新：立即显示"任务已停止"消息（防止重复）
+    // ⚠️ 顺序很重要：先触发 abort signal，再添加消息
+    // 这样 Agent 的 signal.aborted 检查能生效，阻止后续回调
+    commandActions.abort();
+    appActions.setTodos([]);
+
+    // 显示"任务已停止"消息（防止重复）
     if (!abortMessageSentRef.current) {
       sessionActions.addAssistantMessage('✋ 任务已停止');
       abortMessageSentRef.current = true;
     }
-
-    // 触发 abort signal，立即重置状态（乐观更新）
-    commandActions.abort();
-    appActions.setTodos([]);
   });
 
   // 处理命令提交
@@ -326,11 +327,18 @@ export const useCommandHandler = (
         // 构建用户消息内容（可能包含图片）
         const userMessageContent = buildUserMessageContent(resolved);
 
-        // 创建并设置 Agent
+        // ⚠️ 先创建 AbortController，再创建 Agent
+        // 这样用户在 Agent 初始化期间按 Ctrl+C 也能正确中止
+        const abortController = commandActions.createAbortController();
+
+        // 创建并设置 Agent（可能耗时，如连接 MCP）
         const agent = await createAgent();
 
-        // 从 store 获取 AbortController
-        const abortController = commandActions.createAbortController();
+        // 检查 Agent 创建期间是否已被中止
+        if (abortController.signal.aborted) {
+          logger.info('[handleCommandSubmit] Agent 创建期间已被中止');
+          return { success: false, error: 'aborted' };
+        }
 
         const chatContext = {
           messages: messages.map((msg) => ({
@@ -348,21 +356,19 @@ export const useCommandHandler = (
         const loopOptions = {
           // LLM 推理内容（Thinking 模型如 DeepSeek R1）
           onThinking: (content: string) => {
-            // 设置 thinking 内容（流式显示）
-            // 注意：abort 检查已在 Agent 内部统一处理
+            // abort 检查已在 Agent 内部统一处理
             sessionActions.setCurrentThinkingContent(content);
           },
           // LLM 输出内容
           onContent: (content: string) => {
-            // 注意：abort 检查已在 Agent 内部统一处理
-            // 使用原子操作：同时添加消息并清空 thinking，避免两次 state 更新导致的闪烁
+            // abort 检查已在 Agent 内部统一处理
             if (content.trim()) {
               sessionActions.addAssistantMessageAndClearThinking(content);
             }
           },
           // 工具调用开始
           onToolStart: (toolCall: ChatCompletionMessageToolCall) => {
-            // 注意：abort 检查已在 Agent 内部统一处理
+            // abort 检查已在 Agent 内部统一处理
             if (toolCall.type !== 'function') return;
             // 跳过 TodoWrite 的显示（任务列表由侧边栏显示）
             if (toolCall.function.name === 'TodoWrite') {
@@ -387,7 +393,7 @@ export const useCommandHandler = (
             toolCall: ChatCompletionMessageToolCall,
             result: ToolResult
           ) => {
-            // 注意：abort 检查已在 Agent 内部统一处理
+            // abort 检查已在 Agent 内部统一处理
             if (toolCall.type !== 'function') return;
             if (!result?.metadata?.summary) {
               return;
