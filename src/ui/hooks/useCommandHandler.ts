@@ -3,6 +3,7 @@ import type { ChatCompletionMessageToolCall } from 'openai/resources/chat';
 import { useEffect, useRef } from 'react';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
 import type { ContentPart } from '../../services/ChatServiceInterface.js';
+import { safeExit } from '../../services/GracefulShutdown.js';
 import type { SessionMetadata } from '../../services/SessionService.js';
 import {
   executeSlashCommand,
@@ -101,7 +102,7 @@ function handleSlashMessage(
       return true;
     }
     case 'exit_application':
-      process.exit(0);
+      safeExit(0);
       return true;
     default:
       return false;

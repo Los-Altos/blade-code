@@ -7,6 +7,7 @@ import {
   type SetupConfig,
 } from '../../config/types.js';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
+import { safeExit } from '../../services/GracefulShutdown.js';
 import { SessionService } from '../../services/SessionService.js';
 import {
   useActiveModal,
@@ -32,7 +33,6 @@ import { useMainInput } from '../hooks/useMainInput.js';
 import { useRefreshStatic } from '../hooks/useRefreshStatic.js';
 import { AgentCreationWizard } from './AgentCreationWizard.js';
 import { AgentsManager } from './AgentsManager.js';
-import { SkillsManager } from './SkillsManager.js';
 import { ChatStatusBar } from './ChatStatusBar.js';
 import { CommandSuggestions } from './CommandSuggestions.js';
 import { ConfirmationPrompt } from './ConfirmationPrompt.js';
@@ -43,6 +43,7 @@ import { ModelConfigWizard } from './ModelConfigWizard.js';
 import { ModelSelector } from './ModelSelector.js';
 import { PermissionsManager } from './PermissionsManager.js';
 import { SessionSelector } from './SessionSelector.js';
+import { SkillsManager } from './SkillsManager.js';
 import { ThemeSelector } from './ThemeSelector.js';
 
 // 创建 BladeInterface 专用 Logger
@@ -231,14 +232,14 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
 
       if (sessions.length === 0) {
         logger.error('没有找到历史会话');
-        process.exit(1);
+        safeExit(1);
       }
 
       // 显示会话选择器
       appActions.showSessionSelector(sessions);
     } catch (error) {
       logger.error('[BladeInterface] 加载会话失败:', error);
-      process.exit(1);
+      safeExit(1);
     }
   });
 
@@ -278,7 +279,7 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
     sessionActions.addAssistantMessage('❌ 设置已取消');
     sessionActions.addAssistantMessage('Blade 需要 API 配置才能正常工作。');
     sessionActions.addAssistantMessage('您可以稍后运行 Blade 重新进入设置向导。');
-    process.exit(0); // 退出程序
+    safeExit(0); // 退出程序
   });
 
   const closeModal = useMemoizedFn(() => {
@@ -544,66 +545,66 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
         {/* MessageArea 内部直接获取状态，不需要 props */}
         <MessageArea />
 
-          {/* 加载指示器 - 内部计算可见性 */}
-          <LoadingIndicator />
+        {/* 加载指示器 - 内部计算可见性 */}
+        <LoadingIndicator />
 
-          <InputArea
-            input={inputBuffer.value}
-            cursorPosition={inputBuffer.cursorPosition}
-            onChange={inputBuffer.setValue}
-            onChangeCursorPosition={inputBuffer.setCursorPosition}
-            onAddPasteMapping={inputBuffer.addPasteMapping}
-            onAddImagePasteMapping={inputBuffer.addImagePasteMapping}
-          />
+        <InputArea
+          input={inputBuffer.value}
+          cursorPosition={inputBuffer.cursorPosition}
+          onChange={inputBuffer.setValue}
+          onChangeCursorPosition={inputBuffer.setCursorPosition}
+          onAddPasteMapping={inputBuffer.addPasteMapping}
+          onAddImagePasteMapping={inputBuffer.addImagePasteMapping}
+        />
 
-          {inlineModelSelectorVisible && (
-            <Box marginTop={1} paddingX={2}>
-              <ModelSelector onClose={closeModal} onEdit={handleModelEditRequest} />
-            </Box>
-          )}
+        {inlineModelSelectorVisible && (
+          <Box marginTop={1} paddingX={2}>
+            <ModelSelector onClose={closeModal} onEdit={handleModelEditRequest} />
+          </Box>
+        )}
 
-          {inlineModelWizardMode && (
-            <Box marginTop={1} paddingX={2}>
-              <ModelConfigWizard
-                mode={inlineModelWizardMode}
-                modelId={editingModel?.id}
-                initialConfig={
-                  inlineModelWizardMode === 'edit' ? editingInitialConfig : undefined
-                }
-                onComplete={
-                  inlineModelWizardMode === 'edit'
-                    ? handleModelEditComplete
-                    : handleModelAddComplete
-                }
-                onCancel={closeModal}
-              />
-            </Box>
-          )}
+        {inlineModelWizardMode && (
+          <Box marginTop={1} paddingX={2}>
+            <ModelConfigWizard
+              mode={inlineModelWizardMode}
+              modelId={editingModel?.id}
+              initialConfig={
+                inlineModelWizardMode === 'edit' ? editingInitialConfig : undefined
+              }
+              onComplete={
+                inlineModelWizardMode === 'edit'
+                  ? handleModelEditComplete
+                  : handleModelAddComplete
+              }
+              onCancel={closeModal}
+            />
+          </Box>
+        )}
 
-          {agentsManagerVisible && (
-            <Box marginTop={1} paddingX={2}>
-              <AgentsManager onComplete={closeModal} onCancel={closeModal} />
-            </Box>
-          )}
+        {agentsManagerVisible && (
+          <Box marginTop={1} paddingX={2}>
+            <AgentsManager onComplete={closeModal} onCancel={closeModal} />
+          </Box>
+        )}
 
-          {agentCreationWizardVisible && (
-            <Box marginTop={1} paddingX={2}>
-              <AgentCreationWizard onComplete={closeModal} onCancel={closeModal} />
-            </Box>
-          )}
+        {agentCreationWizardVisible && (
+          <Box marginTop={1} paddingX={2}>
+            <AgentCreationWizard onComplete={closeModal} onCancel={closeModal} />
+          </Box>
+        )}
 
-          {skillsManagerVisible && (
-            <Box marginTop={1} paddingX={2}>
-              <SkillsManager onComplete={closeModal} onCancel={closeModal} />
-            </Box>
-          )}
+        {skillsManagerVisible && (
+          <Box marginTop={1} paddingX={2}>
+            <SkillsManager onComplete={closeModal} onCancel={closeModal} />
+          </Box>
+        )}
 
-          {/* 命令建议列表 - 显示在输入框下方 */}
-          <CommandSuggestions
-            suggestions={suggestions}
-            selectedIndex={selectedSuggestionIndex}
-            visible={showSuggestions && !inlineModelUiVisible}
-          />
+        {/* 命令建议列表 - 显示在输入框下方 */}
+        <CommandSuggestions
+          suggestions={suggestions}
+          selectedIndex={selectedSuggestionIndex}
+          visible={showSuggestions && !inlineModelUiVisible}
+        />
         {/* 状态栏 - 内部获取状态 */}
         <ChatStatusBar />
       </Box>

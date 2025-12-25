@@ -5,9 +5,21 @@
  * 1. 全局崩溃捕获 (uncaughtException/unhandledRejection)
  * 2. 信号处理 (SIGINT/SIGTERM)
  * 3. 资源清理和会话保存
+ * 4. 恢复终端状态（光标等）
  */
 
 import { createLogger, LogCategory } from '../logging/Logger.js';
+
+/**
+ * 恢复终端状态
+ * 确保退出时光标可见、终端模式正常
+ */
+function restoreTerminal(): void {
+  // 显示光标（ANSI 转义序列 ESC[?25h）
+  process.stdout.write('\x1B[?25h');
+  // 重置终端属性
+  process.stdout.write('\x1B[0m');
+}
 
 const logger = createLogger(LogCategory.SERVICE);
 
@@ -164,6 +176,9 @@ class GracefulShutdownManager {
     } catch (error) {
       console.error('[GracefulShutdown] 清理过程中发生错误:', error);
     } finally {
+      // 恢复终端状态（确保光标可见）
+      restoreTerminal();
+
       // 给 Ink 一点时间完成终端清理
       setTimeout(() => {
         process.exit(exitCode);
@@ -224,4 +239,15 @@ export const initializeGracefulShutdown = (): void => {
 
 export const isExiting = (): boolean => {
   return getGracefulShutdown().isExiting();
+};
+
+/**
+ * 安全退出应用
+ * 恢复终端状态后退出，确保光标可见
+ *
+ * @param exitCode - 退出码（默认 0）
+ */
+export const safeExit = (exitCode: number = 0): void => {
+  restoreTerminal();
+  process.exit(exitCode);
 };
