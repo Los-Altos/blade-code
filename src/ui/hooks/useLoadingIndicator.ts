@@ -26,24 +26,32 @@ export interface LoadingIndicatorState {
  *
  * @param isProcessing - Agent 是否正在处理
  * @param isWaiting - 是否等待用户确认
+ * @param paused - 是否暂停计时器（当被弹窗遮挡时使用）
  * @returns 加载指示器状态（短语和计时器）
  */
 export function useLoadingIndicator(
   isProcessing: boolean,
-  isWaiting = false
+  isWaiting = false,
+  paused = false
 ): LoadingIndicatorState {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
 
-  // 使用短语循环器
-  const currentPhrase = usePhraseCycler(isProcessing, isWaiting);
+  // 使用短语循环器（传递 paused 参数）
+  const currentPhrase = usePhraseCycler(isProcessing, isWaiting, paused);
 
   // 计时器逻辑
+  // 当 paused=true 时暂停计时器更新，但保持 startTime 不变（恢复后继续计时）
   useEffect(() => {
     if (!isProcessing) {
       // 停止处理时重置计时器
       setElapsedTime(0);
       setStartTime(null);
+      return;
+    }
+
+    // 暂停时不启动定时器，但保持当前状态
+    if (paused) {
       return;
     }
 
@@ -63,7 +71,7 @@ export function useLoadingIndicator(
     return () => {
       clearInterval(intervalId);
     };
-  }, [isProcessing, startTime]);
+  }, [isProcessing, startTime, paused]);
 
   return {
     currentPhrase,

@@ -14,6 +14,8 @@ import { useTerminalWidth } from '../hooks/useTerminalWidth.js';
 
 interface LoadingIndicatorProps {
   message?: string; // 自定义消息（向后兼容，优先级低于短语）
+  /** 是否暂停动画（当被其他弹窗遮挡时，避免无意义的重渲染） */
+  paused?: boolean;
 }
 
 /**
@@ -47,7 +49,7 @@ function formatElapsedTime(seconds: number): string {
  * 独立的加载动画，显示幽默短语、计时器和循环进度
  */
 export const LoadingIndicator: React.FC<LoadingIndicatorProps> = React.memo(
-  ({ message }) => {
+  ({ message, paused = false }) => {
     // 使用 Zustand selectors 获取状态
     const isProcessing = useIsProcessing();
     const isReady = useIsReady();
@@ -61,14 +63,17 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = React.memo(
     const isWideScreen = terminalWidth >= RESPONSIVE_BREAKPOINT;
 
     // 使用新的 hook 获取短语和计时器
+    // 当 paused=true 时，hook 内部的定时器也会暂停
     const { currentPhrase, elapsedTime } = useLoadingIndicator(
       visible,
-      false // isWaiting - 目前不需要等待确认状态
+      false, // isWaiting - 目前不需要等待确认状态
+      paused
     );
 
     // 动画效果：每 80ms 切换一帧
+    // 当 paused=true 时暂停动画，避免被遮挡时仍触发重渲染
     useEffect(() => {
-      if (!visible) {
+      if (!visible || paused) {
         setSpinnerFrame(0);
         return;
       }
@@ -78,7 +83,7 @@ export const LoadingIndicator: React.FC<LoadingIndicatorProps> = React.memo(
       }, 80);
 
       return () => clearInterval(timer);
-    }, [visible]);
+    }, [visible, paused]);
 
     if (!visible) {
       return null;

@@ -307,9 +307,14 @@ export const INFORMATIVE_TIPS = [
  *
  * @param isActive - 是否激活短语循环（通常在 Agent 处理中时为 true）
  * @param isWaiting - 是否等待用户确认（显示固定等待文本）
+ * @param paused - 是否暂停短语切换（当被弹窗遮挡时使用）
  * @returns 当前显示的短语
  */
-export function usePhraseCycler(isActive: boolean, isWaiting: boolean): string {
+export function usePhraseCycler(
+  isActive: boolean,
+  isWaiting: boolean,
+  paused = false
+): string {
   const [currentPhrase, setCurrentPhrase] = useState<string>('');
 
   useEffect(() => {
@@ -322,6 +327,11 @@ export function usePhraseCycler(isActive: boolean, isWaiting: boolean): string {
     // 未激活时不显示短语
     if (!isActive) {
       setCurrentPhrase('');
+      return;
+    }
+
+    // 暂停时保持当前短语，不启动新的定时器
+    if (paused) {
       return;
     }
 
@@ -349,7 +359,7 @@ export function usePhraseCycler(isActive: boolean, isWaiting: boolean): string {
     return () => {
       clearInterval(intervalId);
     };
-  }, [isActive, isWaiting]);
+  }, [isActive, isWaiting, paused]);
 
   return currentPhrase;
 }

@@ -550,8 +550,8 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
         {/* MessageArea 内部直接获取状态，不需要 props */}
         <MessageArea />
 
-        {/* 加载指示器 - 内部计算可见性 */}
-        <LoadingIndicator />
+        {/* 加载指示器 - 当有阻塞弹窗时暂停动画，避免无意义的重渲染 */}
+        <LoadingIndicator paused={hasBlockingModal} />
 
         <InputArea
           input={inputBuffer.value}

@@ -1,13 +1,20 @@
 /**
  * 代码高亮组件 - 使用 lowlight 进行语法高亮
+ *
+ * 特性：
+ * - 语法高亮（140+ 语言）
+ * - 智能换行（超长行按字符拆分，保留样式）
+ * - 行数截断（超出高度显示截断提示）
+ * - Unicode 感知（正确处理 emoji、汉字等）
  */
 
 import { Box, Text } from 'ink';
 import { common, createLowlight } from 'lowlight';
 import React from 'react';
 import { useTheme } from '../../store/selectors/index.js';
-import { themeManager } from '../themes/ThemeManager.js'; // highlightLine 函数需要
+import { themeManager } from '../themes/ThemeManager.js';
 import type { SyntaxColors } from '../themes/types.js';
+import { MaxSizedBox, MINIMUM_MAX_HEIGHT } from './MaxSizedBox.js';
 
 // 创建 lowlight 实例
 const lowlight = createLowlight(common);
@@ -29,7 +36,11 @@ function renderHastNode(
   key: number = 0
 ): React.ReactNode {
   if (node.type === 'text') {
-    return <Text key={key}>{node.value}</Text>;
+    return (
+      <Text key={key} wrap="wrap">
+        {node.value}
+      </Text>
+    );
   }
 
   if (node.type === 'element') {
@@ -53,7 +64,7 @@ function renderHastNode(
     );
 
     return (
-      <Text key={key} color={color}>
+      <Text key={key} color={color} wrap="wrap">
         {children}
       </Text>
     );
@@ -74,76 +85,76 @@ function renderHastNode(
 }
 
 /**
- * 高亮单行代码
+ * 高亮单行代码（不截断，由 MaxSizedBox 处理换行）
  */
 function highlightLine(
   line: string,
   language?: string,
-  syntaxColors?: SyntaxColors,
-  maxWidth?: number
+  syntaxColors?: SyntaxColors
 ): React.ReactNode {
   const colors = syntaxColors || themeManager.getTheme().colors.syntax;
-
-  // 截断过长的行（预留 "..." 的空间）
-  let displayLine = line;
-  if (maxWidth && line.length > maxWidth) {
-    displayLine = line.slice(0, maxWidth - 3) + '...';
-  }
 
   try {
     if (!language || !lowlight.registered(language)) {
       // 尝试自动检测语言
-      const result = lowlight.highlightAuto(displayLine);
-      // 如果自动检测返回空结果，降级为纯文本
+      const result = lowlight.highlightAuto(line);
       if (!result.children || result.children.length === 0) {
-        return <Text color={colors.default}>{displayLine}</Text>;
+        return (
+          <Text color={colors.default} wrap="wrap">
+            {line}
+          </Text>
+        );
       }
       return renderHastNode(result, colors);
     }
 
-    const result = lowlight.highlight(language, displayLine);
-    // 如果高亮返回空结果，降级为纯文本
+    const result = lowlight.highlight(language, line);
     if (!result.children || result.children.length === 0) {
-      return <Text color={colors.default}>{displayLine}</Text>;
+      return (
+        <Text color={colors.default} wrap="wrap">
+          {line}
+        </Text>
+      );
     }
     return renderHastNode(result, colors);
   } catch (_error) {
-    // 高亮失败，返回原始文本
-    return <Text color={colors.default}>{displayLine}</Text>;
+    return (
+      <Text color={colors.default} wrap="wrap">
+        {line}
+      </Text>
+    );
   }
 }
 
 /**
  * 代码高亮器组件
  *
- * 性能优化
- * - 使用 React.memo 避免不必要的重渲染
- * - 支持 availableHeight 参数，仅高亮可见行
- * - 长代码块显示隐藏行数提示
- * - 减少不必要的语法高亮计算
+ * 使用 MaxSizedBox 实现：
+ * - 智能换行：超长行按字符/单词拆分到多行，保留语法高亮样式
+ * - 高度截断：超出 availableHeight 时显示截断提示
+ * - Unicode 感知：正确处理 emoji、汉字等宽字符
  */
 export const CodeHighlighter: React.FC<CodeHighlighterProps> = React.memo(
   ({ content, language, showLineNumbers = true, terminalWidth, availableHeight }) => {
-    // 从 Store 获取主题（响应式）
     const theme = useTheme();
     let lines = content.split('\n');
     let hiddenLinesCount = 0;
 
     // 智能截断：仅高亮可见行（性能优化）
     if (availableHeight && lines.length > availableHeight) {
-      const MINIMUM_MAX_HEIGHT = 5; // 最小显示行数
       const effectiveHeight = Math.max(availableHeight, MINIMUM_MAX_HEIGHT);
 
       if (lines.length > effectiveHeight) {
         hiddenLinesCount = lines.length - effectiveHeight;
-        lines = lines.slice(hiddenLinesCount); // 只保留底部可见行
+        lines = lines.slice(hiddenLinesCount);
       }
     }
 
     const totalLines = lines.length + hiddenLinesCount;
     const lineNumberWidth = String(totalLines).length + 1;
-    // 截断超长行，避免 Ink 渲染混乱（超长行会导致布局问题）
-    const maxCodeWidth = Math.max(20, terminalWidth - lineNumberWidth - 6);
+    // 计算代码内容可用宽度（终端宽度 - 边框 - padding - 行号）
+    // 最小宽度 20，防止终端过窄或 terminalWidth 异常时布局崩溃
+    const boxMaxWidth = Math.max(20, terminalWidth - 4); // 4 = 边框(2) + paddingX(2)
 
     return (
       <Box
@@ -170,32 +181,30 @@ export const CodeHighlighter: React.FC<CodeHighlighterProps> = React.memo(
           </Box>
         )}
 
-        {/* 代码内容 */}
-        {lines.map((line, index) => {
-          const actualLineNumber = index + hiddenLinesCount + 1;
+        {/* 代码内容 - 使用 MaxSizedBox 实现智能换行 */}
+        <MaxSizedBox maxWidth={boxMaxWidth} maxHeight={availableHeight}>
+          {lines.map((line, index) => {
+            const actualLineNumber = index + hiddenLinesCount + 1;
 
-          return (
-            <Box key={index} flexDirection="row">
-              {/* 行号 */}
-              {showLineNumbers && (
-                <Box width={lineNumberWidth}>
-                  <Text color={theme.colors.text.muted} dimColor>
-                    {String(actualLineNumber).padStart(lineNumberWidth - 1, ' ')}
+            return (
+              <Box key={index} flexDirection="row">
+                {/* 行号 - 不换行 */}
+                {showLineNumbers && (
+                  <Text color={theme.colors.text.muted} dimColor wrap="truncate">
+                    {String(actualLineNumber).padStart(lineNumberWidth - 1, ' ')}{' '}
                   </Text>
-                </Box>
-              )}
+                )}
 
-              {/* 代码内容 */}
-              <Box flexShrink={1}>
+                {/* 代码内容 - 可换行 */}
                 {line.trim() === '' ? (
-                  <Text> </Text>
+                  <Text wrap="wrap"> </Text>
                 ) : (
-                  highlightLine(line, language, theme.colors.syntax, maxCodeWidth)
+                  highlightLine(line, language, theme.colors.syntax)
                 )}
               </Box>
-            </Box>
-          );
-        })}
+            );
+          })}
+        </MaxSizedBox>
       </Box>
     );
   }
