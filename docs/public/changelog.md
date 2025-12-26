@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.39] - 2025-12-26
+
+### ✨ 新功能
+
+- 优化加载指示器和代码高亮组件 (44c12d1)
+- 添加 Blade 命令和技能文档文件 (7b9a092)
+- 添加自定义 Slash Commands 系统 (db22092)
+
+
 ## [0.0.38] - 2025-12-25
 
 ### ✨ 新功能
