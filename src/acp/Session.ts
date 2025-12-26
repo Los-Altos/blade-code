@@ -217,15 +217,33 @@ export class AcpSession {
         (cmd) => !excludedInAcp.includes(cmd.name)
       );
 
-      const availableCommands: AvailableCommand[] = filteredCommands.map((cmd) => ({
-        // 命令名称不需要 / 前缀（根据 ACP 协议）
-        name: cmd.name,
-        description: cmd.description,
-        // 如果命令需要参数，添加 input.hint
-        input: cmd.aliases?.length
-          ? { hint: `Aliases: ${cmd.aliases.join(', ')}` }
-          : undefined,
-      }));
+      const availableCommands: AvailableCommand[] = filteredCommands.map((cmd) => {
+        // 构建 input hint
+        let hint: string | undefined;
+
+        // 优先使用 usage（包含参数提示，如 "/commit [message]"）
+        if (cmd.usage) {
+          // 提取参数部分（去掉命令名）
+          const usageParts = cmd.usage.replace(/^\/\w+\s*/, '').trim();
+          if (usageParts) {
+            hint = usageParts;
+          }
+        }
+
+        // 其次添加别名信息
+        if (cmd.aliases?.length) {
+          const aliasText = `Aliases: ${cmd.aliases.join(', ')}`;
+          hint = hint ? `${hint} | ${aliasText}` : aliasText;
+        }
+
+        return {
+          // 命令名称不需要 / 前缀（根据 ACP 协议）
+          name: cmd.name,
+          description: cmd.description,
+          // 如果命令需要参数或有别名，添加 input.hint
+          input: hint ? { hint } : undefined,
+        };
+      });
 
       logger.info(
         `[AcpSession ${this.id}] Sending available commands: ${JSON.stringify(availableCommands.map((c) => c.name))}`

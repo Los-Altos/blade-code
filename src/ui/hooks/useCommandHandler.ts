@@ -43,6 +43,22 @@ interface InvokeSkillData {
 }
 
 /**
+ * invoke_custom_command action 的数据类型
+ */
+interface InvokeCustomCommandData {
+  action: 'invoke_custom_command';
+  commandName: string;
+  processedContent: string;
+  config: {
+    description?: string;
+    allowedTools?: string[];
+    argumentHint?: string;
+    model?: string;
+    disableModelInvocation?: boolean;
+  };
+}
+
+/**
  * 处理 slash 命令返回的 UI 消息
  * 直接调用 appActions 而非使用 ActionMapper
  *
@@ -122,6 +138,19 @@ function isInvokeSkillAction(data: unknown): data is InvokeSkillData {
     data !== null &&
     (data as InvokeSkillData).action === 'invoke_skill' &&
     typeof (data as InvokeSkillData).skillName === 'string'
+  );
+}
+
+/**
+ * 检查 data 是否为 invoke_custom_command action
+ */
+function isInvokeCustomCommandAction(data: unknown): data is InvokeCustomCommandData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    (data as InvokeCustomCommandData).action === 'invoke_custom_command' &&
+    typeof (data as InvokeCustomCommandData).commandName === 'string' &&
+    typeof (data as InvokeCustomCommandData).processedContent === 'string'
   );
 }
 
@@ -267,7 +296,7 @@ export const useCommandHandler = (
 
           // 处理 invoke_skill action（User-invoked Skill）
           // 用户输入 /skill-name args 时，转换为普通消息走 Agent 流程
-          let isSkillInvocation = false;
+          let isSkillOrCommandInvocation = false;
           if (isInvokeSkillAction(slashResult.data)) {
             const { skillName, skillArgs } = slashResult.data;
 
@@ -279,7 +308,7 @@ export const useCommandHandler = (
             // 显示用户消息，然后跳出 slash command 分支，进入 Agent 流程
             sessionActions.addUserMessage(skillPrompt);
             userMessageAlreadyAdded = true; // 标记已添加
-            isSkillInvocation = true;
+            isSkillOrCommandInvocation = true;
 
             // 修改 resolved，让后续 Agent 流程使用 skillPrompt
             resolved = {
@@ -291,7 +320,40 @@ export const useCommandHandler = (
             // 不 return，跳出 if (isSlashCommand) 分支，进入普通消息处理
           }
 
-          if (!isSkillInvocation) {
+          // 处理 invoke_custom_command action（User-invoked Custom Command）
+          // 用户输入 /command-name args 时，处理后的内容发送给 AI
+          if (isInvokeCustomCommandAction(slashResult.data)) {
+            const { commandName, processedContent } = slashResult.data;
+
+            // 显示用户消息
+            sessionActions.addUserMessage(command);
+            userMessageAlreadyAdded = true;
+            isSkillOrCommandInvocation = true;
+
+            // 构建完整的命令提示（已包含处理后的内容）
+            const commandPrompt = `# Custom Command: /${commandName}
+
+The user has invoked the custom command "/${commandName}". Follow the instructions below to complete the task.
+
+---
+
+${processedContent}
+
+---
+
+Remember: Follow the above instructions carefully to complete the user's request.`;
+
+            // 修改 resolved，让后续 Agent 流程使用 commandPrompt
+            resolved = {
+              displayText: command,
+              text: commandPrompt,
+              images: [],
+              parts: [{ type: 'text', text: commandPrompt }],
+            };
+            // 不 return，跳出 if (isSlashCommand) 分支，进入普通消息处理
+          }
+
+          if (!isSkillOrCommandInvocation) {
             // 非 invoke_skill 的 slash command，正常处理
             if (!slashResult.success && slashResult.error) {
               sessionActions.addAssistantMessage(`❌ ${slashResult.error}`);

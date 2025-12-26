@@ -13,6 +13,7 @@ import { McpRegistry } from '../mcp/McpRegistry.js';
 import { registerCleanup } from '../services/GracefulShutdown.js';
 import type { VersionCheckResult } from '../services/VersionChecker.js';
 import { discoverSkills } from '../skills/index.js';
+import { initializeCustomCommands } from '../slash-commands/index.js';
 import { appActions, getState } from '../store/vanilla.js';
 import { BackgroundShellManager } from '../tools/builtin/shell/BackgroundShellManager.js';
 import { BladeInterface } from './components/BladeInterface.js';
@@ -125,7 +126,8 @@ export const AppWrapper: React.FC<AppProps> = (props) => {
       if (hookManager.isEnabled()) {
         const state = getState();
         const sessionId = state.session.sessionId;
-        const permissionMode = state.config.config?.permissionMode || PermissionMode.DEFAULT;
+        const permissionMode =
+          state.config.config?.permissionMode || PermissionMode.DEFAULT;
         const isResume = !!props.resume;
 
         const sessionStartResult = await hookManager.executeSessionStartHooks({
@@ -142,7 +144,10 @@ export const AppWrapper: React.FC<AppProps> = (props) => {
             process.env[key] = value;
           }
           if (props.debug) {
-            console.log('✓ SessionStart hooks 注入环境变量:', Object.keys(sessionStartResult.env).join(', '));
+            console.log(
+              '✓ SessionStart hooks 注入环境变量:',
+              Object.keys(sessionStartResult.env).join(', ')
+            );
           }
         }
 
@@ -175,7 +180,26 @@ export const AppWrapper: React.FC<AppProps> = (props) => {
       }
     }
 
-    // 9. 注册退出清理函数
+    // 9. 初始化自定义命令（发现并加载所有 .blade/commands/ 和 .claude/commands/ 下的命令）
+    try {
+      const customCommandsResult = await initializeCustomCommands(process.cwd());
+      if (props.debug && customCommandsResult.commands.length > 0) {
+        console.log(
+          `✓ 已加载 ${customCommandsResult.commands.length} 个自定义命令: ${customCommandsResult.commands.map((c) => c.name).join(', ')}`
+        );
+      }
+      if (customCommandsResult.errors.length > 0 && props.debug) {
+        for (const error of customCommandsResult.errors) {
+          console.warn(`⚠️ 自定义命令加载错误 (${error.path}): ${error.error}`);
+        }
+      }
+    } catch (error) {
+      if (props.debug) {
+        console.warn('⚠️ 自定义命令初始化失败:', formatErrorMessage(error));
+      }
+    }
+
+    // 10. 注册退出清理函数
     registerCleanup(async () => {
       BackgroundShellManager.getInstance().killAll();
       await McpRegistry.getInstance().disconnectAll();

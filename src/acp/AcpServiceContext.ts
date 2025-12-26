@@ -92,12 +92,24 @@ export class LocalTerminalService implements TerminalService {
           }, options.timeout)
         : null;
 
+      // 保存 abort handler 引用以便后续移除，避免 MaxListenersExceededWarning
+      let abortHandler: (() => void) | null = null;
+
+      const cleanup = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        if (abortHandler && options?.signal) {
+          options.signal.removeEventListener('abort', abortHandler);
+          abortHandler = null;
+        }
+      };
+
       // 处理中止信号
       if (options?.signal) {
-        options.signal.addEventListener('abort', () => {
+        abortHandler = () => {
           killed = true;
           proc.kill('SIGTERM');
-        });
+        };
+        options.signal.addEventListener('abort', abortHandler);
       }
 
       proc.stdout.on('data', (data) => {
@@ -113,7 +125,7 @@ export class LocalTerminalService implements TerminalService {
       });
 
       proc.on('close', (code) => {
-        if (timeoutId) clearTimeout(timeoutId);
+        cleanup();
 
         resolve({
           success: code === 0 && !killed,
@@ -125,7 +137,7 @@ export class LocalTerminalService implements TerminalService {
       });
 
       proc.on('error', (error) => {
-        if (timeoutId) clearTimeout(timeoutId);
+        cleanup();
 
         resolve({
           success: false,

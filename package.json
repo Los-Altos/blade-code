@@ -127,6 +127,7 @@
     "fullscreen-ink": "^0.1.0",
     "fuse.js": "^7.1.0",
     "glob": "^11.0.3",
+    "gray-matter": "^4.0.3",
     "ink": "npm:@jrichman/ink@6.4.6",
     "ink-big-text": "^2.0.0",
     "ink-gradient": "^3.0.0",

@@ -102,6 +102,18 @@ export class SecureProcessExecutor {
     // 6. 等待完成或超时
     return new Promise((resolve, reject) => {
       let timedOut = false;
+      let resolved = false;
+
+      // 保存 abort handler 引用，以便后续移除
+      let abortHandler: (() => void) | null = null;
+
+      const cleanup = () => {
+        // 移除 abort 监听器，避免内存泄漏
+        if (abortHandler && context.abortSignal) {
+          context.abortSignal.removeEventListener('abort', abortHandler);
+          abortHandler = null;
+        }
+      };
 
       const timer = setTimeout(() => {
         timedOut = true;
@@ -109,7 +121,10 @@ export class SecureProcessExecutor {
       }, timeoutMs);
 
       child.on('close', (code) => {
+        if (resolved) return;
+        resolved = true;
         clearTimeout(timer);
+        cleanup();
 
         resolve({
           stdout: stdout.getContent(),
@@ -120,14 +135,20 @@ export class SecureProcessExecutor {
       });
 
       child.on('error', (err) => {
+        if (resolved) return;
+        resolved = true;
         clearTimeout(timer);
+        cleanup();
         reject(err);
       });
 
       // 处理中止信号
       if (context.abortSignal) {
-        context.abortSignal.addEventListener('abort', () => {
+        abortHandler = () => {
+          if (resolved) return;
+          resolved = true;
           clearTimeout(timer);
+          cleanup();
           child.kill('SIGTERM');
           resolve({
             stdout: stdout.getContent(),
@@ -135,7 +156,8 @@ export class SecureProcessExecutor {
             exitCode: 1,
             timedOut: false,
           });
-        });
+        };
+        context.abortSignal.addEventListener('abort', abortHandler);
       }
     });
   }

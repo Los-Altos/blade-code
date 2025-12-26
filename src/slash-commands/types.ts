@@ -16,7 +16,8 @@ export type SlashCommandAction =
   | 'show_permissions_editor'
   | 'show_skills_manager'
   | 'show_hooks_manager'
-  | 'invoke_skill';
+  | 'invoke_skill'
+  | 'invoke_custom_command';
 
 /**
  * Slash command 返回的结构化数据
@@ -95,6 +96,8 @@ export interface AcpCallbacks {
  */
 export interface SlashCommandContext {
   cwd: string;
+  /** 工作目录（可选，默认为 cwd） */
+  workspaceRoot?: string;
   /** ACP 模式下的回调（可选） */
   acp?: AcpCallbacks;
   /** 取消信号（可选，用于中止长时间运行的操作） */

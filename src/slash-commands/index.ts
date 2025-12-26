@@ -6,6 +6,10 @@ import Fuse from 'fuse.js';
 import { discoverSkills, getSkillRegistry } from '../skills/index.js';
 import type { SkillMetadata } from '../skills/types.js';
 import { builtinCommands } from './builtinCommands.js';
+import {
+  type CustomCommandDiscoveryResult,
+  CustomCommandRegistry,
+} from './custom/index.js';
 import gitCommand from './git.js';
 import hooksCommand from './hooks.js';
 import ideCommand from './ide.js';
@@ -127,6 +131,26 @@ async function ensureSkillsInitialized(): Promise<void> {
 }
 
 /**
+ * 初始化自定义命令系统
+ *
+ * @param workspaceRoot - 工作目录
+ * @returns 命令发现结果
+ */
+export async function initializeCustomCommands(
+  workspaceRoot: string
+): Promise<CustomCommandDiscoveryResult> {
+  const registry = CustomCommandRegistry.getInstance();
+  return await registry.initialize(workspaceRoot);
+}
+
+/**
+ * 获取自定义命令注册表
+ */
+export function getCustomCommandRegistry(): CustomCommandRegistry {
+  return CustomCommandRegistry.getInstance();
+}
+
+/**
  * 执行 slash command
  */
 export async function executeSlashCommand(
@@ -142,7 +166,37 @@ export async function executeSlashCommand(
       return await slashCommand.handler(args, context);
     }
 
-    // 2. 确保 SkillRegistry 已初始化，再查找 User-invocable Skill
+    // 2. 查找自定义命令
+    const customRegistry = CustomCommandRegistry.getInstance();
+    if (customRegistry.hasCommand(command)) {
+      const customCommand = customRegistry.getCommand(command);
+      if (customCommand) {
+        const workspaceRoot = context.workspaceRoot || process.cwd();
+
+        // 执行命令内容处理（参数插值、Bash 嵌入、文件引用）
+        const processedContent = await customRegistry.executeCommand(command, {
+          args,
+          workspaceRoot,
+          signal: context.signal,
+        });
+
+        if (processedContent) {
+          // 返回处理后的内容，让 UI 层发送给 AI
+          return {
+            success: true,
+            message: `执行自定义命令: /${command}`,
+            data: {
+              action: 'invoke_custom_command',
+              commandName: command,
+              processedContent,
+              config: customCommand.config,
+            },
+          };
+        }
+      }
+    }
+
+    // 3. 确保 SkillRegistry 已初始化，再查找 User-invocable Skill
     await ensureSkillsInitialized();
     const skill = findUserInvocableSkill(command);
     if (skill) {
@@ -150,7 +204,7 @@ export async function executeSlashCommand(
       return await skillCommand.handler(args, context);
     }
 
-    // 3. 未找到命令
+    // 4. 未找到命令
     return {
       success: false,
       error: `未知命令: /${command}\n使用 /help 查看可用命令`,
@@ -164,16 +218,28 @@ export async function executeSlashCommand(
 }
 
 /**
- * 获取所有注册的命令（包括 User-invocable Skills）
+ * 获取所有注册的命令（包括自定义命令和 User-invocable Skills）
  */
 export function getRegisteredCommands(): SlashCommand[] {
   const builtinCmds = Object.values(slashCommands);
 
-  // 获取 User-invocable Skills 并转换为 SlashCommand
-  const registry = getSkillRegistry();
-  const skillCmds = registry.getUserInvocableSkills().map(createSkillSlashCommand);
+  // 获取自定义命令并转换为 SlashCommand
+  const customRegistry = CustomCommandRegistry.getInstance();
+  const customCmds = customRegistry.getAllCommands().map((cmd) => ({
+    name: cmd.name,
+    description: cmd.config.description || cmd.content.slice(0, 50),
+    usage: cmd.config.argumentHint
+      ? `/${cmd.name} ${cmd.config.argumentHint}`
+      : `/${cmd.name}`,
+    category: 'custom',
+    handler: async () => ({ success: true }),
+  }));
 
-  return [...builtinCmds, ...skillCmds];
+  // 获取 User-invocable Skills 并转换为 SlashCommand
+  const skillRegistry = getSkillRegistry();
+  const skillCmds = skillRegistry.getUserInvocableSkills().map(createSkillSlashCommand);
+
+  return [...builtinCmds, ...customCmds, ...skillCmds];
 }
 
 /**
@@ -209,27 +275,48 @@ export function getFuzzyCommandSuggestions(input: string): CommandSuggestion[] {
     name: cmd.name,
     description: cmd.description,
     aliases: cmd.aliases || [],
-    command: cmd,
+    label: undefined as string | undefined,
+    argumentHint: undefined as string | undefined,
+    isCustom: false,
+    isSkill: false,
+  }));
+
+  // 添加自定义命令
+  const customRegistry = CustomCommandRegistry.getInstance();
+  const customSearchable = customRegistry.getAllCommands().map((cmd) => ({
+    name: cmd.name,
+    description: cmd.config.description || cmd.content.slice(0, 50),
+    aliases: [] as string[],
+    label: customRegistry.getCommandLabel(cmd),
+    argumentHint: cmd.config.argumentHint,
+    isCustom: true,
     isSkill: false,
   }));
 
   // 添加 User-invocable Skills
-  const registry = getSkillRegistry();
-  const skillSearchable = registry.getUserInvocableSkills().map((skill) => ({
+  const skillRegistry = getSkillRegistry();
+  const skillSearchable = skillRegistry.getUserInvocableSkills().map((skill) => ({
     name: skill.name,
     description: skill.description,
     aliases: [] as string[],
-    command: createSkillSlashCommand(skill),
+    label: '(skill)' as string | undefined,
+    argumentHint: skill.argumentHint,
+    isCustom: false,
     isSkill: true,
   }));
 
-  const searchableCommands = [...builtinSearchable, ...skillSearchable];
+  const searchableCommands = [
+    ...builtinSearchable,
+    ...customSearchable,
+    ...skillSearchable,
+  ];
 
   if (!query) {
     // 如果没有输入，返回所有命令
     return searchableCommands.map((item) => ({
       command: `/${item.name}`,
-      description: item.description,
+      description: item.label ? `${item.description} ${item.label}` : item.description,
+      argumentHint: item.argumentHint,
       matchScore: 50,
     }));
   }
@@ -255,10 +342,12 @@ export function getFuzzyCommandSuggestions(input: string): CommandSuggestion[] {
   const suggestions: CommandSuggestion[] = results.map((result) => {
     const score = result.score ?? 1;
     const matchScore = Math.round((1 - score) * 100); // 转换为 0-100 分数
+    const item = result.item;
 
     return {
-      command: `/${result.item.name}`,
-      description: result.item.description,
+      command: `/${item.name}`,
+      description: item.label ? `${item.description} ${item.label}` : item.description,
+      argumentHint: item.argumentHint,
       matchScore,
     };
   });

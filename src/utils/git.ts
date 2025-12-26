@@ -849,9 +849,20 @@ export async function cloneRepository(
       let stderr = '';
 
       // 设置中止处理
+      // 保存 handler 引用以便后续移除，避免 MaxListenersExceededWarning
+      let abortHandler: (() => void) | null = null;
+
+      const removeAbortListener = () => {
+        if (abortHandler && options.signal) {
+          options.signal.removeEventListener('abort', abortHandler);
+          abortHandler = null;
+        }
+      };
+
       if (options.signal) {
-        const abortHandler = async () => {
+        abortHandler = async () => {
           isCancelled = true;
+          removeAbortListener();
           if (gitProcess && !gitProcess.killed) {
             gitProcess.stdout?.removeAllListeners();
             gitProcess.stderr?.removeAllListeners();
@@ -897,10 +908,12 @@ export async function cloneRepository(
       });
 
       gitProcess.on('error', (error) => {
+        removeAbortListener();
         reject(error);
       });
 
       gitProcess.on('close', (code) => {
+        removeAbortListener();
         if (isCancelled) return;
 
         if (code === 0) {

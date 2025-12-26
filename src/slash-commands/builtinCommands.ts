@@ -5,14 +5,20 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { TokenCounter } from '../context/TokenCounter.js';
-import { getConfig, getCurrentModel, getState, sessionActions } from '../store/vanilla.js';
+import { getConfig, getCurrentModel, getState } from '../store/vanilla.js';
 import { getVersion } from '../utils/packageInfo.js';
 import { agentsCommand } from './agents.js';
 import compactCommand from './compact.js';
+import { CustomCommandRegistry } from './custom/index.js';
 import mcpCommand from './mcp.js';
 import permissionsCommand from './permissions.js';
 import resumeCommand from './resume.js';
-import { getUI, type SlashCommand, type SlashCommandContext, type SlashCommandResult } from './types.js';
+import {
+  getUI,
+  type SlashCommand,
+  type SlashCommandContext,
+  type SlashCommandResult,
+} from './types.js';
 
 const helpCommand: SlashCommand = {
   name: 'help',
@@ -26,7 +32,7 @@ const helpCommand: SlashCommand = {
   ): Promise<SlashCommandResult> {
     const ui = getUI(context);
 
-    const helpText = `🔧 **可用的 Slash Commands:**
+    let helpText = `🔧 **可用的 Slash Commands:**
 
 **/init** - 分析当前项目并生成 BLADE.md 配置文件
 **/git** - Git 仓库查询和 AI 辅助 (status/log/diff/review/commit)
@@ -38,7 +44,41 @@ const helpCommand: SlashCommand = {
 **/compact** - 手动压缩上下文，生成总结并节省 token
 **/version** - 显示 Blade Code 版本信息
 **/status** - 显示当前配置状态
-**/permissions** - 管理本地权限规则
+**/permissions** - 管理本地权限规则`;
+
+    // 添加自定义命令列表
+    const customRegistry = CustomCommandRegistry.getInstance();
+    if (customRegistry.isInitialized()) {
+      const customCommands = customRegistry.getAllCommands();
+      if (customCommands.length > 0) {
+        helpText += `\n\n📁 **自定义命令:**\n`;
+
+        // 按来源分组
+        const { project, user } = customRegistry.getCommandsBySource();
+
+        if (project.length > 0) {
+          helpText += `\n**项目命令** (.blade/commands/):\n`;
+          for (const cmd of project) {
+            const hint = cmd.config.argumentHint ? ` ${cmd.config.argumentHint}` : '';
+            const desc = cmd.config.description || '(无描述)';
+            const ns = cmd.namespace ? ` (${cmd.namespace})` : '';
+            helpText += `**/${cmd.name}**${hint} - ${desc}${ns}\n`;
+          }
+        }
+
+        if (user.length > 0) {
+          helpText += `\n**用户命令** (~/.blade/commands/):\n`;
+          for (const cmd of user) {
+            const hint = cmd.config.argumentHint ? ` ${cmd.config.argumentHint}` : '';
+            const desc = cmd.config.description || '(无描述)';
+            const ns = cmd.namespace ? ` (${cmd.namespace})` : '';
+            helpText += `**/${cmd.name}**${hint} - ${desc}${ns}\n`;
+          }
+        }
+      }
+    }
+
+    helpText += `
 
 💡 **使用提示:**
 - 在命令前加上 \`/\` 即可执行 slash command
@@ -220,9 +260,12 @@ const contextCommand: SlashCommand = {
     }));
 
     const modelName = currentModel?.model || 'gpt-4';
-    const totalTokens = messages.length > 0 ? TokenCounter.countTokens(messages, modelName) : 0;
-    const maxTokens = currentModel?.maxContextTokens ?? config?.maxContextTokens ?? 128000;
-    const usagePercent = maxTokens > 0 ? ((totalTokens / maxTokens) * 100).toFixed(1) : '0';
+    const totalTokens =
+      messages.length > 0 ? TokenCounter.countTokens(messages, modelName) : 0;
+    const maxTokens =
+      currentModel?.maxContextTokens ?? config?.maxContextTokens ?? 128000;
+    const usagePercent =
+      maxTokens > 0 ? ((totalTokens / maxTokens) * 100).toFixed(1) : '0';
     const remainingPercent = (100 - parseFloat(usagePercent)).toFixed(1);
 
     // 确定状态指示器
