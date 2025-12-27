@@ -6,11 +6,11 @@
  * 2. 添加新模型（mode='add'）- 模态框显示
  *
  * 交互式配置流程:
- * Step 1: 配置名称
- * Step 2: 选择 Provider
- * Step 3: 输入 Base URL
- * Step 4: 输入 API Key (密码输入)
- * Step 5: 输入 Model
+ * Step 1: 选择 Provider（首先选择 API 类型）
+ * Step 2: 输入 Base URL（Anthropic/Gemini 预填充官方 URL，可修改用于代理服务）
+ * Step 3: 输入 API Key (密码输入)
+ * Step 4: 输入 Model
+ * Step 5: 配置名称（放最后，因为不是最重要的）
  * Step 6: 确认配置
  */
 
@@ -64,12 +64,31 @@ function getProviderDisplayName(provider: ProviderType): string {
   switch (provider) {
     case 'openai-compatible':
       return '⚡ OpenAI Compatible';
+    case 'anthropic':
+      return '🤖 Anthropic Claude';
+    case 'gemini':
+      return '✨ Google Gemini';
+    case 'azure-openai':
+      return '☁️ Azure OpenAI';
     case 'custom-openai':
       return '🔷 GPT OpenAI Platform';
-    case 'anthropic':
-      return '🤖 Anthropic';
     default:
       return provider;
+  }
+}
+
+/**
+ * 获取 Provider 的默认 Base URL
+ * 返回 null 表示必须由用户手动输入
+ */
+function getDefaultBaseUrl(provider: ProviderType): string | null {
+  switch (provider) {
+    case 'anthropic':
+      return 'https://api.anthropic.com';
+    case 'gemini':
+      return 'https://generativelanguage.googleapis.com/v1beta';
+    default:
+      return null; // 其他 Provider 需要用户手动输入
   }
 }
 
@@ -91,14 +110,26 @@ const ProviderStep: React.FC<ProviderStepProps> = ({
 
   const items = [
     {
-      label: '⚡ OpenAI Compatible - 兼容 OpenAI API 的服务 (千问/豆包/DeepSeek等)',
+      label:
+        '⚡ OpenAI Compatible - 兼容 OpenAI API 的服务 (千问/豆包/DeepSeek/Ollama等)',
       value: 'openai-compatible',
+    },
+    {
+      label: '🤖 Anthropic Claude - Claude 官方 API',
+      value: 'anthropic',
+    },
+    {
+      label: '✨ Google Gemini - Gemini 官方 API',
+      value: 'gemini',
+    },
+    {
+      label: '☁️ Azure OpenAI - 微软 Azure OpenAI 服务',
+      value: 'azure-openai',
     },
     {
       label: '🔷 GPT OpenAI Platform - Doubao GPT 平台 (内部)',
       value: 'custom-openai',
     },
-    { label: '🤖 Anthropic Claude API - Claude 官方 API', value: 'anthropic' },
   ];
 
   const initialIndex = initialProvider
@@ -112,7 +143,7 @@ const ProviderStep: React.FC<ProviderStepProps> = ({
     <Box flexDirection="column" marginBottom={1}>
       <Box marginBottom={1}>
         <Text bold color="blue">
-          📡 Step 2: 选择 API 提供商
+          📡 Step 1: 选择 API 提供商
         </Text>
       </Box>
       <Box marginBottom={1}>
@@ -229,6 +260,7 @@ interface ConfirmStepProps {
   mode: 'setup' | 'add' | 'edit';
   config: SetupConfig;
   isSaving: boolean;
+  stepNumber: number;
   onConfirm: () => void;
   onBack: () => void;
   onCancel: () => void;
@@ -238,6 +270,7 @@ const ConfirmStep: React.FC<ConfirmStepProps> = ({
   mode,
   config,
   isSaving,
+  stepNumber,
   onConfirm,
   onBack,
   onCancel,
@@ -263,7 +296,7 @@ const ConfirmStep: React.FC<ConfirmStepProps> = ({
     <Box flexDirection="column" marginBottom={1}>
       <Box marginBottom={1}>
         <Text bold color={mode === 'edit' ? 'yellow' : 'blue'}>
-          {mode === 'edit' ? '💾 确认修改' : '✅ Step 6: 确认配置'}
+          {mode === 'edit' ? '💾 确认修改' : `✅ Step ${stepNumber}: 确认配置`}
         </Text>
       </Box>
 
@@ -347,18 +380,16 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
 }) => {
   const isEditMode = mode === 'edit';
 
-  // 当前步骤
-  const [currentStep, setCurrentStep] = useState<WizardStep>('name');
+  // 当前步骤 - 从 provider 开始（name 放在最后）
+  const [currentStep, setCurrentStep] = useState<WizardStep>('provider');
 
   // 配置数据
   const [config, setConfig] = useState<Partial<SetupConfig>>(() =>
     isEditMode && initialConfig ? { ...initialConfig } : {}
   );
 
-  // 输入状态
-  const [inputValue, setInputValue] = useState(
-    isEditMode && initialConfig ? initialConfig.name : ''
-  );
+  // 输入状态 - 初始为空（provider 步骤不需要 inputValue）
+  const [inputValue, setInputValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -407,14 +438,19 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
     setConfig({ ...config, name: inputValue });
     setInputValue('');
     setError(null);
-    setCurrentStep('provider');
+    setCurrentStep('confirm'); // Name 后跳转到确认（Step 6）
   };
 
   const handleProviderSelect = (provider: ProviderType) => {
     setConfig({ ...config, provider });
+
+    // 编辑模式：使用已有配置
+    // 新建模式：预填充默认 URL（如有），用户可修改或直接回车
+    const defaultUrl = getDefaultBaseUrl(provider);
     const nextBaseUrl = isEditMode
       ? (config.baseUrl ?? initialConfig?.baseUrl ?? '')
-      : '';
+      : (defaultUrl ?? '');
+
     setInputValue(nextBaseUrl);
     setCurrentStep('baseUrl');
   };
@@ -460,9 +496,11 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
     }
 
     setConfig({ ...config, model: inputValue });
-    setInputValue('');
+    // 编辑模式：预填充已有的名称
+    const nextName = isEditMode ? (config.name ?? initialConfig?.name ?? '') : '';
+    setInputValue(nextName);
     setError(null);
-    setCurrentStep('confirm');
+    setCurrentStep('name'); // Model 后跳转到 Name（Step 5）
   };
 
   const handleConfirm = async () => {
@@ -503,10 +541,11 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
     setError(null);
     setInputValue('');
 
+    // 步骤顺序：provider → baseUrl → apiKey → model → name → confirm
     switch (currentStep) {
       case 'provider':
-        setInputValue(config.name || '');
-        setCurrentStep('name');
+        // provider 是第一步，返回时取消
+        onCancel();
         break;
       case 'baseUrl':
         setCurrentStep('provider');
@@ -518,9 +557,13 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
       case 'model':
         setCurrentStep('apiKey');
         break;
-      case 'confirm':
+      case 'name':
         setInputValue(config.model || '');
         setCurrentStep('model');
+        break;
+      case 'confirm':
+        setInputValue(config.name || '');
+        setCurrentStep('name');
         break;
     }
   };
@@ -529,21 +572,22 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
   // 渲染
   // ========================================
 
-  // 计算进度
+  // 计算进度（顺序：provider → baseUrl → apiKey → model → name → confirm）
+  const totalSteps = 6;
   const stepNumber =
-    currentStep === 'name'
+    currentStep === 'provider'
       ? 1
-      : currentStep === 'provider'
+      : currentStep === 'baseUrl'
         ? 2
-        : currentStep === 'baseUrl'
+        : currentStep === 'apiKey'
           ? 3
-          : currentStep === 'apiKey'
+          : currentStep === 'model'
             ? 4
-            : currentStep === 'model'
+            : currentStep === 'name'
               ? 5
               : 6;
 
-  const progress = Math.floor(((stepNumber - 1) / 5) * 40);
+  const progress = Math.floor(((stepNumber - 1) / (totalSteps - 1)) * 40);
 
   // mode='setup': 全屏显示（带欢迎标题和进度条）
   // mode='add': 模态框显示（带边框和简洁标题）
@@ -587,7 +631,7 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
             <Text dimColor>{'░'.repeat(40 - progress)}</Text>
             <Text> </Text>
             <Text bold color="cyan">
-              {stepNumber}/6
+              {stepNumber}/{totalSteps}
             </Text>
           </Box>
 
@@ -607,7 +651,9 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
 
           {/* 进度指示 */}
           <Box marginBottom={1}>
-            <Text>步骤: {stepNumber}/6</Text>
+            <Text>
+              步骤: {stepNumber}/{totalSteps}
+            </Text>
           </Box>
         </>
       ) : (
@@ -618,18 +664,20 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
             </Text>
           </Box>
           <Box marginBottom={1}>
-            <Text>步骤: {stepNumber}/6</Text>
+            <Text>
+              步骤: {stepNumber}/{totalSteps}
+            </Text>
           </Box>
         </>
       )}
 
-      {/* Name 输入 */}
+      {/* Name 输入 - Step 5 */}
       {currentStep === 'name' && (
         <TextInputStep
-          stepNumber={1}
+          stepNumber={5}
           icon="📝"
           title="配置名称"
-          description="给这个模型配置起一个易于识别的名称"
+          description="给这个模型配置起一个易于识别的名称（可选，用于区分多个配置）"
           value={inputValue}
           placeholder="例如: 千问工作账号"
           onChange={setInputValue}
@@ -647,18 +695,24 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
         />
       )}
 
-      {/* Base URL 输入 */}
+      {/* Base URL 输入 - Step 2 */}
       {currentStep === 'baseUrl' && (
         <TextInputStep
-          stepNumber={3}
+          stepNumber={2}
           icon="🌐"
           title="配置 Base URL"
           description="输入您的 API 端点地址（完整的 URL 包含协议）"
+          hint={
+            config.provider && getDefaultBaseUrl(config.provider)
+              ? '💡 已预填充官方 URL，直接回车使用。如需代理服务（如 OpenRouter），请修改。'
+              : undefined
+          }
           examples={[
             '• OpenAI: https://api.openai.com/v1',
-            '• 千问: https://dashscope.aliyuncs.com/compatible-mode/v1',
-            '• 豆包: https://ark.cn-beijing.volces.com/api/v3',
-            '• DeepSeek: https://api.deepseek.com/v1',
+            '• Anthropic: https://api.anthropic.com',
+            '• Gemini: https://generativelanguage.googleapis.com/v1beta',
+            '• Azure: https://{resource}.openai.azure.com',
+            '• 代理: https://openrouter.ai/api/v1',
           ]}
           value={inputValue}
           placeholder="https://api.example.com/v1"
@@ -668,17 +722,15 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
         />
       )}
 
-      {/* API Key 输入 */}
+      {/* API Key 输入 - Step 3 */}
       {currentStep === 'apiKey' && (
         <TextInputStep
-          stepNumber={4}
+          stepNumber={3}
           icon="🔑"
           title="输入 API Key"
           description="您的 API 密钥将被安全存储在 ~/.blade/config.json (权限 600)"
           hint="💡 提示: 输入时字符会被隐藏，支持粘贴 (Ctrl+V / Cmd+V)"
-          previousValue={
-            config.baseUrl ? `✓ 当前 Base URL: ${config.baseUrl}` : undefined
-          }
+          previousValue={config.baseUrl ? `✓ Base URL: ${config.baseUrl}` : undefined}
           value={inputValue}
           placeholder="sk-..."
           mask="*"
@@ -688,19 +740,20 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
         />
       )}
 
-      {/* Model 输入 */}
+      {/* Model 输入 - Step 4 */}
       {currentStep === 'model' && (
         <TextInputStep
-          stepNumber={5}
+          stepNumber={4}
           icon="🤖"
           title="选择模型"
           description="输入您想使用的模型名称（请参考您的 API 提供商文档）"
           examples={[
-            '• OpenAI: gpt-5, gpt-5-mini, gpt-5-nano',
-            '• Claude: claude-sonnet-4.5, claude-opus-4.1',
+            '• OpenAI: gpt-4o, gpt-4o-mini, o1-preview',
+            '• Claude: claude-sonnet-4-20250514, claude-opus-4-20250514',
+            '• Gemini: gemini-2.5-pro, gemini-2.5-flash',
+            '• Azure: {deployment-name}',
             '• 千问: qwen3-max, qwen3-235b, qwen3-32b',
             '• DeepSeek: deepseek-v3.1, deepseek-r1-0528',
-            '• 豆包: doubao-seed-1.6, doubao-seed-1.6-flash',
           ]}
           value={inputValue}
           placeholder="例如: gpt-5"
@@ -716,6 +769,7 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
           mode={mode}
           config={config as SetupConfig}
           isSaving={isSaving}
+          stepNumber={totalSteps}
           onConfirm={handleConfirm}
           onBack={handleBack}
           onCancel={onCancel}

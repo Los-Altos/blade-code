@@ -5,8 +5,15 @@
 
 /**
  * LLM API 提供商类型
+ *
+ * 支持的 Provider：
+ * - openai-compatible: OpenAI 兼容 API（DeepSeek、Ollama 等）
+ * - anthropic: Anthropic Claude API
+ * - gemini: Google Gemini API
+ * - azure-openai: Azure OpenAI Service
+ * - custom-openai: Doubao GPT 平台（内部使用）
  */
-export type ProviderType = 'openai-compatible' | 'anthropic' | 'custom-openai';
+export type ProviderType = 'openai-compatible' | 'anthropic' | 'gemini' | 'azure-openai' | 'custom-openai';
 
 /**
  * 权限模式枚举

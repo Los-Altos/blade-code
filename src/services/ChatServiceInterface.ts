@@ -5,8 +5,11 @@
 
 import type { ChatCompletionMessageToolCall } from 'openai/resources/chat';
 import type { ProviderType } from '../config/types.js';
-import type { MessageRole } from '../store/types.js';
 import { createLogger, LogCategory } from '../logging/Logger.js';
+import type { MessageRole } from '../store/types.js';
+import { AnthropicChatService } from './AnthropicChatService.js';
+import { AzureOpenAIChatService } from './AzureOpenAIChatService.js';
+import { GeminiChatService } from './GeminiChatService.js';
 import { GptOpenaiPlatformChatService } from './GptOpenaiPlatformChatService.js';
 import { OpenAIChatService } from './OpenAIChatService.js';
 
@@ -71,7 +74,11 @@ export interface ChatConfig {
  * - DeepSeek 官方 API: reasoning_content
  * - zenmux.ai 等代理: reasoning
  */
-export type ReasoningFieldName = 'reasoning_content' | 'reasoning' | 'reasoningContent' | 'thinking_content';
+export type ReasoningFieldName =
+  | 'reasoning_content'
+  | 'reasoning'
+  | 'reasoningContent'
+  | 'thinking_content';
 
 /**
  * 聊天响应
@@ -155,17 +162,17 @@ export function createChatService(config: ChatConfig): IChatService {
     case 'openai-compatible':
       return new OpenAIChatService(config);
 
+    case 'anthropic':
+      return new AnthropicChatService(config);
+
+    case 'gemini':
+      return new GeminiChatService(config);
+
+    case 'azure-openai':
+      return new AzureOpenAIChatService(config);
+
     case 'custom-openai':
       return new GptOpenaiPlatformChatService(config);
-
-    case 'anthropic':
-      // Anthropic 暂未实现，抛出友好错误
-      throw new Error(
-        '❌ Anthropic provider 暂未实现\n\n' +
-          '请使用 "openai-compatible" 提供商，或者:\n' +
-          '1. 等待官方实现\n' +
-          '2. 贡献代码实现此功能: https://github.com/echoVic/blade-code\n'
-      );
 
     default:
       logger.warn(`⚠️  未知的 provider: ${config.provider}, 回退到 openai-compatible`);

@@ -10,13 +10,30 @@ import { useMemoizedFn, useMount } from 'ahooks';
 import { Box, Text, useFocus, useFocusManager, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
 import { memo, useMemo, useState } from 'react';
-import type { ModelConfig } from '../../config/types.js';
-import {
-  useAllModels,
-  useCurrentModelId,
-} from '../../store/selectors/index.js';
+import type { ModelConfig, ProviderType } from '../../config/types.js';
+import { useAllModels, useCurrentModelId } from '../../store/selectors/index.js';
 import { configActions } from '../../store/vanilla.js';
 import { useCtrlCHandler } from '../hooks/useCtrlCHandler.js';
+
+/**
+ * 获取 Provider 显示名称
+ */
+function getProviderDisplayName(provider: ProviderType): string {
+  switch (provider) {
+    case 'openai-compatible':
+      return '⚡ OpenAI Compatible';
+    case 'anthropic':
+      return '🤖 Anthropic Claude';
+    case 'gemini':
+      return '✨ Google Gemini';
+    case 'azure-openai':
+      return '☁️ Azure OpenAI';
+    case 'custom-openai':
+      return '🔷 GPT OpenAI Platform';
+    default:
+      return provider;
+  }
+}
 
 interface ModelSelectorProps {
   onClose: () => void;
@@ -226,7 +243,7 @@ export const ModelSelector = memo(({ onClose, onEdit }: ModelSelectorProps) => {
               </Text>
               <Text>
                 <Text dimColor>Provider: </Text>
-                <Text bold>{selectedModel.provider}</Text>
+                <Text bold>{getProviderDisplayName(selectedModel.provider)}</Text>
               </Text>
               <Text>
                 <Text dimColor>Model: </Text>
