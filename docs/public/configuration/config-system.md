@@ -21,6 +21,18 @@ Blade 使用双文件配置体系：`config.json`（基础配置）和 `settings
 
 **模型与连接**
 
+Blade 支持多种模型提供商，包括 OpenAI 兼容接口、Anthropic、Gemini、Azure OpenAI 等。
+
+**支持的 Provider**
+
+- `openai-compatible`: OpenAI 兼容接口（DeepSeek, Ollama, Qwen 等）
+- `anthropic`: Anthropic Claude
+- `gemini`: Google Gemini
+- `azure-openai`: Azure OpenAI Service
+- `custom-openai`: Doubao内部 GPT 平台
+
+**模型配置示例**
+
 ```json
 {
   "currentModelId": "qwen-main",
@@ -33,13 +45,38 @@ Blade 使用双文件配置体系：`config.json`（基础配置）和 `settings
       "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
       "model": "qwen-max",
       "temperature": 0,
-      "maxContextTokens": 128000,
-      "topP": 0.9,
-      "topK": 50
+      "maxContextTokens": 128000
+    },
+    {
+      "id": "gemini-pro",
+      "name": "Gemini Pro",
+      "provider": "gemini",
+      "apiKey": "${GEMINI_API_KEY}",
+      "model": "gemini-1.5-pro-latest",
+      "maxContextTokens": 1000000
+    },
+    {
+      "id": "deepseek-r1",
+      "name": "DeepSeek R1",
+      "provider": "openai-compatible",
+      "apiKey": "${DEEPSEEK_API_KEY}",
+      "baseUrl": "https://api.deepseek.com",
+      "model": "deepseek-reasoner",
+      "supportsThinking": true,
+      "thinkingBudget": 16000
     }
   ]
 }
 ```
+
+**模型字段说明**
+
+| 字段 | 说明 | 备注 |
+| --- | --- | --- |
+| `provider` | 提供商类型 | 见上文支持列表 |
+| `supportsThinking` | 是否支持思维链 (CoT) | 用于 DeepSeek R1 等推理模型 |
+| `thinkingBudget` | 思维链 Token 预算 | 仅当 `supportsThinking` 为 true 时生效 |
+| `apiVersion` | API 版本 | Azure OpenAI / GPT Platform 必填 |
 
 **通用参数**
 

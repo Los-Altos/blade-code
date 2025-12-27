@@ -62,7 +62,7 @@ echo "请总结这段文字" | blade -p --output-format json
 ## 🧭 交互界面要点
 
 - `/` 开头触发 Slash 命令补全，`@` 开头触发文件路径补全（自动读取并注入上下文，见「@ 文件提及」章节）。
-- 快捷键：`Ctrl+C / Ctrl+D` 终止任务或退出；`Ctrl+L` 清屏；`Esc` 关闭建议/中断执行；`Shift+Tab` 在 `default → autoEdit → plan` 间循环。
+- 快捷键：`Ctrl+C / Ctrl+D` 终止任务或退出；`Ctrl+L` 清屏；`Ctrl+T` 展开/折叠思维链；`Esc` 关闭建议/中断执行；`Shift+Tab` 在 `default → autoEdit → plan` 间循环。
 - 没有模型配置时自动进入模型向导；若解析配置失败会在对话区显示错误。
 
 ## 🔁 示例
