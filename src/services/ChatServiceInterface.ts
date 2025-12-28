@@ -8,7 +8,9 @@ import type { ProviderType } from '../config/types.js';
 import { createLogger, LogCategory } from '../logging/Logger.js';
 import type { MessageRole } from '../store/types.js';
 import { AnthropicChatService } from './AnthropicChatService.js';
+import { AntigravityChatService } from './AntigravityChatService.js';
 import { AzureOpenAIChatService } from './AzureOpenAIChatService.js';
+import { CopilotChatService } from './CopilotChatService.js';
 import { GeminiChatService } from './GeminiChatService.js';
 import { GptOpenaiPlatformChatService } from './GptOpenaiPlatformChatService.js';
 import { OpenAIChatService } from './OpenAIChatService.js';
@@ -173,6 +175,12 @@ export function createChatService(config: ChatConfig): IChatService {
 
     case 'custom-openai':
       return new GptOpenaiPlatformChatService(config);
+
+    case 'antigravity':
+      return new AntigravityChatService(config);
+
+    case 'copilot':
+      return new CopilotChatService(config);
 
     default:
       logger.warn(`⚠️  未知的 provider: ${config.provider}, 回退到 openai-compatible`);

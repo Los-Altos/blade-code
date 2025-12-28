@@ -12,8 +12,17 @@
  * - gemini: Google Gemini API
  * - azure-openai: Azure OpenAI Service
  * - custom-openai: Doubao GPT 平台（内部使用）
+ * - antigravity: Google Antigravity（OAuth 认证，统一网关访问 Claude/Gemini/GPT-OSS）
+ * - copilot: GitHub Copilot（OAuth 认证，访问 GPT-4o/Claude/Gemini 等模型）
  */
-export type ProviderType = 'openai-compatible' | 'anthropic' | 'gemini' | 'azure-openai' | 'custom-openai';
+export type ProviderType =
+  | 'openai-compatible'
+  | 'anthropic'
+  | 'gemini'
+  | 'azure-openai'
+  | 'custom-openai'
+  | 'antigravity'
+  | 'copilot';
 
 /**
  * 权限模式枚举
@@ -76,6 +85,9 @@ export interface ModelConfig {
 
   // GPT OpenAI Platform 特有配置
   apiVersion?: string; // API 版本（如 '2024-03-01-preview'）
+
+  // Antigravity 特有配置
+  projectId?: string; // Antigravity 项目 ID（可通过 API 自动获取）
 }
 
 export interface BladeConfig {

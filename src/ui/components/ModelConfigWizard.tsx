@@ -19,6 +19,10 @@ import SelectInput from 'ink-select-input';
 import TextInput from 'ink-text-input';
 import React, { useEffect, useState } from 'react';
 import type { ProviderType, SetupConfig } from '../../config/types.js';
+import { AntigravityAuth } from '../../services/antigravity/AntigravityAuth.js';
+import { ANTIGRAVITY_MODELS } from '../../services/antigravity/types.js';
+import { CopilotAuth } from '../../services/copilot/CopilotAuth.js';
+import { COPILOT_MODELS } from '../../services/copilot/types.js';
 import { configActions } from '../../store/vanilla.js';
 import { useCtrlCHandler } from '../hooks/useCtrlCHandler.js';
 
@@ -30,7 +34,15 @@ interface ModelConfigWizardProps {
   onCancel: () => void; // 取消回调
 }
 
-type WizardStep = 'name' | 'provider' | 'baseUrl' | 'apiKey' | 'model' | 'confirm';
+type WizardStep =
+  | 'name'
+  | 'provider'
+  | 'baseUrl'
+  | 'apiKey'
+  | 'model'
+  | 'oauthModelSelect' // OAuth provider 的模型选择（从列表选择）
+  | 'oauthLogin' // OAuth 登录提示
+  | 'confirm';
 
 // ========================================
 // 步骤组件：Provider 选择
@@ -57,24 +69,74 @@ const SelectItem: React.FC<{ isSelected?: boolean; label: string }> = ({
   </Text>
 );
 
+// ========================================
+// Provider 配置（与 ProviderType 关联）
+// ========================================
+
+/**
+ * Provider 配置信息
+ */
+interface ProviderInfo {
+  icon: string;
+  name: string;
+  description: string;
+  isOAuth: boolean;
+}
+
+/**
+ * 所有 Provider 的配置（类型安全，与 ProviderType 一一对应）
+ */
+const PROVIDER_CONFIG: Record<ProviderType, ProviderInfo> = {
+  'openai-compatible': {
+    icon: '⚡',
+    name: 'OpenAI Compatible',
+    description: '兼容 OpenAI API 的服务 (千问/豆包/DeepSeek/Ollama等)',
+    isOAuth: false,
+  },
+  anthropic: {
+    icon: '🤖',
+    name: 'Anthropic Claude',
+    description: 'Claude 官方 API',
+    isOAuth: false,
+  },
+  gemini: {
+    icon: '✨',
+    name: 'Google Gemini',
+    description: 'Gemini 官方 API',
+    isOAuth: false,
+  },
+  antigravity: {
+    icon: '🚀',
+    name: 'Google Antigravity',
+    description: 'OAuth 登录使用 Claude/Gemini (需 Code Assist 订阅)',
+    isOAuth: true,
+  },
+  copilot: {
+    icon: '🐙',
+    name: 'GitHub Copilot',
+    description: 'OAuth 登录使用 GPT/Claude/Gemini (需 Copilot 订阅)',
+    isOAuth: true,
+  },
+  'azure-openai': {
+    icon: '☁️',
+    name: 'Azure OpenAI',
+    description: '微软 Azure OpenAI 服务',
+    isOAuth: false,
+  },
+  'custom-openai': {
+    icon: '🔷',
+    name: 'GPT OpenAI Platform',
+    description: 'Doubao GPT 平台 (内部)',
+    isOAuth: false,
+  },
+};
+
 /**
  * 获取 Provider 显示名称
  */
 function getProviderDisplayName(provider: ProviderType): string {
-  switch (provider) {
-    case 'openai-compatible':
-      return '⚡ OpenAI Compatible';
-    case 'anthropic':
-      return '🤖 Anthropic Claude';
-    case 'gemini':
-      return '✨ Google Gemini';
-    case 'azure-openai':
-      return '☁️ Azure OpenAI';
-    case 'custom-openai':
-      return '🔷 GPT OpenAI Platform';
-    default:
-      return provider;
-  }
+  const info = PROVIDER_CONFIG[provider];
+  return `${info.icon} ${info.name}`;
 }
 
 /**
@@ -87,6 +149,10 @@ function getDefaultBaseUrl(provider: ProviderType): string | null {
       return 'https://api.anthropic.com';
     case 'gemini':
       return 'https://generativelanguage.googleapis.com/v1beta';
+    case 'antigravity':
+      return 'https://cloudcode-pa.googleapis.com'; // Antigravity 固定端点
+    case 'copilot':
+      return 'https://api.githubcopilot.com'; // Copilot 固定端点
     default:
       return null; // 其他 Provider 需要用户手动输入
   }
@@ -108,29 +174,14 @@ const ProviderStep: React.FC<ProviderStepProps> = ({
     { isActive: isFocused }
   );
 
-  const items = [
-    {
-      label:
-        '⚡ OpenAI Compatible - 兼容 OpenAI API 的服务 (千问/豆包/DeepSeek/Ollama等)',
-      value: 'openai-compatible',
-    },
-    {
-      label: '🤖 Anthropic Claude - Claude 官方 API',
-      value: 'anthropic',
-    },
-    {
-      label: '✨ Google Gemini - Gemini 官方 API',
-      value: 'gemini',
-    },
-    {
-      label: '☁️ Azure OpenAI - 微软 Azure OpenAI 服务',
-      value: 'azure-openai',
-    },
-    {
-      label: '🔷 GPT OpenAI Platform - Doubao GPT 平台 (内部)',
-      value: 'custom-openai',
-    },
-  ];
+  // 从 PROVIDER_CONFIG 生成 items（类型安全）
+  const items = (Object.keys(PROVIDER_CONFIG) as ProviderType[]).map((provider) => {
+    const info = PROVIDER_CONFIG[provider];
+    return {
+      label: `${info.icon} ${info.name} - ${info.description}`,
+      value: provider,
+    };
+  });
 
   const initialIndex = initialProvider
     ? Math.max(
@@ -266,6 +317,158 @@ interface ConfirmStepProps {
   onCancel: () => void;
 }
 
+// ========================================
+// 步骤组件：OAuth 登录提示
+// ========================================
+interface OAuthLoginStepProps {
+  provider: 'antigravity' | 'copilot';
+  onLogin: () => void;
+  onCancel: () => void;
+  isLoggingIn: boolean;
+}
+
+const OAuthLoginStep: React.FC<OAuthLoginStepProps> = ({
+  provider,
+  onLogin,
+  onCancel,
+  isLoggingIn,
+}) => {
+  const { isFocused } = useFocus({ id: 'oauth-login-step' });
+
+  useInput(
+    (input, key) => {
+      if (isLoggingIn) return;
+
+      if (input === 'y' || input === 'Y') {
+        onLogin();
+      } else if (input === 'n' || input === 'N' || key.escape) {
+        onCancel();
+      }
+    },
+    { isActive: isFocused && !isLoggingIn }
+  );
+
+  const providerInfo =
+    provider === 'antigravity'
+      ? {
+          name: 'Google Antigravity',
+          icon: '🚀',
+          loginCommand: '/login',
+          description: '通过 Google OAuth 登录，使用 Claude/Gemini 模型',
+        }
+      : {
+          name: 'GitHub Copilot',
+          icon: '🐙',
+          loginCommand: '/login copilot',
+          description: '通过 GitHub Device Flow 登录，使用 GPT/Claude/Gemini 模型',
+        };
+
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <Box marginBottom={1}>
+        <Text bold color="yellow">
+          {providerInfo.icon} 需要登录 {providerInfo.name}
+        </Text>
+      </Box>
+
+      <Box marginBottom={1}>
+        <Text>{providerInfo.description}</Text>
+      </Box>
+
+      <Box marginBottom={1} paddingLeft={2}>
+        <Text dimColor>
+          您也可以稍后手动执行 <Text bold>{providerInfo.loginCommand}</Text> 命令登录
+        </Text>
+      </Box>
+
+      {!isLoggingIn && (
+        <Box marginTop={1}>
+          <Text>
+            现在登录？ [
+            <Text bold color="green">
+              Y
+            </Text>
+            /
+            <Text bold color="red">
+              n
+            </Text>
+            ]
+          </Text>
+        </Box>
+      )}
+
+      {isLoggingIn && (
+        <Box marginTop={1}>
+          <Text color="yellow">⏳ 正在启动登录流程...</Text>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+// ========================================
+// 步骤组件：OAuth 模型选择
+// ========================================
+interface OAuthModelSelectStepProps {
+  provider: 'antigravity' | 'copilot';
+  onSelect: (modelId: string) => void;
+  onCancel: () => void;
+}
+
+const OAuthModelSelectStep: React.FC<OAuthModelSelectStepProps> = ({
+  provider,
+  onSelect,
+  onCancel,
+}) => {
+  const { isFocused } = useFocus({ id: 'oauth-model-step' });
+
+  useInput(
+    (_input, key) => {
+      if (key.escape) {
+        onCancel();
+      }
+    },
+    { isActive: isFocused }
+  );
+
+  // 根据 provider 获取模型列表
+  const models =
+    provider === 'antigravity'
+      ? Object.values(ANTIGRAVITY_MODELS)
+      : Object.values(COPILOT_MODELS);
+
+  const items = models.map((model) => ({
+    label: `${model.name} - ${model.description}`,
+    value: model.id,
+  }));
+
+  const providerName = provider === 'antigravity' ? 'Antigravity' : 'Copilot';
+
+  return (
+    <Box flexDirection="column" marginBottom={1}>
+      <Box marginBottom={1}>
+        <Text bold color="blue">
+          🤖 选择 {providerName} 模型
+        </Text>
+      </Box>
+      <Box marginBottom={1}>
+        <Text>从可用模型列表中选择一个</Text>
+      </Box>
+      <Box marginBottom={1}>
+        <SelectInput
+          items={items}
+          onSelect={(item) => onSelect(item.value)}
+          indicatorComponent={SelectIndicator}
+          itemComponent={SelectItem}
+        />
+      </Box>
+    </Box>
+  );
+};
+
+// ========================================
+// 步骤组件：确认配置
+// ========================================
 const ConfirmStep: React.FC<ConfirmStepProps> = ({
   mode,
   config,
@@ -333,8 +536,14 @@ const ConfirmStep: React.FC<ConfirmStepProps> = ({
         <Box marginBottom={1}>
           <Text dimColor>API Key: </Text>
           <Text bold color="yellow">
-            {config.apiKey?.slice(0, 8)}
-            {'*'.repeat(Math.min(32, (config.apiKey?.length || 0) - 8))}
+            {config.apiKey === 'oauth' ? (
+              '🔐 OAuth 认证（使用 /login 登录）'
+            ) : (
+              <>
+                {config.apiKey?.slice(0, 8)}
+                {'*'.repeat(Math.min(32, (config.apiKey?.length || 0) - 8))}
+              </>
+            )}
           </Text>
         </Box>
 
@@ -391,6 +600,7 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
   // 输入状态 - 初始为空（provider 步骤不需要 inputValue）
   const [inputValue, setInputValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // 使用智能 Ctrl+C 处理（没有任务，所以会直接退出）
@@ -422,6 +632,10 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
       focus('provider-step');
     } else if (currentStep === 'confirm') {
       focus('confirm-step');
+    } else if (currentStep === 'oauthLogin') {
+      focus('oauth-login-step');
+    } else if (currentStep === 'oauthModelSelect') {
+      focus('oauth-model-step');
     }
     // name、baseUrl、apiKey、model 步骤不调用 focus()，让 TextInput 自然获得键盘控制权
   }, [currentStep, focus]);
@@ -441,9 +655,33 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
     setCurrentStep('confirm'); // Name 后跳转到确认（Step 6）
   };
 
-  const handleProviderSelect = (provider: ProviderType) => {
+  const handleProviderSelect = async (provider: ProviderType) => {
     setConfig({ ...config, provider });
 
+    // OAuth 提供商：检查登录状态，直接进入模型选择
+    if (isOAuthProvider(provider)) {
+      const auth =
+        provider === 'antigravity'
+          ? AntigravityAuth.getInstance()
+          : CopilotAuth.getInstance();
+
+      try {
+        const isLoggedIn = await auth.isLoggedIn();
+        if (isLoggedIn) {
+          // 已登录，直接进入模型选择
+          setCurrentStep('oauthModelSelect');
+        } else {
+          // 未登录，提示登录
+          setCurrentStep('oauthLogin');
+        }
+      } catch {
+        // 检查登录状态失败，提示登录
+        setCurrentStep('oauthLogin');
+      }
+      return;
+    }
+
+    // 非 OAuth 提供商：走原来的流程
     // 编辑模式：使用已有配置
     // 新建模式：预填充默认 URL（如有），用户可修改或直接回车
     const defaultUrl = getDefaultBaseUrl(provider);
@@ -453,6 +691,13 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
 
     setInputValue(nextBaseUrl);
     setCurrentStep('baseUrl');
+  };
+
+  /**
+   * 检查 Provider 是否使用 OAuth（不需要 API Key）
+   */
+  const isOAuthProvider = (provider: ProviderType): provider is 'antigravity' | 'copilot' => {
+    return PROVIDER_CONFIG[provider].isOAuth;
   };
 
   const handleBaseUrlSubmit = () => {
@@ -470,10 +715,20 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
     }
 
     setConfig({ ...config, baseUrl: inputValue });
-    const nextApiKey = isEditMode ? (config.apiKey ?? initialConfig?.apiKey ?? '') : '';
-    setInputValue(nextApiKey);
     setError(null);
-    setCurrentStep('apiKey');
+
+    // Antigravity 使用 OAuth，跳过 API Key 步骤
+    if (isOAuthProvider(config.provider!)) {
+      // 设置特殊的 API Key 标记
+      setConfig((prev) => ({ ...prev, baseUrl: inputValue, apiKey: 'oauth' }));
+      const nextModel = isEditMode ? (config.model ?? initialConfig?.model ?? '') : '';
+      setInputValue(nextModel);
+      setCurrentStep('model');
+    } else {
+      const nextApiKey = isEditMode ? (config.apiKey ?? initialConfig?.apiKey ?? '') : '';
+      setInputValue(nextApiKey);
+      setCurrentStep('apiKey');
+    }
   };
 
   const handleApiKeySubmit = () => {
@@ -501,6 +756,50 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
     setInputValue(nextName);
     setError(null);
     setCurrentStep('name'); // Model 后跳转到 Name（Step 5）
+  };
+
+  /**
+   * OAuth 登录处理
+   */
+  const handleOAuthLogin = async () => {
+    const provider = config.provider as 'antigravity' | 'copilot';
+    const auth =
+      provider === 'antigravity'
+        ? AntigravityAuth.getInstance()
+        : CopilotAuth.getInstance();
+
+    setIsLoggingIn(true);
+    setError(null);
+
+    try {
+      await auth.login();
+      // 登录成功，进入模型选择
+      setCurrentStep('oauthModelSelect');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '登录失败');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  /**
+   * OAuth 模型选择处理
+   */
+  const handleOAuthModelSelect = (modelId: string) => {
+    const provider = config.provider as 'antigravity' | 'copilot';
+    const baseUrl = getDefaultBaseUrl(provider) || '';
+
+    // 设置完整配置
+    setConfig({
+      ...config,
+      baseUrl,
+      apiKey: 'oauth',
+      model: modelId,
+    });
+
+    // 跳转到名称输入（OAuth 流程简化，跳过 baseUrl/apiKey/model 输入步骤）
+    setInputValue('');
+    setCurrentStep('name');
   };
 
   const handleConfirm = async () => {
@@ -541,7 +840,9 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
     setError(null);
     setInputValue('');
 
-    // 步骤顺序：provider → baseUrl → apiKey → model → name → confirm
+    // 步骤顺序：
+    // 普通流程：provider → baseUrl → apiKey → model → name → confirm
+    // OAuth 流程：provider → oauthLogin/oauthModelSelect → name → confirm
     switch (currentStep) {
       case 'provider':
         // provider 是第一步，返回时取消
@@ -557,9 +858,20 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
       case 'model':
         setCurrentStep('apiKey');
         break;
+      case 'oauthLogin':
+        setCurrentStep('provider');
+        break;
+      case 'oauthModelSelect':
+        setCurrentStep('provider');
+        break;
       case 'name':
-        setInputValue(config.model || '');
-        setCurrentStep('model');
+        // OAuth 流程：返回到模型选择
+        if (isOAuthProvider(config.provider!)) {
+          setCurrentStep('oauthModelSelect');
+        } else {
+          setInputValue(config.model || '');
+          setCurrentStep('model');
+        }
         break;
       case 'confirm':
         setInputValue(config.name || '');
@@ -572,20 +884,25 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
   // 渲染
   // ========================================
 
-  // 计算进度（顺序：provider → baseUrl → apiKey → model → name → confirm）
-  const totalSteps = 6;
-  const stepNumber =
-    currentStep === 'provider'
-      ? 1
-      : currentStep === 'baseUrl'
-        ? 2
-        : currentStep === 'apiKey'
-          ? 3
-          : currentStep === 'model'
-            ? 4
-            : currentStep === 'name'
-              ? 5
-              : 6;
+  // 计算进度
+  // 普通流程：provider(1) → baseUrl(2) → apiKey(3) → model(4) → name(5) → confirm(6)
+  // OAuth 流程：provider(1) → oauthLogin/oauthModelSelect(2) → name(3) → confirm(4)
+  const isOAuth = config.provider && isOAuthProvider(config.provider);
+  const totalSteps = isOAuth ? 4 : 6;
+  const stepNumber = (() => {
+    if (currentStep === 'provider') return 1;
+    if (isOAuth) {
+      if (currentStep === 'oauthLogin' || currentStep === 'oauthModelSelect') return 2;
+      if (currentStep === 'name') return 3;
+      return 4; // confirm
+    }
+    // 普通流程
+    if (currentStep === 'baseUrl') return 2;
+    if (currentStep === 'apiKey') return 3;
+    if (currentStep === 'model') return 4;
+    if (currentStep === 'name') return 5;
+    return 6; // confirm
+  })();
 
   const progress = Math.floor(((stepNumber - 1) / (totalSteps - 1)) * 40);
 
@@ -695,6 +1012,27 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
         />
       )}
 
+      {/* OAuth 登录提示 */}
+      {currentStep === 'oauthLogin' && config.provider && isOAuthProvider(config.provider) && (
+        <OAuthLoginStep
+          provider={config.provider}
+          onLogin={handleOAuthLogin}
+          onCancel={onCancel}
+          isLoggingIn={isLoggingIn}
+        />
+      )}
+
+      {/* OAuth 模型选择 */}
+      {currentStep === 'oauthModelSelect' &&
+        config.provider &&
+        isOAuthProvider(config.provider) && (
+          <OAuthModelSelectStep
+            provider={config.provider}
+            onSelect={handleOAuthModelSelect}
+            onCancel={onCancel}
+          />
+        )}
+
       {/* Base URL 输入 - Step 2 */}
       {currentStep === 'baseUrl' && (
         <TextInputStep
@@ -747,14 +1085,22 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
           icon="🤖"
           title="选择模型"
           description="输入您想使用的模型名称（请参考您的 API 提供商文档）"
-          examples={[
-            '• OpenAI: gpt-4o, gpt-4o-mini, o1-preview',
-            '• Claude: claude-sonnet-4-20250514, claude-opus-4-20250514',
-            '• Gemini: gemini-2.5-pro, gemini-2.5-flash',
-            '• Azure: {deployment-name}',
-            '• 千问: qwen3-max, qwen3-235b, qwen3-32b',
-            '• DeepSeek: deepseek-v3.1, deepseek-r1-0528',
-          ]}
+          examples={
+            config.provider === 'antigravity'
+              ? [
+                  '• Claude: claude-sonnet-4-5, claude-opus-4-5-thinking',
+                  '• Gemini: gemini-3-pro-high, gemini-3-pro-low',
+                  '• GPT-OSS: gpt-oss-120b-medium',
+                ]
+              : [
+                  '• OpenAI: gpt-4o, gpt-4o-mini, o1-preview',
+                  '• Claude: claude-sonnet-4-20250514, claude-opus-4-20250514',
+                  '• Gemini: gemini-2.5-pro, gemini-2.5-flash',
+                  '• Azure: {deployment-name}',
+                  '• 千问: qwen3-max, qwen3-235b, qwen3-32b',
+                  '• DeepSeek: deepseek-v3.1, deepseek-r1-0528',
+                ]
+          }
           value={inputValue}
           placeholder="例如: gpt-5"
           onChange={setInputValue}
@@ -788,7 +1134,7 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
         <Text dimColor>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</Text>
       </Box>
 
-      {!isSaving && currentStep === 'provider' && (
+      {!isSaving && !isLoggingIn && currentStep === 'provider' && (
         <Box marginTop={1}>
           <Text dimColor>
             💡 使用 <Text bold>↑/↓</Text> 键选择，<Text bold>Enter</Text> 确认，
@@ -796,14 +1142,43 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
           </Text>
         </Box>
       )}
-      {!isSaving && currentStep !== 'confirm' && currentStep !== 'provider' && (
+      {!isSaving && !isLoggingIn && currentStep === 'oauthModelSelect' && (
         <Box marginTop={1}>
           <Text dimColor>
-            💡 输入完成后按 <Text bold>Enter</Text>，<Text bold>Ctrl+C</Text> 退出
+            💡 使用 <Text bold>↑/↓</Text> 键选择模型，<Text bold>Enter</Text> 确认，
+            <Text bold>Esc</Text> 返回
           </Text>
         </Box>
       )}
-      {!isSaving && currentStep === 'confirm' && (
+      {!isSaving && !isLoggingIn && currentStep === 'oauthLogin' && (
+        <Box marginTop={1}>
+          <Text dimColor>
+            💡 按{' '}
+            <Text bold color="green">
+              Y
+            </Text>{' '}
+            登录，
+            <Text bold color="red">
+              N
+            </Text>{' '}
+            返回，
+            <Text bold>Esc</Text> 取消
+          </Text>
+        </Box>
+      )}
+      {!isSaving &&
+        !isLoggingIn &&
+        currentStep !== 'confirm' &&
+        currentStep !== 'provider' &&
+        currentStep !== 'oauthLogin' &&
+        currentStep !== 'oauthModelSelect' && (
+          <Box marginTop={1}>
+            <Text dimColor>
+              💡 输入完成后按 <Text bold>Enter</Text>，<Text bold>Ctrl+C</Text> 退出
+            </Text>
+          </Box>
+        )}
+      {!isSaving && !isLoggingIn && currentStep === 'confirm' && (
         <Box marginTop={1}>
           <Text dimColor>
             💡 按{' '}

@@ -14,6 +14,8 @@ import gitCommand from './git.js';
 import hooksCommand from './hooks.js';
 import ideCommand from './ide.js';
 import initCommand from './init.js';
+import { loginCommand } from './login.js';
+import { logoutCommand } from './logout.js';
 import modelCommand from './model.js';
 import permissionsCommand from './permissions.js';
 import skillsCommand from './skills.js';
@@ -37,6 +39,8 @@ const slashCommands: SlashCommandRegistry = {
   ide: ideCommand,
   skills: skillsCommand,
   hooks: hooksCommand,
+  login: loginCommand,
+  logout: logoutCommand,
 };
 
 /**
