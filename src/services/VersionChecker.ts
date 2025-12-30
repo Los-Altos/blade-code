@@ -8,6 +8,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import semver from 'semver';
 import { fileURLToPath } from 'url';
+import { proxyFetch } from '../utils/proxyFetch.js';
 
 // 包名
 const PACKAGE_NAME = 'blade-code';
@@ -119,17 +120,12 @@ async function writeCache(cache: VersionCache): Promise<void> {
  */
 async function fetchLatestVersion(): Promise<string | null> {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000); // 5 秒超时
-
-    const response = await fetch(NPM_REGISTRY_URL, {
-      signal: controller.signal,
+    const response = await proxyFetch(NPM_REGISTRY_URL, {
+      timeout: 5000, // 5 秒超时
       headers: {
         Accept: 'application/json',
       },
     });
-
-    clearTimeout(timeout);
 
     if (!response.ok) {
       return null;

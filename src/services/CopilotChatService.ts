@@ -6,6 +6,7 @@
  */
 
 import { createLogger, LogCategory } from '../logging/Logger.js';
+import { proxyFetch } from '../utils/proxyFetch.js';
 import type {
   ChatConfig,
   ChatResponse,
@@ -114,7 +115,7 @@ export class CopilotChatService implements IChatService {
       const request = this.buildRequest(messages, tools, true);
 
       // 发送流式请求
-      const response = await fetch(COPILOT_API_ENDPOINTS.chatCompletions, {
+      const response = await proxyFetch(COPILOT_API_ENDPOINTS.chatCompletions, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${copilotToken}`,
@@ -373,7 +374,7 @@ export class CopilotChatService implements IChatService {
     request: CopilotChatRequest,
     signal?: AbortSignal
   ): Promise<CopilotChatResponse> {
-    const response = await fetch(COPILOT_API_ENDPOINTS.chatCompletions, {
+    const response = await proxyFetch(COPILOT_API_ENDPOINTS.chatCompletions, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${copilotToken}`,

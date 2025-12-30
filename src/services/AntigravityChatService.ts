@@ -18,6 +18,7 @@
 
 import type { ChatCompletionMessageToolCall } from 'openai/resources/chat';
 import { createLogger, LogCategory } from '../logging/Logger.js';
+import { proxyFetch } from '../utils/proxyFetch.js';
 import { AntigravityAuth } from './antigravity/AntigravityAuth.js';
 import {
   ANTIGRAVITY_API_ENDPOINTS,
@@ -299,7 +300,7 @@ export class AntigravityChatService implements IChatService {
     const metadata = getClientMetadata(this.configType);
     const userAgent = getUserAgent(this.configType);
 
-    const response = await fetch(url, {
+    const response = await proxyFetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -371,7 +372,7 @@ export class AntigravityChatService implements IChatService {
     const maxAttempts = 30; // 最多 150 秒
 
     while (attempts < maxAttempts) {
-      const response = await fetch(url, {
+      const response = await proxyFetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -575,7 +576,7 @@ export class AntigravityChatService implements IChatService {
     const url = `${ANTIGRAVITY_API_ENDPOINTS.production}${path}`;
     const userAgent = getUserAgent(this.configType);
 
-    const response = await fetch(url, {
+    const response = await proxyFetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -769,7 +770,7 @@ export class AntigravityChatService implements IChatService {
       const url = `${ANTIGRAVITY_API_ENDPOINTS.production}${ANTIGRAVITY_API_PATHS.streamGenerateContent}?alt=sse`;
       const userAgent = getUserAgent(this.configType);
 
-      const response = await fetch(url, {
+      const response = await proxyFetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,

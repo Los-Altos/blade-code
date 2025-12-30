@@ -12,6 +12,7 @@ import * as http from 'http';
 import * as path from 'path';
 import { URL } from 'url';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
+import { proxyFetch } from '../../utils/proxyFetch.js';
 import {
   ANTIGRAVITY_OAUTH_CONFIG,
   GEMINI_CLI_OAUTH_CONFIG,
@@ -233,7 +234,7 @@ export class AntigravityAuth {
       client_secret: oauthConfig.clientSecret,
     });
 
-    const response = await fetch(oauthConfig.tokenUrl, {
+    const response = await proxyFetch(oauthConfig.tokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -455,7 +456,7 @@ export class AntigravityAuth {
       client_secret: oauthConfig.clientSecret,
     });
 
-    const response = await fetch(oauthConfig.tokenUrl, {
+    const response = await proxyFetch(oauthConfig.tokenUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

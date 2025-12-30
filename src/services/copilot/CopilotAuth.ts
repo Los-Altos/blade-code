@@ -15,6 +15,7 @@ import { spawn } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
+import { proxyFetch } from '../../utils/proxyFetch.js';
 import {
   COPILOT_API_ENDPOINTS,
   COPILOT_OAUTH_CONFIG,
@@ -215,7 +216,7 @@ export class CopilotAuth {
       scope: COPILOT_OAUTH_CONFIG.scope,
     });
 
-    const response = await fetch(COPILOT_OAUTH_CONFIG.deviceCodeUrl, {
+    const response = await proxyFetch(COPILOT_OAUTH_CONFIG.deviceCodeUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -253,7 +254,7 @@ export class CopilotAuth {
         grant_type: COPILOT_OAUTH_CONFIG.grantType,
       });
 
-      const response = await fetch(COPILOT_OAUTH_CONFIG.tokenUrl, {
+      const response = await proxyFetch(COPILOT_OAUTH_CONFIG.tokenUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -299,7 +300,7 @@ export class CopilotAuth {
    * 用 GitHub token 换取 Copilot token
    */
   private async exchangeForCopilotToken(githubToken: string): Promise<CopilotTokenResponse> {
-    const response = await fetch(COPILOT_API_ENDPOINTS.tokenExchange, {
+    const response = await proxyFetch(COPILOT_API_ENDPOINTS.tokenExchange, {
       method: 'GET',
       headers: {
         Authorization: `token ${githubToken}`,
