@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.0.42] - 2025-12-30
+
+### ✨ 新功能
+
+- 添加 Gemini CLI OAuth 支持并优化用户初始化流程 (e11732b)
+
+### 🐛 问题修复
+
+- 修复命令中止时的竞态条件问题 (a6bed3a)
+
+### ♻️ 代码重构
+
+- 优化确认提示组件性能，分离静态内容 (4e8e990)
+
+
 ## [0.0.41] - 2025-12-28
 
 ### ✨ 新功能
