@@ -20,7 +20,7 @@ import TextInput from 'ink-text-input';
 import React, { useEffect, useState } from 'react';
 import type { ProviderType, SetupConfig } from '../../config/types.js';
 import { AntigravityAuth } from '../../services/antigravity/AntigravityAuth.js';
-import { ANTIGRAVITY_MODELS } from '../../services/antigravity/types.js';
+import { ANTIGRAVITY_MODELS, GEMINI_CLI_MODELS } from '../../services/antigravity/types.js';
 import { CopilotAuth } from '../../services/copilot/CopilotAuth.js';
 import { COPILOT_MODELS } from '../../services/copilot/types.js';
 import { configActions } from '../../store/vanilla.js';
@@ -421,6 +421,42 @@ const OAuthModelSelectStep: React.FC<OAuthModelSelectStepProps> = ({
   onCancel,
 }) => {
   const { isFocused } = useFocus({ id: 'oauth-model-step' });
+  const [models, setModels] = useState<
+    Array<{ id: string; name: string; description: string }>
+  >([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 初始化时获取模型列表
+  useEffect(() => {
+    const loadModels = async () => {
+      setIsLoading(true);
+      try {
+        if (provider === 'copilot') {
+          // Copilot 始终使用 COPILOT_MODELS
+          setModels(Object.values(COPILOT_MODELS));
+        } else {
+          // Antigravity: 根据 OAuth 配置类型获取模型列表
+          const auth = AntigravityAuth.getInstance();
+          const configType = await auth.getConfigType();
+
+          if (configType === 'gemini-cli') {
+            // Gemini CLI OAuth: 使用 Gemini 2.5 系列模型
+            setModels(Object.values(GEMINI_CLI_MODELS));
+          } else {
+            // Antigravity IDE OAuth: 使用完整的 Antigravity 模型列表
+            setModels(Object.values(ANTIGRAVITY_MODELS));
+          }
+        }
+      } catch {
+        // 出错时使用默认的 Antigravity 模型
+        setModels(Object.values(ANTIGRAVITY_MODELS));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadModels();
+  }, [provider]);
 
   useInput(
     (_input, key) => {
@@ -431,18 +467,24 @@ const OAuthModelSelectStep: React.FC<OAuthModelSelectStepProps> = ({
     { isActive: isFocused }
   );
 
-  // 根据 provider 获取模型列表
-  const models =
-    provider === 'antigravity'
-      ? Object.values(ANTIGRAVITY_MODELS)
-      : Object.values(COPILOT_MODELS);
-
   const items = models.map((model) => ({
     label: `${model.name} - ${model.description}`,
     value: model.id,
   }));
 
   const providerName = provider === 'antigravity' ? 'Antigravity' : 'Copilot';
+
+  if (isLoading) {
+    return (
+      <Box flexDirection="column" marginBottom={1}>
+        <Box marginBottom={1}>
+          <Text bold color="blue">
+            🤖 加载 {providerName} 模型列表...
+          </Text>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box flexDirection="column" marginBottom={1}>

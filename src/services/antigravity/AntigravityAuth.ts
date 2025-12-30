@@ -310,6 +310,16 @@ export class AntigravityAuth {
     const { redirectPort, redirectPath } = oauthConfig;
 
     return new Promise((resolve, reject) => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+      let isResolved = false;
+
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      };
+
       const server = http.createServer((req, res) => {
         try {
           const url = new URL(req.url!, `http://localhost:${redirectPort}`);
@@ -336,8 +346,12 @@ export class AntigravityAuth {
                 </body>
               </html>
             `);
+            cleanup();
             server.close();
-            reject(new Error(`OAuth error: ${error}`));
+            if (!isResolved) {
+              isResolved = true;
+              reject(new Error(`OAuth error: ${error}`));
+            }
             return;
           }
 
@@ -350,8 +364,12 @@ export class AntigravityAuth {
           if (state !== expectedState) {
             res.writeHead(400);
             res.end('Invalid state parameter');
+            cleanup();
             server.close();
-            reject(new Error('State mismatch - possible CSRF attack'));
+            if (!isResolved) {
+              isResolved = true;
+              reject(new Error('State mismatch - possible CSRF attack'));
+            }
             return;
           }
 
@@ -368,23 +386,35 @@ export class AntigravityAuth {
             </html>
           `);
 
+          cleanup();
           server.close();
-          resolve(code);
+          if (!isResolved) {
+            isResolved = true;
+            resolve(code);
+          }
         } catch (error) {
+          cleanup();
           server.close();
-          reject(error);
+          if (!isResolved) {
+            isResolved = true;
+            reject(error);
+          }
         }
       });
 
       server.on('error', (error) => {
-        if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
-          reject(
-            new Error(
-              `Port ${redirectPort} is already in use. Please close other applications using this port.`
-            )
-          );
-        } else {
-          reject(error);
+        cleanup();
+        if (!isResolved) {
+          isResolved = true;
+          if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+            reject(
+              new Error(
+                `Port ${redirectPort} is already in use. Please close other applications using this port.`
+              )
+            );
+          } else {
+            reject(error);
+          }
         }
       });
 
@@ -393,10 +423,13 @@ export class AntigravityAuth {
       });
 
       // 5 分钟超时
-      setTimeout(
+      timeoutId = setTimeout(
         () => {
           server.close();
-          reject(new Error('OAuth callback timeout (5 minutes)'));
+          if (!isResolved) {
+            isResolved = true;
+            reject(new Error('OAuth callback timeout (5 minutes)'));
+          }
         },
         5 * 60 * 1000
       );

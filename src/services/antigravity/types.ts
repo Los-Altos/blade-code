@@ -40,15 +40,16 @@ export const ANTIGRAVITY_OAUTH_CONFIG = {
 /**
  * Gemini CLI OAuth 配置 (备选)
  * 使用同一个 API，但不同的 OAuth Client
+ * Scopes 与官方 Gemini CLI 保持一致
  */
 export const GEMINI_CLI_OAUTH_CONFIG = {
   authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
   tokenUrl: 'https://oauth2.googleapis.com/token',
+  // 官方 Gemini CLI scopes (不含 openid)
   scopes: [
     'https://www.googleapis.com/auth/cloud-platform',
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile',
-    'openid',
   ],
   // Gemini CLI OAuth credentials
   clientId: '681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com',
@@ -125,7 +126,9 @@ export interface OAuthTokenResponse {
 // ================================
 
 /**
- * Antigravity 支持的模型
+ * Antigravity IDE OAuth 支持的模型
+ * 需要 Gemini Code Assist 订阅（Pro 用户）
+ * 支持 Claude、Gemini 3、GPT-OSS 等高级模型
  */
 export const ANTIGRAVITY_MODELS = {
   // Anthropic 模型
@@ -150,27 +153,27 @@ export const ANTIGRAVITY_MODELS = {
     supportsThinking: true,
     description: '最强 Claude 模型，支持思维链',
   },
-  // Google 模型
+  // Google 模型 (Pro 用户专属)
   'gemini-3-pro-high': {
     id: 'gemini-3-pro-high',
     name: 'Gemini 3 Pro (High)',
     provider: 'google',
     supportsThinking: false,
-    description: '高质量 Gemini 模型',
+    description: '高质量 Gemini 模型 (Pro)',
   },
   'gemini-3-pro-low': {
     id: 'gemini-3-pro-low',
     name: 'Gemini 3 Pro (Low)',
     provider: 'google',
     supportsThinking: false,
-    description: '快速 Gemini 模型',
+    description: '快速 Gemini 模型 (Pro)',
   },
   'gemini-3-flash': {
     id: 'gemini-3-flash',
     name: 'Gemini 3 Flash',
     provider: 'google',
     supportsThinking: false,
-    description: '超快速 Gemini 模型',
+    description: '超快速 Gemini 模型 (Pro)',
   },
   // OpenAI OSS 模型
   'gpt-oss-120b-medium': {
@@ -183,6 +186,38 @@ export const ANTIGRAVITY_MODELS = {
 } as const;
 
 export type AntigravityModelId = keyof typeof ANTIGRAVITY_MODELS;
+
+/**
+ * Gemini CLI OAuth 支持的模型
+ * 免费用户可用，使用 Gemini 2.5 系列
+ * 免费层动态混合 Pro 和 Flash 模型
+ */
+export const GEMINI_CLI_MODELS = {
+  // Gemini 2.5 系列 (免费用户可用)
+  'gemini-2.5-pro': {
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    provider: 'google',
+    supportsThinking: false,
+    description: '最强 Gemini 2.5 模型，1M 上下文',
+  },
+  'gemini-2.5-flash': {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    provider: 'google',
+    supportsThinking: false,
+    description: '快速 Gemini 2.5 模型',
+  },
+  'gemini-2.5-flash-lite': {
+    id: 'gemini-2.5-flash-lite',
+    name: 'Gemini 2.5 Flash Lite',
+    provider: 'google',
+    supportsThinking: false,
+    description: '轻量级 Gemini 2.5 模型',
+  },
+} as const;
+
+export type GeminiCliModelId = keyof typeof GEMINI_CLI_MODELS;
 
 // ================================
 // API 请求/响应类型
@@ -243,19 +278,20 @@ export interface AntigravitySystemInstruction {
 }
 
 /**
- * API 请求体
+ * API 请求体（与官方 Gemini CLI 保持一致）
+ * 参考：gemini-cli/packages/core/src/code_assist/converter.ts
  */
 export interface AntigravityRequest {
-  project: string;
   model: string;
+  project?: string; // FREE tier 可能没有 projectId（使用 managed project）
+  user_prompt_id?: string;
   request: {
     contents: AntigravityContent[];
     systemInstruction?: AntigravitySystemInstruction;
     generationConfig?: AntigravityGenerationConfig;
     tools?: AntigravityTool[];
+    session_id?: string; // 会话 ID，与官方保持一致
   };
-  userAgent?: string;
-  requestId?: string;
 }
 
 /**

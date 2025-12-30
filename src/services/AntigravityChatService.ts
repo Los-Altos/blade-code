@@ -9,6 +9,11 @@
  * 2. 端点：cloudcode-pa.googleapis.com
  * 3. 请求格式：Gemini 风格（contents, systemInstruction, tools）
  * 4. 支持模型：Claude、Gemini、GPT-OSS
+ *
+ * 用户初始化流程（与官方 Gemini CLI 保持一致）：
+ * 1. 调用 loadCodeAssist 获取用户 tier 和 projectId
+ * 2. 如果没有 projectId，调用 onboardUser 进行用户注册
+ * 3. onboardUser 返回的是 Long Running Operation，需要轮询等待完成
  */
 
 import type { ChatCompletionMessageToolCall } from 'openai/resources/chat';
@@ -35,8 +40,79 @@ import type {
 
 const logger = createLogger(LogCategory.CHAT);
 
-// 默认项目 ID（用户可通过配置覆盖）
-const DEFAULT_PROJECT_ID = 'blade-client';
+/**
+ * 用户 Tier ID（与官方 Gemini CLI 保持一致）
+ */
+enum UserTierId {
+  FREE = 'free-tier',
+  STANDARD = 'standard-tier',
+  LEGACY = 'legacy-tier',
+}
+
+/**
+ * loadCodeAssist 响应类型
+ */
+interface LoadCodeAssistResponse {
+  cloudaicompanionProject?: string;
+  currentTier?: { id: UserTierId };
+  allowedTiers?: Array<{
+    id: UserTierId;
+    name?: string;
+    description?: string;
+    isDefault?: boolean;
+    userDefinedCloudaicompanionProject?: boolean;
+  }>;
+  ineligibleTiers?: Array<{
+    tierId: string;
+    reasonCode?: string;
+    reasonMessage?: string;
+  }>;
+}
+
+/**
+ * onboardUser 响应类型（Long Running Operation）
+ */
+interface OnboardUserResponse {
+  done?: boolean;
+  response?: {
+    cloudaicompanionProject?: {
+      id?: string;
+    };
+  };
+  error?: {
+    code?: number;
+    message?: string;
+  };
+}
+
+/**
+ * Client Metadata - 根据 OAuth 配置类型动态生成
+ * - Antigravity: ideType = 'ANTIGRAVITY'
+ * - Gemini CLI: ideType = 'IDE_UNSPECIFIED', pluginType = 'GEMINI'
+ */
+function getClientMetadata(configType: 'antigravity' | 'gemini-cli') {
+  if (configType === 'antigravity') {
+    return {
+      ideType: 'ANTIGRAVITY',
+    };
+  }
+  // Gemini CLI 配置
+  return {
+    ideType: 'IDE_UNSPECIFIED',
+    platform: 'PLATFORM_UNSPECIFIED',
+    pluginType: 'GEMINI',
+  };
+}
+
+/**
+ * 获取 User-Agent - 根据 OAuth 配置类型
+ */
+function getUserAgent(configType: 'antigravity' | 'gemini-cli'): string {
+  if (configType === 'antigravity') {
+    return 'antigravity/1.11.3 Darwin/arm64';
+  }
+  return 'gemini-cli/1.0.0';
+}
 
 /**
  * 过滤孤儿 tool 消息
@@ -122,28 +198,38 @@ function cleanJsonSchemaForAntigravity(
 export class AntigravityChatService implements IChatService {
   private config: ChatConfig;
   private auth: AntigravityAuth;
-  private projectId: string;
+  private projectId: string | undefined;
+  private userTier: UserTierId | undefined;
+  private sessionId: string;
+  private configType: 'antigravity' | 'gemini-cli' = 'antigravity';
   private projectIdInitialized = false;
 
   constructor(config: ChatConfig) {
     this.config = config;
     this.auth = AntigravityAuth.getInstance();
-    // 从 config 中获取 projectId，或使用默认值
-    // biome-ignore lint/suspicious/noExplicitAny: config 可能包含 projectId
-    this.projectId = (config as any).projectId || DEFAULT_PROJECT_ID;
+    // projectId 将在 ensureProjectId 中通过 setupUser 流程获取
+    this.projectId = undefined;
+    // 生成会话 ID
+    this.sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
     logger.debug('🚀 [AntigravityChatService] Initializing');
     logger.debug('⚙️ [AntigravityChatService] Config:', {
       model: config.model,
-      projectId: this.projectId,
       temperature: config.temperature,
       maxOutputTokens: config.maxOutputTokens,
+      sessionId: this.sessionId,
     });
   }
 
   /**
-   * 调用 loadCodeAssist 获取项目信息
-   * 在首次请求前调用，确保有有效的项目 ID
+   * 用户初始化流程
+   *
+   * 流程：
+   * 1. 获取当前 OAuth 配置类型（antigravity 或 gemini-cli）
+   * 2. 调用 loadCodeAssist 获取用户 tier 信息
+   * 3. 如果已有 currentTier 和 projectId，直接使用
+   * 4. 否则获取默认 tier，调用 onboardUser 进行注册
+   * 5. onboardUser 是 LRO，需要轮询等待 done=true
    */
   private async ensureProjectId(): Promise<void> {
     if (this.projectIdInitialized) {
@@ -151,116 +237,175 @@ export class AntigravityChatService implements IChatService {
     }
 
     try {
-      logger.debug('🔄 [AntigravityChatService] Loading project info via loadCodeAssist...');
+      // 获取当前使用的 OAuth 配置类型
+      const configType = await this.auth.getConfigType();
+      this.configType = configType || 'antigravity';
+      logger.debug(`🔄 [AntigravityChatService] Using OAuth config: ${this.configType}`);
+      logger.debug('🔄 [AntigravityChatService] Setting up user via loadCodeAssist...');
 
       const accessToken = await this.auth.getAccessToken();
-      const url = `${ANTIGRAVITY_API_ENDPOINTS.production}${ANTIGRAVITY_API_PATHS.loadCodeAssist}`;
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'User-Agent': 'antigravity/1.11.5 darwin/arm64',
-          'X-Goog-Api-Client': 'google-cloud-sdk vscode_cloudshelleditor/0.1',
-          'Client-Metadata': JSON.stringify({
-            ideType: 'IDE_UNSPECIFIED',
-            platform: 'PLATFORM_UNSPECIFIED',
-            pluginType: 'GEMINI',
-          }),
-        },
-        body: JSON.stringify({}),
-      });
+      // Step 1: 调用 loadCodeAssist
+      const loadRes = await this.callLoadCodeAssist(accessToken);
+      logger.debug('[AntigravityChatService] loadCodeAssist response:', JSON.stringify(loadRes));
 
-      if (response.ok) {
-        const data = await response.json();
-        logger.debug('[AntigravityChatService] loadCodeAssist response:', JSON.stringify(data));
+      // Step 2: 检查是否已有有效的 tier 和 projectId
+      if (loadRes.currentTier) {
+        this.userTier = loadRes.currentTier.id;
 
-        // 尝试从响应中获取项目 ID
-        const projectId =
-          data.project ||
-          data.projectId ||
-          data.cloudProject?.projectId ||
-          data.cloudProject?.project;
-
-        if (projectId) {
-          this.projectId = projectId;
-          logger.debug(`✅ [AntigravityChatService] Got project ID: ${this.projectId}`);
-        } else {
-          // 如果没有获取到项目 ID，尝试调用 onboardUser
-          logger.debug('⚠️ [AntigravityChatService] No project ID, trying onboardUser...');
-          const onboardProjectId = await this.tryOnboardUser();
-          if (onboardProjectId) {
-            this.projectId = onboardProjectId;
-          } else {
-            // 最后尝试不设置项目 ID（设为空字符串）
-            this.projectId = '';
-            logger.debug('⚠️ [AntigravityChatService] Using empty project ID');
-          }
+        if (loadRes.cloudaicompanionProject) {
+          this.projectId = loadRes.cloudaicompanionProject;
+          logger.debug(`✅ [AntigravityChatService] User already setup: tier=${this.userTier}, project=${this.projectId}`);
+          this.projectIdInitialized = true;
+          return;
         }
-      } else {
-        const errorText = await response.text();
-        logger.warn(`loadCodeAssist failed: ${response.status} - ${errorText}`);
-        // 尝试 onboardUser
-        const onboardProjectId = await this.tryOnboardUser();
-        this.projectId = onboardProjectId || '';
+
+        // 有 tier 但没有 projectId，检查环境变量
+        const envProjectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT_ID;
+        if (envProjectId) {
+          this.projectId = envProjectId;
+          logger.debug(`✅ [AntigravityChatService] Using env project: ${this.projectId}`);
+          this.projectIdInitialized = true;
+          return;
+        }
+
+        // 需要通过 onboardUser 获取 projectId
+        logger.debug('⚠️ [AntigravityChatService] Has tier but no project, need onboarding...');
       }
+
+      // Step 3: 获取默认 tier 并调用 onboardUser
+      const defaultTier = this.getDefaultTier(loadRes);
+      logger.debug(`🔄 [AntigravityChatService] Onboarding user with tier: ${defaultTier.id}`);
+
+      const result = await this.callOnboardUser(accessToken, defaultTier.id);
+      this.projectId = result.projectId;
+      this.userTier = defaultTier.id;
+
+      logger.debug(`✅ [AntigravityChatService] User setup complete: tier=${this.userTier}, project=${this.projectId || '(managed)'}`);
     } catch (error) {
-      logger.warn('Failed to load project info:', error);
-      this.projectId = '';
+      logger.warn('Failed to setup user:', error);
+      // 即使失败也标记为已初始化，避免重复尝试
+      // 后续请求会因为缺少 projectId 而失败，但会返回更明确的错误
     }
 
     this.projectIdInitialized = true;
   }
 
   /**
-   * 尝试调用 onboardUser API 获取项目 ID
+   * 调用 loadCodeAssist API
    */
-  private async tryOnboardUser(): Promise<string | null> {
-    try {
-      const accessToken = await this.auth.getAccessToken();
-      const url = `${ANTIGRAVITY_API_ENDPOINTS.production}${ANTIGRAVITY_API_PATHS.onboardUser}`;
+  private async callLoadCodeAssist(accessToken: string): Promise<LoadCodeAssistResponse> {
+    const url = `${ANTIGRAVITY_API_ENDPOINTS.production}${ANTIGRAVITY_API_PATHS.loadCodeAssist}`;
+    const metadata = getClientMetadata(this.configType);
+    const userAgent = getUserAgent(this.configType);
 
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'User-Agent': userAgent,
+      },
+      body: JSON.stringify({
+        metadata,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`loadCodeAssist failed: ${response.status} - ${errorText}`);
+    }
+
+    return (await response.json()) as LoadCodeAssistResponse;
+  }
+
+  /**
+   * 从 loadCodeAssist 响应获取默认 tier
+   */
+  private getDefaultTier(res: LoadCodeAssistResponse): { id: UserTierId } {
+    // 查找 isDefault=true 的 tier
+    for (const tier of res.allowedTiers || []) {
+      if (tier.isDefault) {
+        return { id: tier.id };
+      }
+    }
+    // 默认使用 FREE tier
+    return { id: UserTierId.FREE };
+  }
+
+  /**
+   * 调用 onboardUser API（轮询等待 LRO 完成）
+   *
+   * - FREE tier 不需要设置 cloudaicompanionProject（使用 managed project）
+   * - 其他 tier 可以设置 cloudaicompanionProject
+   * - 轮询间隔 5 秒
+   */
+  private async callOnboardUser(
+    accessToken: string,
+    tierId: UserTierId
+  ): Promise<{ projectId: string | undefined }> {
+    const url = `${ANTIGRAVITY_API_ENDPOINTS.production}${ANTIGRAVITY_API_PATHS.onboardUser}`;
+    const metadata = getClientMetadata(this.configType);
+    const userAgent = getUserAgent(this.configType);
+
+    // 构建请求（FREE tier 不设置 cloudaicompanionProject）
+    const requestBody: Record<string, unknown> = {
+      tierId,
+      metadata,
+    };
+
+    // 非 FREE tier 可以使用环境变量中的 projectId
+    if (tierId !== UserTierId.FREE) {
+      const envProjectId = process.env.GOOGLE_CLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT_ID;
+      if (envProjectId) {
+        requestBody.cloudaicompanionProject = envProjectId;
+        requestBody.metadata = {
+          ...metadata,
+          duetProject: envProjectId,
+        };
+      }
+    }
+
+    // 轮询调用 onboardUser 直到 done=true
+    let attempts = 0;
+    const maxAttempts = 30; // 最多 150 秒
+
+    while (attempts < maxAttempts) {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          'User-Agent': 'antigravity/1.11.5 darwin/arm64',
-          'X-Goog-Api-Client': 'google-cloud-sdk vscode_cloudshelleditor/0.1',
-          'Client-Metadata': JSON.stringify({
-            ideType: 'IDE_UNSPECIFIED',
-            platform: 'PLATFORM_UNSPECIFIED',
-            pluginType: 'GEMINI',
-          }),
+          'User-Agent': userAgent,
         },
-        body: JSON.stringify({
-          tierId: 'standard-tier',
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        logger.debug('[AntigravityChatService] onboardUser response:', JSON.stringify(data));
-
-        const projectId =
-          data.project ||
-          data.projectId ||
-          data.cloudProject?.projectId ||
-          data.cloudProject?.project;
-
-        if (projectId) {
-          logger.debug(`✅ [AntigravityChatService] Got project ID from onboardUser: ${projectId}`);
-          return projectId;
-        }
-      } else {
+      if (!response.ok) {
         const errorText = await response.text();
-        logger.debug(`onboardUser failed: ${response.status} - ${errorText}`);
+        throw new Error(`onboardUser failed: ${response.status} - ${errorText}`);
       }
-    } catch (error) {
-      logger.debug('onboardUser error:', error);
+
+      const lroRes = (await response.json()) as OnboardUserResponse;
+      logger.debug(`[AntigravityChatService] onboardUser attempt ${attempts + 1}:`, JSON.stringify(lroRes));
+
+      if (lroRes.error) {
+        throw new Error(`onboardUser error: ${lroRes.error.message || lroRes.error.code}`);
+      }
+
+      if (lroRes.done) {
+        // LRO 完成
+        const projectId = lroRes.response?.cloudaicompanionProject?.id;
+        return { projectId };
+      }
+
+      // 等待 5 秒后重试
+      logger.debug('[AntigravityChatService] onboardUser not done, waiting 5s...');
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      attempts++;
     }
-    return null;
+
+    throw new Error('onboardUser timeout: LRO did not complete in time');
   }
 
   /**
@@ -428,19 +573,14 @@ export class AntigravityChatService implements IChatService {
   ): Promise<Response> {
     const accessToken = await this.auth.getAccessToken();
     const url = `${ANTIGRAVITY_API_ENDPOINTS.production}${path}`;
+    const userAgent = getUserAgent(this.configType);
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'antigravity/1.11.5 darwin/arm64',
-        'X-Goog-Api-Client': 'google-cloud-sdk vscode_cloudshelleditor/0.1',
-        'Client-Metadata': JSON.stringify({
-          ideType: 'IDE_UNSPECIFIED',
-          platform: 'PLATFORM_UNSPECIFIED',
-          pluginType: 'GEMINI',
-        }),
+        'User-Agent': userAgent,
       },
       body: JSON.stringify(body),
       signal,
@@ -492,9 +632,13 @@ export class AntigravityChatService implements IChatService {
       this.convertToAntigravityMessages(filteredMessages);
     const antigravityTools = this.convertToAntigravityTools(tools);
 
+    // 生成 user_prompt_id（与官方 Gemini CLI 保持一致）
+    const userPromptId = `prompt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
     const requestBody: AntigravityRequest = {
-      project: this.projectId,
       model: this.config.model,
+      project: this.projectId,
+      user_prompt_id: userPromptId,
       request: {
         contents,
         systemInstruction,
@@ -503,9 +647,8 @@ export class AntigravityChatService implements IChatService {
           temperature: this.config.temperature ?? 0.7,
         },
         tools: antigravityTools,
+        session_id: this.sessionId,
       },
-      userAgent: 'blade',
-      requestId: `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
     };
 
     logger.debug('📤 [AntigravityChatService] Request:', {
@@ -602,9 +745,13 @@ export class AntigravityChatService implements IChatService {
       this.convertToAntigravityMessages(filteredMessages);
     const antigravityTools = this.convertToAntigravityTools(tools);
 
+    // 生成 user_prompt_id（与官方 Gemini CLI 保持一致）
+    const userPromptId = `prompt_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
     const requestBody: AntigravityRequest = {
-      project: this.projectId,
       model: this.config.model,
+      project: this.projectId,
+      user_prompt_id: userPromptId,
       request: {
         contents,
         systemInstruction,
@@ -613,14 +760,14 @@ export class AntigravityChatService implements IChatService {
           temperature: this.config.temperature ?? 0.7,
         },
         tools: antigravityTools,
+        session_id: this.sessionId,
       },
-      userAgent: 'blade',
-      requestId: `req_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
     };
 
     try {
       const accessToken = await this.auth.getAccessToken();
       const url = `${ANTIGRAVITY_API_ENDPOINTS.production}${ANTIGRAVITY_API_PATHS.streamGenerateContent}?alt=sse`;
+      const userAgent = getUserAgent(this.configType);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -628,13 +775,7 @@ export class AntigravityChatService implements IChatService {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           Accept: 'text/event-stream',
-          'User-Agent': 'antigravity/1.11.5 darwin/arm64',
-          'X-Goog-Api-Client': 'google-cloud-sdk vscode_cloudshelleditor/0.1',
-          'Client-Metadata': JSON.stringify({
-            ideType: 'IDE_UNSPECIFIED',
-            platform: 'PLATFORM_UNSPECIFIED',
-            pluginType: 'GEMINI',
-          }),
+          'User-Agent': userAgent,
         },
         body: JSON.stringify(requestBody),
         signal,
@@ -748,11 +889,6 @@ export class AntigravityChatService implements IChatService {
   updateConfig(newConfig: Partial<ChatConfig>): void {
     logger.debug('🔄 [AntigravityChatService] Updating configuration');
     this.config = { ...this.config, ...newConfig };
-    // biome-ignore lint/suspicious/noExplicitAny: config 可能包含 projectId
-    if ((newConfig as any).projectId) {
-      // biome-ignore lint/suspicious/noExplicitAny: config 可能包含 projectId
-      this.projectId = (newConfig as any).projectId;
-    }
     logger.debug('✅ [AntigravityChatService] Configuration updated');
   }
 }

@@ -8,7 +8,11 @@
  */
 
 import { AntigravityAuth } from '../services/antigravity/AntigravityAuth.js';
-import { ANTIGRAVITY_MODELS, type OAuthConfigType } from '../services/antigravity/types.js';
+import {
+  ANTIGRAVITY_MODELS,
+  GEMINI_CLI_MODELS,
+  type OAuthConfigType,
+} from '../services/antigravity/types.js';
 import { CopilotAuth } from '../services/copilot/CopilotAuth.js';
 import { COPILOT_MODELS } from '../services/copilot/types.js';
 import type { SlashCommand, SlashCommandContext, SlashCommandResult } from './types.js';
@@ -157,14 +161,16 @@ export const loginCommand: SlashCommand = {
       ui.sendMessage('');
       ui.sendMessage('**可用模型：**');
 
-      for (const model of Object.values(ANTIGRAVITY_MODELS)) {
+      // 根据 OAuth 类型显示不同的模型列表
+      const models = service === 'gemini-cli' ? GEMINI_CLI_MODELS : ANTIGRAVITY_MODELS;
+      for (const model of Object.values(models)) {
         const thinkingBadge = model.supportsThinking ? ' (Thinking)' : '';
         ui.sendMessage(`  - ${model.id}${thinkingBadge}`);
       }
 
       ui.sendMessage('');
       ui.sendMessage('**下一步：**');
-      ui.sendMessage('使用 `/model add` 添加 Antigravity 模型配置');
+      ui.sendMessage(`使用 \`/model add\` 添加 ${configName} 模型配置`);
 
       return {
         success: true,
