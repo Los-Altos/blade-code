@@ -62,9 +62,25 @@ export const createCommandSlice: StateCreator<
     },
 
     /**
-     * 清理 AbortController
+     * 获取当前的 AbortController
+     * 用于在 finally 块中检查是否应该重置状态
      */
-    clearAbortController: () => {
+    getAbortController: () => {
+      return get().command.abortController;
+    },
+
+    /**
+     * 清理 AbortController
+     * @param expectedController 可选，只有当 store 中的 controller 与此相同时才清除
+     * 用于防止新任务的 controller 被旧任务的 finally 块误清
+     */
+    clearAbortController: (expectedController?: AbortController) => {
+      const current = get().command.abortController;
+      // 如果指定了期望的 controller，只有匹配时才清除
+      // 这防止了竞态条件：旧任务的 finally 不会清除新任务的 controller
+      if (expectedController !== undefined && current !== expectedController) {
+        return; // 不匹配，跳过清除
+      }
       set((state) => ({
         command: { ...state.command, abortController: null },
       }));

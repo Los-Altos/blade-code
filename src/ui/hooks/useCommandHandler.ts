@@ -628,6 +628,11 @@ Remember: Follow the above instructions carefully to complete the user's request
     // 重置中止提示标记，准备新的执行循环
     abortMessageSentRef.current = false;
 
+    // ⚠️ 先创建 AbortController，保存引用用于 finally 中的清理判断
+    // 这样可以防止竞态条件：如果用户快速取消并发送新消息，
+    // 旧任务的 finally 不会影响新任务的状态
+    const taskAbortController = commandActions.createAbortController();
+
     // 设置处理状态
     commandActions.setProcessing(true);
 
@@ -651,26 +656,37 @@ Remember: Follow the above instructions carefully to complete the user's request
         sessionActions.setError(`执行失败: ${errorMessage}`);
       }
     } finally {
-      // 重置状态
-      commandActions.setProcessing(false);
-      commandActions.clearAbortController();
-      // 清理 thinking 内容（防止遗留）
-      sessionActions.setCurrentThinkingContent(null);
+      // ⚠️ 关键修复：只有当我们的 controller 仍然是当前的才重置状态
+      // 这防止了竞态条件：如果用户取消后立即发送新消息，
+      // 旧任务的 finally 块不会影响新任务的状态
+      //
+      // 检查逻辑：如果 store 中的 abortController 与我们保存的不同，
+      // 说明新任务已经创建了新的 controller，我们不应该重置状态
+      const currentController = commandActions.getAbortController();
+      const isOurTask = currentController === taskAbortController;
 
-      // 处理队列中的下一个命令（支持完整的 ResolvedInput）
-      const nextCommand = commandActions.dequeueCommand();
-      if (nextCommand) {
-        // 稍微延迟以让 UI 更新
-        setTimeout(
-          () =>
-            executeCommand({
-              displayText: nextCommand.displayText,
-              text: nextCommand.text,
-              images: nextCommand.images,
-              parts: nextCommand.parts,
-            }),
-          100
-        );
+      if (isOurTask) {
+        commandActions.setProcessing(false);
+        commandActions.clearAbortController(taskAbortController);
+        // 清理 thinking 内容（防止遗留）
+        sessionActions.setCurrentThinkingContent(null);
+
+        // 处理队列中的下一个命令（支持完整的 ResolvedInput）
+        // ⚠️ 队列调度也必须在 isOurTask 内，防止旧任务并行启动新任务
+        const nextCommand = commandActions.dequeueCommand();
+        if (nextCommand) {
+          // 稍微延迟以让 UI 更新
+          setTimeout(
+            () =>
+              executeCommand({
+                displayText: nextCommand.displayText,
+                text: nextCommand.text,
+                images: nextCommand.images,
+                parts: nextCommand.parts,
+              }),
+            100
+          );
+        }
       }
     }
   });

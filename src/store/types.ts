@@ -280,7 +280,17 @@ export interface CommandState {
 export interface CommandActions {
   setProcessing: (isProcessing: boolean) => void;
   createAbortController: () => AbortController;
-  clearAbortController: () => void;
+  /**
+   * 获取当前的 AbortController
+   * 用于在 finally 块中检查是否应该重置状态
+   */
+  getAbortController: () => AbortController | null;
+  /**
+   * 清理 AbortController
+   * @param expectedController 可选，只有当 store 中的 controller 与此相同时才清除
+   * 用于防止新任务的 controller 被旧任务的 finally 块误清
+   */
+  clearAbortController: (expectedController?: AbortController) => void;
   abort: () => void;
   enqueueCommand: (command: PendingCommand) => void;
   dequeueCommand: () => PendingCommand | undefined;
