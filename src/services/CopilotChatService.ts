@@ -237,6 +237,66 @@ export class CopilotChatService implements IChatService {
   }
 
   /**
+   * 验证并修复消息序列
+   * Copilot API 要求：tool 消息必须紧跟在带有 tool_calls 的 assistant 消息之后
+   */
+  private sanitizeMessages(messages: Message[]): Message[] {
+    const result: Message[] = [];
+    const toolCallIds = new Set<string>();
+
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+
+      if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+        const validToolCallIds: string[] = [];
+        for (const tc of msg.tool_calls) {
+          let hasMatchingToolResponse = false;
+          for (let j = i + 1; j < messages.length; j++) {
+            if (messages[j].role === 'tool' && messages[j].tool_call_id === tc.id) {
+              hasMatchingToolResponse = true;
+              break;
+            }
+            if (messages[j].role === 'assistant' || messages[j].role === 'user') {
+              break;
+            }
+          }
+          if (hasMatchingToolResponse) {
+            validToolCallIds.push(tc.id);
+            toolCallIds.add(tc.id);
+          }
+        }
+
+        if (validToolCallIds.length > 0) {
+          result.push({
+            ...msg,
+            tool_calls: msg.tool_calls.filter((tc) => validToolCallIds.includes(tc.id)),
+          });
+        } else {
+          result.push({
+            role: msg.role,
+            content: msg.content || '',
+            reasoningContent: msg.reasoningContent,
+          });
+        }
+      } else if (msg.role === 'tool') {
+        if (msg.tool_call_id && toolCallIds.has(msg.tool_call_id)) {
+          result.push(msg);
+        }
+      } else {
+        result.push(msg);
+      }
+    }
+
+    if (result.length !== messages.length) {
+      logger.debug(
+        `[CopilotChatService] Sanitized messages: ${messages.length} -> ${result.length}`
+      );
+    }
+
+    return result;
+  }
+
+  /**
    * 构建请求体
    */
   private buildRequest(
@@ -249,8 +309,9 @@ export class CopilotChatService implements IChatService {
     }>,
     stream = false
   ): CopilotChatRequest {
-    // 转换消息格式
-    const convertedMessages = messages.map((msg) => {
+    const sanitizedMessages = this.sanitizeMessages(messages);
+
+    const convertedMessages = sanitizedMessages.map((msg) => {
       // 处理 content
       let content: string | null;
       if (typeof msg.content === 'string') {
@@ -289,9 +350,10 @@ export class CopilotChatService implements IChatService {
             id: tc.id,
             type: 'function' as const,
             function: {
-              name: (tc as { function: { name: string; arguments: string } }).function.name,
-              arguments: (tc as { function: { name: string; arguments: string } }).function
-                .arguments,
+              name: (tc as { function: { name: string; arguments: string } }).function
+                .name,
+              arguments: (tc as { function: { name: string; arguments: string } })
+                .function.arguments,
             },
           }));
       }
