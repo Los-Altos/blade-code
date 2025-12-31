@@ -68,6 +68,14 @@ export const ChatStatusBar: React.FC = React.memo(() => {
       );
     }
 
+    if (permissionMode === PermissionMode.SPEC) {
+      return (
+        <Text color="blue">
+          📋 spec mode on <Text color="gray">(structured workflow)</Text>
+        </Text>
+      );
+    }
+
     return null;
   };
 

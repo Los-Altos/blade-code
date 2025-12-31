@@ -46,6 +46,7 @@ import { ModelSelector } from './ModelSelector.js';
 import { PermissionsManager } from './PermissionsManager.js';
 import { SessionSelector } from './SessionSelector.js';
 import { SkillsManager } from './SkillsManager.js';
+import { SpecStatusPanel } from './SpecStatusPanel.js';
 import { ThemeSelector } from './ThemeSelector.js';
 
 // 创建 BladeInterface 专用 Logger
@@ -558,6 +559,9 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
 
       {/* 主界面内容 - 当有阻塞弹窗时通过 display="none" 隐藏但不卸载，避免 Static 组件重复渲染 */}
       <Box flexDirection="column" display={hasBlockingModal ? 'none' : 'flex'}>
+        {/* Spec 状态面板（仅在 Spec 模式下显示） */}
+        {permissionMode === PermissionMode.SPEC && <SpecStatusPanel />}
+
         {/* MessageArea 内部直接获取状态，不需要 props */}
         <MessageArea />
 

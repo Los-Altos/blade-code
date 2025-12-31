@@ -193,9 +193,46 @@ export class ToolRegistry extends EventEmitter {
       return this.getReadOnlyFunctionDeclarations();
     }
 
+    // Spec 模式：暴露只读工具 + Spec 专用工具
+    // Spec 工具（EnterSpecMode, UpdateSpec, GetSpecContext, TransitionSpecPhase, ValidateSpec, ExitSpecMode）
+    // 可以执行写操作但在 Spec 模式下自动批准
+    if (mode === PermissionMode.SPEC) {
+      return this.getSpecModeFunctionDeclarations();
+    }
+
     // 其他模式（default/autoEdit/yolo）：暴露全量工具
     // 执行阶段由 PermissionStage 根据 permissionMode 进行细粒度控制
     return this.getFunctionDeclarations();
+  }
+
+  /**
+   * Spec 模式专用工具列表
+   */
+  private static readonly SPEC_TOOLS = [
+    'EnterSpecMode',
+    'UpdateSpec',
+    'GetSpecContext',
+    'TransitionSpecPhase',
+    'ValidateSpec',
+    'ExitSpecMode',
+  ];
+
+  /**
+   * 获取 Spec 模式可用工具（只读工具 + Spec 专用工具）
+   */
+  getSpecModeFunctionDeclarations(): FunctionDeclaration[] {
+    const readOnlyTools = this.getReadOnlyTools();
+    const specTools = this.getAll().filter((tool) =>
+      ToolRegistry.SPEC_TOOLS.includes(tool.name)
+    );
+
+    // 合并去重
+    const toolSet = new Map<string, Tool>();
+    for (const tool of [...readOnlyTools, ...specTools]) {
+      toolSet.set(tool.name, tool);
+    }
+
+    return Array.from(toolSet.values()).map((tool) => tool.getFunctionDeclaration());
   }
 
   /**

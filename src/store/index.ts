@@ -44,6 +44,7 @@ export {
   focusActions,
   getState,
   sessionActions,
+  specActions,
   subscribe,
   vanillaStore,
 } from './vanilla.js';

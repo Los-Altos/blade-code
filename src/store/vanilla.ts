@@ -29,6 +29,7 @@ import {
   createConfigSlice,
   createFocusSlice,
   createSessionSlice,
+  createSpecSlice,
 } from './slices/index.js';
 import type { BladeStore, SessionMessage } from './types.js';
 
@@ -53,6 +54,7 @@ export const vanillaStore = createStore<BladeStore>()(
       config: createConfigSlice(...a),
       focus: createFocusSlice(...a),
       command: createCommandSlice(...a),
+      spec: createSpecSlice(...a),
     })),
     {
       name: 'BladeStore',
@@ -102,6 +104,13 @@ export const focusActions = () => getState().focus.actions;
  * commandActions().abort();
  */
 export const commandActions = () => getState().command.actions;
+
+/**
+ * Spec Actions
+ * @example
+ * specActions().setActive(true);
+ */
+export const specActions = () => getState().spec.actions;
 
 // ==================== 选择器订阅 ====================
 

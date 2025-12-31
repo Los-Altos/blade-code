@@ -12,6 +12,8 @@ import { editTool, readTool, writeTool } from './file/index.js';
 import { notebookEditTool } from './notebook/index.js';
 // Plan 工具
 import { enterPlanModeTool, exitPlanModeTool } from './plan/index.js';
+// Spec 工具
+import { specTools } from './spec/index.js';
 // 搜索工具
 import { globTool, grepTool } from './search/index.js';
 // Shell 命令工具
@@ -77,6 +79,9 @@ export async function getBuiltinTools(opts?: {
     // Plan 模式: EnterPlanMode, ExitPlanMode
     enterPlanModeTool,
     exitPlanModeTool,
+
+    // Spec 模式: EnterSpecMode, UpdateSpec, GetSpecContext, TransitionSpecPhase, ValidateSpec, ExitSpecMode
+    ...specTools,
 
     // System: AskUserQuestion, Skill, SlashCommand
     askUserQuestionTool,
