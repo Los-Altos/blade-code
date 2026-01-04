@@ -19,13 +19,13 @@ const STRIKETHROUGH_MARKER_LENGTH = 2; // ~~
 const _INLINE_CODE_MARKER_LENGTH = 1; // `
 
 /**
- * 生成稳定的 key（基于内容和序号，而非位置索引）
+ * 生成稳定的 key（基于内容和全局唯一序号）
  * 避免流式更新时因位置变化导致的不必要重渲染
  */
-function stableKey(content: string, seq: number): string {
-  // 简单哈希：取内容前 20 字符 + 长度 + 序号
-  const prefix = content.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '');
-  return `${prefix}-${content.length}-${seq}`;
+let globalKeySeq = 0;
+function stableKey(_content: string, seq: number): string {
+  // 使用全局自增序号确保唯一性
+  return `inline-${globalKeySeq++}-${seq}`;
 }
 
 /**

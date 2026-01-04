@@ -73,6 +73,9 @@ export interface SessionState {
   // 历史消息折叠相关
   historyExpanded: boolean; // 是否展开所有历史消息（默认 false，只显示最近 N 条）
   expandedMessageCount: number; // 始终保持展开的最近消息数量（默认 30）
+  // 流式消息相关
+  currentStreamingMessageId: string | null; // 当前正在流式接收的助手消息 ID
+  currentStreamingContent: string; // 🆕 当前流式消息的内容（独立存储，避免 messages 数组引用变化）
 }
 
 /**
@@ -104,6 +107,10 @@ export interface SessionActions {
   setExpandedMessageCount: (count: number) => void;
   // Static 组件刷新相关 actions
   incrementClearCount: () => void;
+  // 流式消息相关 actions
+  startStreamingAssistantMessage: () => string; // 开始流式助手消息，返回消息 ID
+  appendAssistantContent: (delta: string) => void; // 追加内容到当前流式消息
+  finalizeStreamingMessage: () => void; // 完成流式消息
 }
 
 /**

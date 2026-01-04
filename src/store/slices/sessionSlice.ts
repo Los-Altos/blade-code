@@ -11,6 +11,7 @@
 
 import { nanoid } from 'nanoid';
 import type { StateCreator } from 'zustand';
+import { findLastSafeSplitPoint } from '../../ui/utils/markdown.js';
 import type {
   BladeStore,
   SessionMessage,
@@ -46,7 +47,10 @@ const initialSessionState: SessionState = {
   clearCount: 0,
   // 历史消息折叠相关
   historyExpanded: false, // 默认折叠历史消息（只显示最近 N 条）
-  expandedMessageCount: 30, // 默认显示最近 30 条消息完整内容
+  expandedMessageCount: 100, // 默认显示最近 100 条消息完整内容
+  // 流式消息相关
+  currentStreamingMessageId: null, // 当前正在流式接收的助手消息 ID
+  currentStreamingContent: '', // 🆕 流式消息内容（独立存储）
 };
 
 /**
@@ -326,6 +330,154 @@ export const createSessionSlice: StateCreator<BladeStore, [], [], SessionSlice> 
           clearCount: state.session.clearCount + 1,
         },
       }));
+    },
+
+    // ==================== 流式消息相关 actions ====================
+
+    /**
+     * 开始新的流式助手消息
+     * 创建一个空内容的助手消息，后续通过 appendAssistantContent 增量填充
+     * @returns 消息 ID
+     */
+    startStreamingAssistantMessage: () => {
+      const messageId = `assistant-${Date.now()}-${Math.random()}`;
+      const message: SessionMessage = {
+        id: messageId,
+        role: 'assistant',
+        content: '', // 空内容，后续增量填充
+        timestamp: Date.now(),
+      };
+      set((state) => ({
+        session: {
+          ...state.session,
+          messages: [...state.session.messages, message],
+          currentStreamingMessageId: messageId,
+          error: null,
+        },
+      }));
+      return messageId;
+    },
+
+    /**
+     * 追加内容到当前流式消息
+     * 如果没有活动的流式消息，自动创建一个（支持流式输出）
+     *
+     * 🆕 性能优化：
+     * 1. 流式内容独立存储在 currentStreamingContent 中
+     * 2. 使用 findLastSafeSplitPoint 检测段落边界
+     * 3. 在段落边界处将已完成内容移入 messages 数组（由 Static 渲染）
+     * 4. 只保留最后未完成的片段在 currentStreamingContent
+     *
+     * 这样每次流式更新只渲染最后一小段，而不是整个响应，大幅减少闪烁。
+     *
+     * @param delta 增量文本
+     */
+    appendAssistantContent: (delta: string) => {
+      set((state) => {
+        const streamingId = state.session.currentStreamingMessageId;
+
+        // 如果没有活动的流式消息，自动创建一个
+        if (!streamingId) {
+          const newStreamingId = `assistant-${Date.now()}-${Math.random()}`;
+          return {
+            session: {
+              ...state.session,
+              currentStreamingMessageId: newStreamingId,
+              currentStreamingContent: delta,
+              error: null,
+            },
+          };
+        }
+
+        // 累积新内容
+        const newContent = state.session.currentStreamingContent + delta;
+
+        // 🆕 核心优化：检测是否可以分割
+        // 使用 findLastSafeSplitPoint 找到安全的段落边界
+        const splitPoint = findLastSafeSplitPoint(newContent);
+
+        // 如果分割点等于内容长度，说明没有安全分割点，保持原样
+        if (splitPoint === newContent.length || splitPoint === 0) {
+          return {
+            session: {
+              ...state.session,
+              currentStreamingContent: newContent,
+            },
+          };
+        }
+
+        // 🆕 有安全分割点：将前半部分移入 messages，后半部分保留在 streaming
+        const completedContent = newContent.substring(0, splitPoint);
+        const pendingContent = newContent.substring(splitPoint);
+
+        // 创建已完成的消息片段
+        const completedMessage: SessionMessage = {
+          id: `assistant-chunk-${Date.now()}-${Math.random()}`,
+          role: 'assistant',
+          content: completedContent,
+          timestamp: Date.now(),
+        };
+
+        return {
+          session: {
+            ...state.session,
+            messages: [...state.session.messages, completedMessage],
+            currentStreamingContent: pendingContent,
+          },
+        };
+      });
+    },
+
+    /**
+     * 完成当前流式消息
+     * 🆕 将剩余的 currentStreamingContent 合并到 messages 数组，清理流式状态
+     *
+     * 注意：由于 appendAssistantContent 已经会在段落边界处分割并移入 messages，
+     * 这里只需要处理最后剩余的未完成片段。
+     */
+    finalizeStreamingMessage: () => {
+      set((state) => {
+        const streamingId = state.session.currentStreamingMessageId;
+        const streamingContent = state.session.currentStreamingContent;
+
+        if (!streamingId) {
+          return state;
+        }
+
+        // 如果还有剩余的流式内容，添加为最后一条消息
+        const thinkingContent = state.session.currentThinkingContent;
+
+        // 只有当有剩余内容时才创建消息
+        if (streamingContent.length > 0) {
+          const finalMessage: SessionMessage = {
+            id: streamingId,
+            role: 'assistant',
+            content: streamingContent,
+            timestamp: Date.now(),
+            thinkingContent: thinkingContent || undefined,
+          };
+
+          return {
+            session: {
+              ...state.session,
+              messages: [...state.session.messages, finalMessage],
+              currentStreamingMessageId: null,
+              currentStreamingContent: '',
+              currentThinkingContent: null,
+            },
+          };
+        }
+
+        // 没有剩余内容，只清理状态
+        return {
+          session: {
+            ...state.session,
+            currentStreamingMessageId: null,
+            currentStreamingContent: '',
+            currentThinkingContent: null,
+          },
+        };
+      });
     },
   },
 });

@@ -99,3 +99,111 @@ export const hasMarkdownFormat = (text: string): boolean => {
   // 快速检测常见的 Markdown 标记
   return /[*_~`<[\]https?:]/.test(text);
 };
+
+// ==================== 流式消息分割 ====================
+
+/**
+ * 检查给定索引是否在代码块内部
+ *
+ * @param content 完整内容
+ * @param indexToTest 要测试的索引
+ * @returns 如果索引在代码块内部返回 true
+ */
+const isIndexInsideCodeBlock = (content: string, indexToTest: number): boolean => {
+  let fenceCount = 0;
+  let searchPos = 0;
+  while (searchPos < content.length) {
+    const nextFence = content.indexOf('```', searchPos);
+    if (nextFence === -1 || nextFence >= indexToTest) {
+      break;
+    }
+    fenceCount++;
+    searchPos = nextFence + 3;
+  }
+  return fenceCount % 2 === 1;
+};
+
+/**
+ * 查找包含给定索引的代码块的起始位置
+ *
+ * @param content Markdown 内容
+ * @param index 要检查的索引
+ * @returns 代码块起始索引，如果不在代码块内返回 -1
+ */
+const findEnclosingCodeBlockStart = (content: string, index: number): number => {
+  if (!isIndexInsideCodeBlock(content, index)) {
+    return -1;
+  }
+  let currentSearchPos = 0;
+  while (currentSearchPos < index) {
+    const blockStartIndex = content.indexOf('```', currentSearchPos);
+    if (blockStartIndex === -1 || blockStartIndex >= index) {
+      break;
+    }
+    const blockEndIndex = content.indexOf('```', blockStartIndex + 3);
+    if (blockStartIndex < index) {
+      if (blockEndIndex === -1 || index < blockEndIndex + 3) {
+        return blockStartIndex;
+      }
+    }
+    if (blockEndIndex === -1) break;
+    currentSearchPos = blockEndIndex + 3;
+  }
+  return -1;
+};
+
+/**
+ * 查找最后一个安全的分割点
+ *
+ * 这是流式渲染性能优化的核心函数。
+ * 在流式输出时，将已完成的内容片段移入 Static 组件，
+ * 只保留最后未完成的片段在动态渲染区域。
+ *
+ * 分割策略（按优先级）：
+ * 1. 如果内容末尾在代码块内，在代码块开始前分割
+ * 2. 查找最后一个不在代码块内的双换行（段落边界）
+ * 3. 如果没有安全分割点，返回 content.length（不分割）
+ *
+ *
+ * @param content 要分割的内容
+ * @returns 安全的分割点索引
+ *
+ * @example
+ * // 在段落边界分割
+ * findLastSafeSplitPoint('Hello\n\nWorld') // 返回 7（'World' 之前）
+ *
+ * // 不分割代码块
+ * findLastSafeSplitPoint('```js\ncode\n```') // 返回 14（完整内容）
+ *
+ * // 代码块未闭合时，在代码块前分割
+ * findLastSafeSplitPoint('text\n\n```js\ncode') // 返回 0（代码块开始前）
+ */
+export const findLastSafeSplitPoint = (content: string): number => {
+  // 检查内容末尾是否在代码块内
+  const enclosingBlockStart = findEnclosingCodeBlockStart(content, content.length);
+  if (enclosingBlockStart !== -1) {
+    // 内容末尾在代码块内，在代码块开始前分割
+    return enclosingBlockStart;
+  }
+
+  // 查找最后一个不在代码块内的双换行（段落边界）
+  let searchStartIndex = content.length;
+  while (searchStartIndex >= 0) {
+    const dnlIndex = content.lastIndexOf('\n\n', searchStartIndex);
+    if (dnlIndex === -1) {
+      // 没有更多双换行
+      break;
+    }
+
+    const potentialSplitPoint = dnlIndex + 2;
+    if (!isIndexInsideCodeBlock(content, potentialSplitPoint)) {
+      return potentialSplitPoint;
+    }
+
+    // 如果分割点在代码块内，继续向前搜索
+    searchStartIndex = dnlIndex - 1;
+  }
+
+  // 没有找到安全分割点，返回完整内容长度（不分割）
+  return content.length;
+};

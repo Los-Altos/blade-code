@@ -26,6 +26,7 @@ export interface MessageRendererProps {
   terminalWidth: number;
   metadata?: Record<string, unknown>; // 🆕 用于 tool-progress 等消息的元数据
   isPending?: boolean; // 🆕 标记是否为流式传输中的消息
+  availableTerminalHeight?: number; // 🆕 可用终端高度（用于 pending 状态截断显示）
 }
 
 // 获取角色样式配置（接受 theme 参数，从 Store 获取）
@@ -398,12 +399,43 @@ function parseMarkdown(content: string): ParsedBlock[] {
 
 /**
  * 渲染代码块
+ *
+ * 参考 Gemini CLI：在 isPending 模式下限制代码块高度，避免长代码块导致闪烁
  */
 const CodeBlock: React.FC<{
   content: string;
   language?: string;
   terminalWidth: number;
-}> = ({ content, language, terminalWidth }) => {
+  isPending?: boolean;
+  availableHeight?: number;
+}> = React.memo(({ content, language, terminalWidth, isPending = false, availableHeight }) => {
+  const theme = useTheme();
+
+  // 流式模式下限制代码块高度（参考 Gemini CLI RenderCodeBlock）
+  if (isPending && availableHeight !== undefined) {
+    const lines = content.split('\n');
+    const RESERVED_LINES = 4; // 预留行数（边框、提示等）
+    const maxLines = Math.max(1, availableHeight - RESERVED_LINES);
+
+    if (lines.length > maxLines) {
+      // 截断并显示提示
+      const truncatedContent = lines.slice(0, maxLines).join('\n');
+      return (
+        <Box flexDirection="column" flexShrink={0}>
+          <CodeHighlighter
+            content={truncatedContent}
+            language={language}
+            showLineNumbers={true}
+            terminalWidth={terminalWidth}
+          />
+          <Text color={theme.colors.text.muted} dimColor>
+            ... generating more code ...
+          </Text>
+        </Box>
+      );
+    }
+  }
+
   return (
     <CodeHighlighter
       content={content}
@@ -412,7 +444,7 @@ const CodeBlock: React.FC<{
       terminalWidth={terminalWidth}
     />
   );
-};
+});
 
 /**
  * 渲染标题
@@ -619,12 +651,105 @@ function shallowCompareMetadata(
 }
 
 /**
+ * 计算文本在终端中的实际显示行数
+ * 考虑终端宽度导致的自动换行
+ */
+function calculateDisplayLines(text: string, terminalWidth: number): number {
+  if (terminalWidth <= 0) return 1;
+  const lines = text.split('\n');
+  let totalLines = 0;
+  for (const line of lines) {
+    // 每行至少占 1 行，超过终端宽度时会自动换行
+    const lineLength = line.length || 1; // 空行也占 1 行
+    totalLines += Math.max(1, Math.ceil(lineLength / terminalWidth));
+  }
+  return totalLines;
+}
+
+/**
+ * 截断内容以适应可用终端高度（参考 Gemini CLI）
+ *
+ * 只在 pending 状态下截断，避免流式输出时内容超过终端高度导致闪烁
+ *
+ * 🆕 考虑终端宽度导致的自动换行：
+ * - 计算实际显示行数（非 \n 分割的逻辑行数）
+ * - 确保截断后内容不超过终端可见高度
+ */
+function truncateContentForHeight(
+  content: string,
+  availableHeight: number | undefined,
+  isPending: boolean,
+  terminalWidth: number = 80
+): { content: string; isTruncated: boolean; hiddenLines: number } {
+  // 非 pending 状态或没有高度限制，不截断
+  if (!isPending || availableHeight === undefined || availableHeight <= 0) {
+    return { content, isTruncated: false, hiddenLines: 0 };
+  }
+
+  // 预留几行给截断提示、前缀和其他 UI 元素
+  const RESERVED_LINES = 8;
+  const maxDisplayLines = Math.max(1, availableHeight - RESERVED_LINES);
+
+  const lines = content.split('\n');
+
+  // 从后往前累计行数，直到达到 maxDisplayLines
+  let displayLineCount = 0;
+  let startLineIndex = lines.length;
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    const lineDisplayCount = Math.max(1, Math.ceil((line.length || 1) / terminalWidth));
+
+    if (displayLineCount + lineDisplayCount > maxDisplayLines) {
+      break;
+    }
+
+    displayLineCount += lineDisplayCount;
+    startLineIndex = i;
+  }
+
+  // 如果不需要截断
+  if (startLineIndex === 0) {
+    return { content, isTruncated: false, hiddenLines: 0 };
+  }
+
+  // 截断并返回可见内容
+  const visibleLines = lines.slice(startLineIndex);
+  const hiddenLines = startLineIndex;
+
+  return {
+    content: visibleLines.join('\n'),
+    isTruncated: true,
+    hiddenLines,
+  };
+}
+
+
+/**
  * 主要的消息渲染器组件
  */
 export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
-  ({ content, role, terminalWidth, metadata, isPending = false }) => {
+  ({ content, role, terminalWidth, metadata, isPending = false, availableTerminalHeight }) => {
     // 从 Store 获取主题（响应式）
     const theme = useTheme();
+
+    // 🆕 在 pending 状态下截断内容（考虑终端宽度导致的自动换行）
+    const { content: displayContent, isTruncated, hiddenLines } = React.useMemo(
+      () => truncateContentForHeight(content, availableTerminalHeight, isPending, terminalWidth),
+      [content, availableTerminalHeight, isPending, terminalWidth]
+    );
+
+    // 🔍 DEBUG: 追踪渲染模式（写入文件）
+    React.useEffect(() => {
+      if (role === 'assistant') {
+        const fs = require('fs');
+        const renderMode = isPending ? 'PLAINTEXT' : 'MARKDOWN';
+        const logicalLines = displayContent.split('\n').length;
+        const displayLines = calculateDisplayLines(displayContent, terminalWidth);
+        const msg = `[${new Date().toISOString()}] MessageRenderer: mode=${renderMode}, isPending=${isPending}, isTruncated=${isTruncated}, logicalLines=${logicalLines}, displayLines=${displayLines}, terminalWidth=${terminalWidth}\n`;
+        fs.appendFileSync('/tmp/blade-debug.log', msg);
+      }
+    });
 
     // 使用 useMemo 缓存角色样式计算
     const roleStyle = React.useMemo(
@@ -661,22 +786,52 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
       }
     }
 
-    // 使用 useMemo 缓存 Markdown 解析结果（仅在 content 变化时重新解析）
-    const blocks = React.useMemo(() => parseMarkdown(content), [content]);
+    // 🆕 关键优化：流式输出期间始终使用纯文本渲染
+    // 避免以下问题：
+    // 1. 截断切掉代码块开头、标题等，导致 Markdown 解析结果剧变
+    // 2. 流式过程中从 Markdown 模式切换到纯文本模式（或反向）导致闪烁
+    // 只有流式结束后（isPending=false）才使用完整 Markdown 渲染
+    if (isPending) {
+      return (
+        <Box flexDirection="column" marginBottom={1} flexShrink={0}>
+          {/* 截断提示（如果有） */}
+          {isTruncated && (
+            <Box flexDirection="row" flexShrink={0}>
+              <Box width={prefix.length + 1} flexShrink={0} />
+              <Text color={theme.colors.text.muted} dimColor>
+                ↑ {hiddenLines} lines above (streaming...)
+              </Text>
+            </Box>
+          )}
+          {/* 纯文本渲染（固定结构，避免模式切换导致的闪烁） */}
+          <Box flexDirection="row" flexShrink={0}>
+            <Box marginRight={1} flexShrink={0}>
+              <Text color={color} bold>{prefix}</Text>
+            </Box>
+            <Box flexGrow={1} flexShrink={0}>
+              <Text wrap="wrap">{displayContent}</Text>
+            </Box>
+          </Box>
+        </Box>
+      );
+    }
+
+    // 流式结束后（isPending=false）使用完整 Markdown 渲染
+    const blocks = parseMarkdown(displayContent);
 
     return (
-      <Box flexDirection="column" marginBottom={1}>
+      <Box flexDirection="column" marginBottom={1} flexShrink={0}>
         {blocks.map((block, index) => {
           // 空行
           if (block.type === 'empty') {
-            return <Box key={index} height={1} />;
+            return <Box key={index} height={1} flexShrink={0} />;
           }
 
           return (
-            <Box key={index} flexDirection="row">
+            <Box key={index} flexDirection="row" flexShrink={0}>
               {/* 只在第一个非空块显示前缀 */}
               {index === 0 && (
-                <Box marginRight={1}>
+                <Box marginRight={1} flexShrink={0}>
                   <Text color={color} bold>
                     {prefix}
                   </Text>
@@ -684,14 +839,16 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
               )}
 
               {/* 为非第一个块添加缩进对齐 */}
-              {index > 0 && <Box width={prefix.length + 1} />}
+              {index > 0 && <Box width={prefix.length + 1} flexShrink={0} />}
 
-              <Box flexGrow={1}>
+              <Box flexGrow={1} flexShrink={0}>
                 {block.type === 'code' ? (
                   <CodeBlock
                     content={block.content}
                     language={block.language}
                     terminalWidth={terminalWidth - (prefix.length + 1)}
+                    isPending={isPending}
+                    availableHeight={availableTerminalHeight}
                   />
                 ) : block.type === 'table' && block.tableData ? (
                   <TableRenderer
@@ -736,6 +893,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
       prevProps.role === nextProps.role &&
       prevProps.terminalWidth === nextProps.terminalWidth &&
       prevProps.isPending === nextProps.isPending &&
+      prevProps.availableTerminalHeight === nextProps.availableTerminalHeight &&
       // 对 metadata 进行浅比较（避免 JSON.stringify 的性能开销）
       shallowCompareMetadata(prevProps.metadata, nextProps.metadata)
     );

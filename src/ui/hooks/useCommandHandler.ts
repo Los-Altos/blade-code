@@ -20,7 +20,7 @@ import {
   useSessionActions,
   useSessionId,
 } from '../../store/selectors/index.js';
-import { ensureStoreInitialized } from '../../store/vanilla.js';
+import { ensureStoreInitialized, getState } from '../../store/vanilla.js';
 import type { ConfirmationHandler } from '../../tools/types/ExecutionTypes.js';
 import type { ToolResult } from '../../tools/types/index.js';
 import {
@@ -471,15 +471,47 @@ Remember: Follow the above instructions carefully to complete the user's request
         };
 
         const loopOptions = {
+          // 启用流式输出（默认）
+          stream: true,
+
+          // ===== 流式增量回调 =====
+
+          // 流式内容增量
+          // appendAssistantContent 会自动创建流式消息（如果尚未创建）
+          onContentDelta: (delta: string) => {
+            sessionActions.appendAssistantContent(delta);
+          },
+
+          // 流式推理内容增量（Thinking 模型）
+          onThinkingDelta: (delta: string) => {
+            sessionActions.appendThinkingContent(delta);
+          },
+
+          // ===== 完整内容回调（流结束时调用）=====
+
           // LLM 推理内容（Thinking 模型如 DeepSeek R1）
+          // 流式模式下：增量已通过 onThinkingDelta 发送，这里用于兼容
+          // 非流式模式下：这是唯一的通知途径
           onThinking: (content: string) => {
             // abort 检查已在 Agent 内部统一处理
             sessionActions.setCurrentThinkingContent(content);
           },
+
           // LLM 输出内容
+          // 流式模式下：增量已通过 onContentDelta 发送，这里标记流结束并完成消息
+          // 非流式 fallback 模式下：这里创建完整消息
           onContent: (content: string) => {
             // abort 检查已在 Agent 内部统一处理
-            if (content.trim()) {
+            if (!content.trim()) return;
+
+            // 检查是否有活动的流式消息
+            const hasStreamingMessage = getState().session.currentStreamingMessageId !== null;
+
+            if (hasStreamingMessage) {
+              // 流式模式：完成当前流式消息
+              sessionActions.finalizeStreamingMessage();
+            } else {
+              // 非流式 fallback：直接添加完整消息
               sessionActions.addAssistantMessageAndClearThinking(content);
             }
           },

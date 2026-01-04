@@ -393,6 +393,60 @@ export const useCurrentThinkingContent = () =>
 export const useThinkingExpanded = () =>
   useBladeStore((state) => state.session.thinkingExpanded);
 
+// ==================== 流式消息选择器 ====================
+
+/**
+ * 获取当前流式消息 ID
+ */
+export const useCurrentStreamingMessageId = () =>
+  useBladeStore((state) => state.session.currentStreamingMessageId);
+
+/**
+ * 🆕 获取当前流式消息内容（独立存储，避免 messages 数组变化）
+ */
+export const useCurrentStreamingContent = () =>
+  useBladeStore((state) => state.session.currentStreamingContent);
+
+/**
+ * 获取当前流式消息的内容（如果有）
+ * 只订阅 content 字符串，避免对象引用变化导致的重渲染
+ */
+export const useStreamingMessageContent = () =>
+  useBladeStore((state) => {
+    const streamingId = state.session.currentStreamingMessageId;
+    if (!streamingId) return null;
+    const msg = state.session.messages.find((m) => m.id === streamingId);
+    return msg?.content ?? null;
+  });
+
+/**
+ * 获取当前流式消息的元数据（如果有）
+ * 只订阅 metadata，避免 content 变化导致的重渲染
+ */
+export const useStreamingMessageMeta = () =>
+  useBladeStore((state) => {
+    const streamingId = state.session.currentStreamingMessageId;
+    if (!streamingId) return null;
+    const msg = state.session.messages.find((m) => m.id === streamingId);
+    if (!msg) return null;
+    return { id: msg.id, role: msg.role, metadata: msg.metadata };
+  });
+
+/**
+ * 获取历史消息数量（不包含流式消息）
+ * 用于检测历史消息是否变化
+ */
+export const useHistoryMessagesCount = () =>
+  useBladeStore((state) => {
+    const streamingId = state.session.currentStreamingMessageId;
+    if (!streamingId) return state.session.messages.length;
+    const streamingIndex = state.session.messages.findIndex(
+      (msg) => msg.id === streamingId
+    );
+    if (streamingIndex === -1) return state.session.messages.length;
+    return streamingIndex;
+  });
+
 // ==================== 历史消息折叠选择器 ====================
 
 /**

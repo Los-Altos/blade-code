@@ -30,10 +30,12 @@ import { SpecManager } from '../spec/SpecManager.js';
 import { AttachmentCollector } from '../prompts/processors/AttachmentCollector.js';
 import type { Attachment } from '../prompts/processors/types.js';
 import {
+  type ChatResponse,
   type ContentPart,
   createChatService,
   type IChatService,
   type Message,
+  type StreamChunk,
 } from '../services/ChatServiceInterface.js';
 import { discoverSkills, injectSkillsMetadata } from '../skills/index.js';
 import {
@@ -767,12 +769,13 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
         logger.debug('可用工具数量:', tools.length);
         logger.debug('================================\n');
 
-        // 3. 直接调用 ChatService（各 provider 自行处理消息过滤）
-        const turnResult = await this.chatService.chat(
-          messages,
-          tools,
-          options?.signal
-        );
+        // 3. 调用 ChatService（流式或非流式）
+        // 默认启用流式，除非显式设置 stream: false
+        const isStreamEnabled = options?.stream !== false;
+
+        const turnResult = isStreamEnabled
+          ? await this.processStreamResponse(messages, tools, options)
+          : await this.chatService.chat(messages, tools, options?.signal);
 
         // 累加 token 使用量，并保存真实的 prompt tokens 用于下一轮压缩检查
         if (turnResult.usage) {
@@ -820,6 +823,8 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
         logger.debug('================================\n');
 
         // 🆕 如果 LLM 返回了 thinking 内容（DeepSeek R1 等），通知 UI
+        // 流式模式下，增量已通过 onThinkingDelta 发送，这里发送完整内容用于兼容
+        // 非流式模式下，这是唯一的通知途径
         // 注意：检查 abort 状态，避免取消后仍然触发回调
         if (
           turnResult.reasoningContent &&
@@ -829,7 +834,9 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
           options.onThinking(turnResult.reasoningContent);
         }
 
-        // 🆕 如果 LLM 返回了 content，立即显示
+        // 🆕 如果 LLM 返回了 content，通知 UI
+        // 流式模式下：增量已通过 onContentDelta 发送，这里调用 onContent 标记流结束
+        // 非流式模式下：这里是唯一的内容通知
         // 注意：检查 abort 状态，避免取消后仍然触发回调
         if (
           turnResult.content &&
@@ -1408,6 +1415,157 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
         },
       };
     }
+  }
+
+  /**
+   * 处理流式响应
+   *
+   * 调用 ChatService.streamChat() 获取流式响应，
+   * 累积 content、reasoningContent 和 toolCalls，
+   * 同时通过回调实时输出增量内容。
+   *
+   * @param messages 消息数组
+   * @param tools 工具定义
+   * @param options 循环选项（包含回调）
+   * @returns 完整的 ChatResponse
+   */
+  private async processStreamResponse(
+    messages: Message[],
+    tools: Array<{ name: string; description: string; parameters: unknown }>,
+    options?: LoopOptions
+  ): Promise<ChatResponse> {
+    // 累积器
+    let fullContent = '';
+    let fullReasoningContent = '';
+    const toolCallAccumulator = new Map<
+      number,
+      { id: string; name: string; arguments: string }
+    >();
+
+    try {
+      // 获取流式生成器
+      const stream = this.chatService.streamChat(messages, tools, options?.signal);
+
+      for await (const chunk of stream) {
+        // 检查 abort 信号
+        if (options?.signal?.aborted) {
+          break;
+        }
+
+        // 1. 处理文本增量
+        if (chunk.content) {
+          fullContent += chunk.content;
+          // 调用增量回调
+          options?.onContentDelta?.(chunk.content);
+        }
+
+        // 2. 处理推理内容增量（Thinking 模型如 DeepSeek R1）
+        if (chunk.reasoningContent) {
+          fullReasoningContent += chunk.reasoningContent;
+          // 调用增量回调
+          options?.onThinkingDelta?.(chunk.reasoningContent);
+        }
+
+        // 3. 累积工具调用参数
+        // 流式响应中 toolCalls 参数是分块的：{"file_` → `path": "/src` → `/app.ts"}`
+        if (chunk.toolCalls) {
+          for (const tc of chunk.toolCalls) {
+            this.accumulateToolCall(toolCallAccumulator, tc);
+          }
+        }
+
+        // 4. 流结束
+        if (chunk.finishReason) {
+          break;
+        }
+      }
+
+      // 构造完整响应
+      return {
+        content: fullContent,
+        reasoningContent: fullReasoningContent || undefined,
+        toolCalls: this.buildFinalToolCalls(toolCallAccumulator),
+        // 流式响应通常不返回 usage，可以在调用方估算
+        usage: undefined,
+      };
+    } catch (error) {
+      // 检查是否是流式不支持的错误，如果是则降级到非流式
+      if (this.isStreamingNotSupportedError(error)) {
+        logger.warn('[Agent] 流式请求失败，降级到非流式模式');
+        return this.chatService.chat(messages, tools, options?.signal);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 累积工具调用参数
+   * 不同 provider 的 chunk 格式略有不同，但都包含 index、id、function.name、function.arguments
+   */
+  private accumulateToolCall(
+    accumulator: Map<number, { id: string; name: string; arguments: string }>,
+    // biome-ignore lint/suspicious/noExplicitAny: 不同 provider 格式不同
+    chunk: any
+  ): void {
+    const tc = chunk;
+    const index = tc.index ?? 0;
+
+    if (!accumulator.has(index)) {
+      accumulator.set(index, {
+        id: tc.id || '',
+        name: tc.function?.name || '',
+        arguments: '',
+      });
+    }
+
+    const entry = accumulator.get(index)!;
+
+    // 更新 ID 和名称（首次出现时）
+    if (tc.id && !entry.id) entry.id = tc.id;
+    if (tc.function?.name && !entry.name) entry.name = tc.function.name;
+
+    // 累积参数
+    if (tc.function?.arguments) {
+      entry.arguments += tc.function.arguments;
+    }
+  }
+
+  /**
+   * 从累积器构建最终的工具调用数组
+   */
+  private buildFinalToolCalls(
+    accumulator: Map<number, { id: string; name: string; arguments: string }>
+  ): ChatResponse['toolCalls'] | undefined {
+    if (accumulator.size === 0) return undefined;
+
+    return Array.from(accumulator.values())
+      .filter((tc) => tc.id && tc.name)
+      .map((tc) => ({
+        id: tc.id,
+        type: 'function' as const,
+        function: {
+          name: tc.name,
+          arguments: tc.arguments,
+        },
+      }));
+  }
+
+  /**
+   * 检查错误是否表示流式不支持
+   */
+  private isStreamingNotSupportedError(error: unknown): boolean {
+    if (!(error instanceof Error)) return false;
+
+    const streamErrors = [
+      'stream not supported',
+      'streaming is not available',
+      'sse not supported',
+      'does not support streaming',
+    ];
+
+    return streamErrors.some((msg) =>
+      error.message.toLowerCase().includes(msg.toLowerCase())
+    );
   }
 
   /**

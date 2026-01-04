@@ -138,6 +138,7 @@ export interface LoopOptions {
 
   // 🆕 流式信息显示回调
   onContentDelta?: (delta: string) => void; // 流式文本片段
+  onThinkingDelta?: (delta: string) => void; // 流式推理内容片段（Thinking 模型）
   onContent?: (content: string) => void; // 完整的 LLM 输出内容
   onThinking?: (content: string) => void; // LLM 推理过程(深度推理模型)
   onToolStart?: (
