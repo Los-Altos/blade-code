@@ -1,6 +1,6 @@
 import ansiEscapes from 'ansi-escapes';
 import { Box, Static, useStdout } from 'ink';
-import React, { ReactNode, useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   useClearCount,
   useCurrentThinkingContent,
@@ -9,6 +9,7 @@ import {
   useIsProcessing,
   useMessages,
   usePendingCommands,
+  useSessionActions,
   useShowTodoPanel,
   useThinkingExpanded,
   useTodos,
@@ -25,18 +26,15 @@ import { TodoPanel } from './TodoPanel.js';
  * 消息区域组件
  * 负责显示消息列表
  *
- * 性能优化：
- * - 使用 Ink 的 Static 组件将已完成的消息隔离，避免重新渲染
- * - 只有正在流式传输的消息会重新渲染
- * - 使用 useMemo 缓存计算结果
+ * 折叠策略（参考 Claude Code）：
+ * - 当消息数量超过阈值时，自动把之前所有消息折叠成一行摘要
+ * - 新消息继续正常输出，不受折叠影响
+ * - 用户可以按 Ctrl+O 展开查看历史
  *
- * 布局优化：
- * - Header 作为 Static 的第一个子项，确保永远在历史消息顶部
- * - TodoPanel 独立显示在动态区域底部，不随消息滚动被冻结
- * - 只在有活动 TODO（pending/in_progress）时显示 TodoPanel
- *
- * 状态管理：
- * - 使用 Zustand selectors 内部获取状态，消除 Props Drilling
+ * 渲染策略：
+ * - 使用 Ink 的 Static 组件渲染已完成的消息
+ * - Static 组件只渲染新追加的 items，已渲染的不会重新渲染
+ * - 流式传输的消息在 Static 外部渲染，支持实时更新
  */
 export const MessageArea: React.FC = React.memo(() => {
   // 使用 Zustand selectors 获取状态
@@ -47,87 +45,80 @@ export const MessageArea: React.FC = React.memo(() => {
   const pendingCommands = usePendingCommands();
   const currentThinkingContent = useCurrentThinkingContent();
   const thinkingExpanded = useThinkingExpanded();
-  const clearCount = useClearCount(); // 用于强制 Static 组件重新挂载
-  const expandedMessageCount = useExpandedMessageCount(); // 保持展开的最近消息数
-  const historyExpanded = useHistoryExpanded(); // 是否展开所有历史消息
+  const clearCount = useClearCount();
+  const expandedMessageCount = useExpandedMessageCount();
+  const historyExpanded = useHistoryExpanded();
 
-  // 使用 useTerminalWidth hook 获取终端宽度
   const terminalWidth = useTerminalWidth();
-
-  // stdout 用于清屏
   const { stdout } = useStdout();
+  const sessionActions = useSessionActions();
 
-  // 追踪已渲染到 Static 的消息数量（防止重复渲染）
-  const renderedCountRef = React.useRef(0);
+  // 折叠点：记录从哪个索引开始折叠
+  // 当消息数超过阈值时，折叠点被设置为当前位置
+  // 折叠点之前的消息显示为摘要，之后的消息正常显示
+  // 使用 useState 而非 useRef，确保设置折叠点时触发重新渲染
+  const [collapsePointState, setCollapsePointState] = useState<number | null>(null);
 
-  // 追踪 historyExpanded 的前一个值，用于检测变化
+  // 追踪 historyExpanded 的前一个值
   const prevHistoryExpandedRef = useRef(historyExpanded);
 
-  // 当 clearCount 变化时（/clear 命令），重置渲染计数
-  useEffect(() => {
-    renderedCountRef.current = 0;
-  }, [clearCount]);
-
-  // 当 historyExpanded 变化时，需要清屏以避免重复渲染
-  // 因为 Static 组件的内容是累积输出到终端的，key 变化只会新增内容，不会清除旧内容
+  // 当 historyExpanded 变化时，清屏并递增 clearCount
   useEffect(() => {
     if (prevHistoryExpandedRef.current !== historyExpanded) {
-      // historyExpanded 发生变化，清屏
       if (stdout) {
         stdout.write(ansiEscapes.clearTerminal);
       }
-      // 重置渲染计数，让 Static 重新渲染所有需要的消息
-      renderedCountRef.current = 0;
+      sessionActions.incrementClearCount();
       prevHistoryExpandedRef.current = historyExpanded;
     }
-  }, [historyExpanded, stdout]);
+  }, [historyExpanded, stdout, sessionActions]);
 
   // 分离已完成的消息和正在流式传输的消息
   const { completedMessages, streamingMessage } = useMemo(() => {
-    // Static 组件的特性：items 只能追加，不能减少
-    // 所以 completedMessages 只能增长，不能缩小
-
-    // 判断最后一条消息是否是正在流式传输的 assistant 消息
-    // 只有 assistant 消息才可能是流式传输中，user/tool/system 消息都是完整的
     const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
     const isLastMessageStreaming =
       isProcessing && lastMessage && lastMessage.role === 'assistant';
 
-    const safeCompletedCount = Math.max(
-      renderedCountRef.current,
-      isLastMessageStreaming ? messages.length - 1 : messages.length
-    );
-
-    // 更新已渲染数量
-    renderedCountRef.current = safeCompletedCount;
-
-    const completed = messages.slice(0, safeCompletedCount);
-    const streaming =
-      safeCompletedCount < messages.length ? messages[safeCompletedCount] : null;
+    if (isLastMessageStreaming) {
+      return {
+        completedMessages: messages.slice(0, -1),
+        streamingMessage: lastMessage,
+      };
+    }
 
     return {
-      completedMessages: completed,
-      streamingMessage: streaming,
+      completedMessages: messages,
+      streamingMessage: null,
     };
   }, [messages, isProcessing]);
 
-  // 检测是否有活动的 TODO（进行中或待处理）
+  // 检测并设置折叠点
+  // 当消息数首次超过阈值时，记录折叠点
+  useEffect(() => {
+    if (
+      collapsePointState === null &&
+      completedMessages.length > expandedMessageCount
+    ) {
+      // 首次超过阈值，设置折叠点为当前位置
+      setCollapsePointState(completedMessages.length);
+
+      // 清屏并递增 clearCount，强制 Static 重新渲染
+      // 这样折叠摘要才能正确显示
+      if (stdout) {
+        stdout.write(ansiEscapes.clearTerminal);
+      }
+      sessionActions.incrementClearCount();
+    }
+  }, [completedMessages.length, expandedMessageCount, collapsePointState, stdout, sessionActions]);
+
+  // 检测是否有活动的 TODO
   const hasActiveTodos = useMemo(() => {
     return todos.some(
       (todo) => todo.status === 'pending' || todo.status === 'in_progress'
     );
   }, [todos]);
 
-  // 计算"最近消息"的起始索引（这些消息始终显示完整内容）
-  // 当 historyExpanded=true 时，显示所有消息；否则只显示最近 N 条
-  const recentMessageStartIndex = useMemo(() => {
-    if (historyExpanded) {
-      return 0; // 展开时显示所有消息
-    }
-    return Math.max(0, messages.length - expandedMessageCount);
-  }, [messages.length, expandedMessageCount, historyExpanded]);
-
-  // 渲染单个消息（用于 Static 和 dynamic 区域）
+  // 渲染单个消息
   const renderMessage = (msg: SessionMessage, isPending = false) => (
     <Box key={msg.id} flexDirection="column">
       <MessageRenderer
@@ -140,48 +131,53 @@ export const MessageArea: React.FC = React.memo(() => {
     </Box>
   );
 
-  // 计算折叠的消息数量
-  const collapsedCount = useMemo(() => {
-    return Math.min(recentMessageStartIndex, completedMessages.length);
-  }, [recentMessageStartIndex, completedMessages.length]);
+  // 计算折叠数量
+  // 如果展开了历史，不折叠任何消息
+  // 否则，折叠点之前的消息都折叠
+  const collapsePoint = historyExpanded ? 0 : (collapsePointState ?? 0);
+  const collapsedCount = collapsePoint;
 
-  // 构建 Static items：Header + 折叠汇总 + 已完成的消息
-  const staticItems = useMemo(() => {
-    const items: ReactNode[] = [];
-
-    // 1. Header 始终在最顶部
-    items.push(<Header key="header" />);
-
-    // 2. 如果有折叠的消息，显示单行汇总
-    if (collapsedCount > 0) {
-      items.push(
-        <CollapsedHistorySummary
-          key="collapsed-summary"
-          collapsedCount={collapsedCount}
-        />
-      );
+  // 构建历史消息的 JSX 数组
+  const historyItems = completedMessages.map((msg, index) => {
+    const uniqueKey = `msg-${index}`;
+    if (index < collapsePoint) {
+      // 折叠点之前：渲染为空 Box（保持数组长度，让 Static 能检测到）
+      return <Box key={uniqueKey} />;
     }
+    // 折叠点之后：正常渲染（带底部间距）
+    return (
+      <Box key={uniqueKey} flexDirection="column" marginBottom={1}>
+        <MessageRenderer
+          content={msg.content}
+          role={msg.role}
+          terminalWidth={terminalWidth}
+          metadata={msg.metadata as Record<string, unknown>}
+          isPending={false}
+        />
+      </Box>
+    );
+  });
 
-    // 3. 只渲染需要显示的消息（从 recentMessageStartIndex 开始）
-    completedMessages.forEach((msg, index) => {
-      if (index >= recentMessageStartIndex) {
-        items.push(renderMessage(msg));
-      }
-    });
+  // 构建 Static items 数组
+  const staticItems = [
+    <Header key="header" />,
+    ...(collapsedCount > 0
+      ? [<CollapsedHistorySummary key="collapsed-summary" collapsedCount={collapsedCount} />]
+      : []),
+    ...historyItems,
+  ];
 
-    return items;
-  }, [completedMessages, terminalWidth, recentMessageStartIndex, collapsedCount]);
 
   return (
     <Box flexDirection="column" flexGrow={1} paddingX={2}>
       <Box flexDirection="column" flexGrow={1}>
-        {/* 静态区域：Header + 折叠汇总 + 最近消息 */}
-        {/* key 包含 clearCount 和 historyExpanded，确保状态变化时强制重新挂载 */}
+        {/* 静态区域：Header + 折叠汇总 + 历史消息 */}
+        {/* key 包含 clearCount 和 historyExpanded，确保状态变化时完全重新渲染 */}
         <Static key={`${clearCount}-${historyExpanded}`} items={staticItems}>
           {(item) => item}
         </Static>
 
-        {/* 流式接收的 Thinking 内容（在消息之前显示） */}
+        {/* 流式接收的 Thinking 内容 */}
         {currentThinkingContent && (
           <Box marginBottom={1}>
             <ThinkingBlock
@@ -192,17 +188,17 @@ export const MessageArea: React.FC = React.memo(() => {
           </Box>
         )}
 
-        {/* 动态区域：只有流式传输的消息会重新渲染 */}
+        {/* 动态区域：流式传输的 assistant 消息 */}
         {streamingMessage && renderMessage(streamingMessage, true)}
 
-        {/* TodoPanel 独立显示（仅在有活动 TODO 时） */}
+        {/* TodoPanel */}
         {showTodoPanel && hasActiveTodos && (
           <Box marginTop={1}>
             <TodoPanel todos={todos} visible={true} compact={false} />
           </Box>
         )}
 
-        {/* 待处理命令队列（显示在最底部，作为下一轮对话的开始） */}
+        {/* 待处理命令队列 */}
         {pendingCommands.map((cmd, index) => (
           <Box key={`pending-${index}`} flexDirection="column">
             <MessageRenderer

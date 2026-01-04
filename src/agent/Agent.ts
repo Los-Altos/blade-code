@@ -93,6 +93,9 @@ export class Agent {
   // Skill 执行上下文（用于 allowed-tools 限制）
   private activeSkillContext?: SkillExecutionContext;
 
+  // 当前模型的上下文窗口大小（用于 tokenUsage 上报）
+  private currentModelMaxContextTokens!: number;
+
   constructor(
     config: BladeConfig,
     runtimeOptions: AgentOptions = {},
@@ -206,6 +209,10 @@ export class Agent {
         this.log(`🧠 检测到 Thinking 模型，启用 reasoning_content 支持`);
       }
 
+      // 保存当前模型的上下文窗口大小（用于 tokenUsage 上报）
+      this.currentModelMaxContextTokens =
+        modelConfig.maxContextTokens ?? this.config.maxContextTokens;
+
       // 使用工厂函数创建 ChatService（根据 provider 选择实现）
       this.chatService = createChatService({
         provider: modelConfig.provider,
@@ -213,7 +220,7 @@ export class Agent {
         model: modelConfig.model,
         baseUrl: modelConfig.baseUrl,
         temperature: modelConfig.temperature ?? this.config.temperature,
-        maxContextTokens: modelConfig.maxContextTokens ?? this.config.maxContextTokens, // 上下文窗口（压缩判断）
+        maxContextTokens: this.currentModelMaxContextTokens, // 上下文窗口（压缩判断）
         maxOutputTokens: modelConfig.maxOutputTokens ?? this.config.maxOutputTokens, // 输出限制（API max_tokens）
         timeout: this.config.timeout,
         supportsThinking, // 传递 thinking 模式支持标志
@@ -784,7 +791,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
               inputTokens: turnResult.usage.promptTokens ?? 0,
               outputTokens: turnResult.usage.completionTokens ?? 0,
               totalTokens,
-              maxContextTokens: this.config.maxContextTokens,
+              maxContextTokens: this.currentModelMaxContextTokens,
             });
           }
         }
