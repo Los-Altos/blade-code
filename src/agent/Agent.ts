@@ -456,8 +456,19 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
   ): Promise<LoopResult> {
     logger.debug('🔷 Processing Spec mode message...');
 
-    // 1. 获取 SpecManager 和当前 Spec 上下文
+    // 1. 确保 SpecManager 已初始化
     const specManager = SpecManager.getInstance();
+    const workspaceRoot = context.workspaceRoot || process.cwd();
+
+    try {
+      // 尝试初始化（如果已初始化会安全返回）
+      await specManager.initialize(workspaceRoot);
+    } catch (error) {
+      logger.warn('SpecManager initialization warning:', error);
+      // 继续执行，可能是首次进入 Spec 模式
+    }
+
+    // 2. 获取当前 Spec 上下文
     const currentSpec = specManager.getCurrentSpec();
     const steeringContextString = await specManager.getSteeringContextString();
 

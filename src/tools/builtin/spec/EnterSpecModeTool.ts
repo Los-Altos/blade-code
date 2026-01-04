@@ -1,10 +1,11 @@
 /**
  * EnterSpecMode Tool
  *
- * 请求用户批准进入 Spec-Driven Development 模式
+ * 请求用户批准进入 Spec-Driven Development 模式，并初始化 SpecManager
  */
 
 import { z } from 'zod';
+import { SpecManager } from '../../../spec/SpecManager.js';
 import { createTool } from '../../core/createTool.js';
 import type { ToolResult } from '../../types/ToolTypes.js';
 import { ToolErrorType, ToolKind } from '../../types/ToolTypes.js';
@@ -121,36 +122,67 @@ For simpler planning needs, consider using EnterPlanMode instead.
         });
 
         if (response.approved) {
-          return {
-            success: true,
-            llmContent:
-              `✅ User approved entering Spec mode for "${featureName}".\n\n` +
-              'You are now in SPEC MODE. Your workflow:\n\n' +
-              '**Phase 1: Requirements** (current)\n' +
-              '- Read the proposal.md template\n' +
-              '- Define requirements using EARS format\n' +
-              '- Use UpdateSpec tool to save requirements.md\n\n' +
-              '**Phase 2: Design**\n' +
-              '- Create architecture diagrams (Mermaid)\n' +
-              '- Define API contracts and data models\n' +
-              '- Save to design.md\n\n' +
-              '**Phase 3: Tasks**\n' +
-              '- Break down into atomic tasks\n' +
-              '- Identify dependencies and affected files\n' +
-              '- Save to tasks.md\n\n' +
-              '**Phase 4: Implementation**\n' +
-              '- Execute tasks one by one\n' +
-              '- Update task status as you progress\n' +
-              '- Call ExitSpecMode when done\n\n' +
-              'Start by reading the generated proposal.md and expanding on it.',
-            displayContent: `✅ Entering Spec mode: ${featureName}`,
-            metadata: {
-              approved: true,
-              enterSpecMode: true,
-              featureName,
-              description,
-            },
-          };
+          // 初始化 SpecManager 并创建 Spec
+          const workspaceRoot = context.workspaceRoot || process.cwd();
+          const specManager = SpecManager.getInstance();
+
+          try {
+            await specManager.initialize(workspaceRoot);
+            const createResult = await specManager.createSpec(featureName, description);
+
+            if (!createResult.success) {
+              return {
+                success: false,
+                llmContent: `Failed to create Spec: ${createResult.message}`,
+                displayContent: `❌ Failed to create Spec: ${createResult.message}`,
+                error: {
+                  type: ToolErrorType.EXECUTION_ERROR,
+                  message: createResult.message,
+                },
+              };
+            }
+
+            return {
+              success: true,
+              llmContent:
+                `✅ Created Spec: "${featureName}"\n\n` +
+                `📁 Location: .blade/changes/${featureName}/\n\n` +
+                'You are now in SPEC MODE. Your workflow:\n\n' +
+                '**Phase 1: Requirements** (current)\n' +
+                '- Define requirements using EARS format\n' +
+                '- Use UpdateSpec tool to save requirements.md\n' +
+                '- Use TransitionSpecPhase("requirements") to advance\n\n' +
+                '**Phase 2: Design** (optional)\n' +
+                '- Create architecture diagrams (Mermaid)\n' +
+                '- Define API contracts and data models\n\n' +
+                '**Phase 3: Tasks**\n' +
+                '- Use AddTask tool to create atomic tasks\n' +
+                '- IMPORTANT: Actually call AddTask for each task!\n\n' +
+                '**Phase 4: Implementation**\n' +
+                '- Execute tasks one by one\n' +
+                '- Use UpdateTaskStatus to track progress\n' +
+                '- Call ExitSpecMode when done\n\n' +
+                'Start by asking the user for more details about their requirements.',
+              displayContent: `✅ Created Spec: ${featureName}`,
+              metadata: {
+                approved: true,
+                enterSpecMode: true,
+                featureName,
+                description,
+                specPath: `.blade/changes/${featureName}/`,
+              },
+            };
+          } catch (error) {
+            return {
+              success: false,
+              llmContent: `Failed to initialize Spec: ${error instanceof Error ? error.message : 'Unknown error'}`,
+              displayContent: '❌ Failed to initialize Spec',
+              error: {
+                type: ToolErrorType.EXECUTION_ERROR,
+                message: error instanceof Error ? error.message : 'Initialization failed',
+              },
+            };
+          }
         } else {
           return {
             success: true,

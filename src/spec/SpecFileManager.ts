@@ -88,18 +88,11 @@ export class SpecFileManager {
 
   /**
    * 初始化 Spec 目录结构
+   * 只创建 changes 目录（最常用），其他目录按需创建
    */
   async initializeDirectories(): Promise<void> {
-    const dirs = [
-      this.getSpecsDir(),
-      this.getChangesDir(),
-      this.getArchiveDir(),
-      this.getSteeringDir(),
-    ];
-
-    for (const dir of dirs) {
-      await fs.mkdir(dir, { recursive: true });
-    }
+    // 只创建 changes 目录，其他目录在使用时按需创建
+    await fs.mkdir(this.getChangesDir(), { recursive: true });
   }
 
   /**

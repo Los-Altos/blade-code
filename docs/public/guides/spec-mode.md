@@ -18,10 +18,6 @@ Spec-Driven Development (SDD) 是一种结构化的开发方法论，核心理�
 
 ### 进入 Spec 模式
 
-有两种方式进入 Spec 模式：
-
-**方式一：Shift+Tab 切换**
-
 按 `Shift+Tab` 循环切换模式：
 
 ```
@@ -34,134 +30,136 @@ DEFAULT → AUTO_EDIT → PLAN → SPEC → DEFAULT
 📋 spec: tasks 3/5 (shift+tab to cycle)
 ```
 
-**方式二：/spec 命令**
+### 对话驱动工作流
 
-直接使用 `/spec` 命令创建或加载 Spec。
+进入 Spec 模式后，**无需记忆任何命令**，只需与 AI 自然对话：
 
-### 创建新的 Spec
-
-```bash
-/spec proposal my-feature "实现用户认证功能"
-```
-
-这会在 `.blade/changes/my-feature/` 下创建：
-- `proposal.md` - 提案描述（为什么做）
-- `.meta.json` - 元数据（状态、进度等）
-
-### 查看 Spec 状态
-
-```bash
-/spec status
-```
-
-显示当前 Spec 的阶段、任务进度等信息。
-
-### 列出所有 Specs
-
-```bash
-/spec list
-```
-
-查看所有活跃和归档的 Specs。
-
-## 四阶段工作流
-
-Spec Mode 遵循四个主要阶段：
+**示例对话：**
 
 ```
-┌─────────────┐    ┌──────────┐    ┌───────┐    ┌──────────────┐
-│ REQUIREMENTS│ → │  DESIGN  │ → │ TASKS │ → │IMPLEMENTATION│
-│   需求定义   │    │ 架构设计  │    │任务分解│    │    实现中     │
-└─────────────┘    └──────────┘    └───────┘    └──────────────┘
+你: 我想实现用户认证功能
+
+AI: 好的，让我为你创建一个新的 Spec。
+    [调用 EnterSpecMode 工具]
+    ✅ 已创建 Spec: user-auth
+
+    现在让我们定义需求。这个认证功能需要支持哪些登录方式？
+
+你: 需要支持邮箱密码登录和 OAuth2
+
+AI: 明白了，让我更新需求文档...
+    [调用 UpdateSpec 工具]
+
+    需求已记录。接下来进入设计阶段，还是直接开始任务分解？
+
+你: 直接开始任务分解
+
+AI: [调用 TransitionSpecPhase 工具]
+    已进入任务分解阶段。让我创建任务列表...
+    [调用 AddTask 工具]
+
+    任务 1: 创建 User 模型
+    任务 2: 实现邮箱密码登录
+    任务 3: 集成 OAuth2
+
+    准备好开始实现了吗？
+
+你: 开始吧
+
+AI: [调用 UpdateTaskStatus 工具]
+    开始任务 1: 创建 User 模型...
 ```
 
-### 1. Requirements（需求定义）
+## 六阶段工作流
 
-使用 EARS 格式定义需求：
+Spec Mode 遵循六个阶段：
 
-```bash
-/spec plan
+```
+┌───────┐    ┌─────────────┐    ┌──────────┐    ┌───────┐    ┌──────────────┐    ┌──────┐
+│ init  │ → │ requirements│ → │  design  │ → │ tasks │ → │implementation│ → │ done │
+│提案创建│    │  需求定义    │    │ 架构设计  │    │任务分解│    │    实现中     │    │已完成│
+└───────┘    └─────────────┘    └──────────┘    └───────┘    └──────────────┘    └──────┘
 ```
 
-生成 `requirements.md`，包含：
+### 1. Init（提案创建）
+
+进入 Spec 模式后，告诉 AI 你想实现什么功能，AI 会自动创建 Spec。
+
+**你可以说：**
+- "我想实现用户认证功能"
+- "帮我添加暗黑模式支持"
+- "重构订单处理模块"
+
+### 2. Requirements（需求定义）
+
+AI 会使用 EARS 格式帮你定义需求：
+
 - **Ubiquitous** - "系统应..."
 - **Event-driven** - "当 [触发条件] 时，系统应..."
 - **Unwanted** - "如果 [条件]，则系统应..."
 - **State-driven** - "当处于 [状态] 时，系统应..."
 
-### 2. Design（架构设计）
+**你可以说：**
+- "需求定义好了，继续"
+- "还需要添加一个需求：支持记住登录状态"
 
-可选阶段，创建技术架构：
+### 3. Design（架构设计）
 
-```bash
-/spec plan
-```
+可选阶段，AI 会创建技术架构文档，包含：
 
-生成 `design.md`，包含：
 - 组件图（Mermaid）
 - 数据流图
 - API 契约
 - 数据库 Schema 变更
 
-### 3. Tasks（任务分解）
+**你可以说：**
+- "跳过设计阶段，直接任务分解"
+- "帮我画一个架构图"
 
-将设计拆分为原子任务：
+### 4. Tasks（任务分解）
 
-```bash
-/spec tasks
-```
+AI 会将设计拆分为原子任务，每个任务包含：
 
-生成 `tasks.md`，每个任务包含：
 - 标题和描述
 - 复杂度（low/medium/high）
 - 依赖关系
 - 影响的文件
 
-### 4. Implementation（实现）
+**你可以说：**
+- "任务分解好了，开始实现"
+- "把这个任务拆成两个更小的任务"
 
-逐个执行任务：
+### 5. Implementation（实现）
 
-```bash
-/spec apply [task-id]
-```
+AI 会逐个执行任务，你可以：
 
-或让 AI 自动选择下一个可执行的任务：
+**你可以说：**
+- "开始实现"
+- "这个任务完成了"
+- "先跳过这个任务"
 
-```bash
-/spec apply
-```
+### 6. Done（完成）
 
-### 5. 完成与归档
+当所有任务完成后，AI 会归档 Spec 并自动退出 Spec 模式。
 
-当所有任务完成后，归档 Spec：
+**你可以说：**
+- "全部完成了"
+- "归档这个 Spec"
 
-```bash
-/spec archive
-```
+## AI 工具
 
-**自动退出**：Spec 完成（进入 `done` 阶段）后，系统会自动退出 Spec 模式，切换回 DEFAULT 模式。这让你可以无缝继续其他工作。
+在 Spec 模式下，AI 会自动使用这些工具：
 
-## 命令参考
-
-### 核心命令
-
-| 命令 | 说明 |
+| 工具 | 用途 |
 |------|------|
-| `/spec proposal <name> [desc]` | 创建新的变更提案 |
-| `/spec plan` | 生成当前阶段的文档（需求/设计） |
-| `/spec tasks` | 分解任务 |
-| `/spec apply [task-id]` | 执行任务 |
-| `/spec archive` | 归档已完成的 Spec |
-
-### 辅助命令
-
-| 命令 | 说明 |
-|------|------|
-| `/spec status` | 查看当前 Spec 状态 |
-| `/spec list` | 列出所有 Specs |
-| `/spec show <name>` | 显示指定 Spec 详情 |
-| `/spec validate` | 验证 Spec 完整性 |
-| `/spec constitution` | 编辑项目治理原则 |
+| `EnterSpecMode` | 创建新 Spec |
+| `UpdateSpec` | 更新文档（proposal/requirements/design/tasks） |
+| `GetSpecContext` | 获取当前上下文和进度 |
+| `TransitionSpecPhase` | 阶段转换 |
+| `AddTask` | 添加任务 |
+| `UpdateTaskStatus` | 更新任务状态 |
+| `ValidateSpec` | 验证完整性 |
+| `ExitSpecMode` | 退出/归档 |
 
 ## 目录结构
 
@@ -233,17 +231,23 @@ Steering Documents 是项目级的全局治理文档，为 AI 提供上下文：
 
 每个 Spec 应该解决一个明确的问题。如果 Spec 太大，考虑拆分为多个独立的 Specs。
 
-### 3. 定期验证
+### 3. 清晰表达意图
 
-使用 `/spec validate` 检查 Spec 的完整性，确保所有必要的文档都已填写。
+虽然是对话驱动，但清晰表达你的需求可以让 AI 更好地理解和执行：
+
+- ✅ "我需要一个支持 JWT 和 OAuth2 的用户认证系统"
+- ❌ "帮我做个登录"
 
 ### 4. 利用 Steering Documents
 
-在开始任何 Spec 之前，先设置好 Steering Documents，让 AI 了解项目的全局上下文。
+在开始任何 Spec 之前，先告诉 AI 你的项目约束，AI 会自动创建 Steering Documents。
 
-### 5. 及时归档
+### 5. 及时反馈
 
-完成 Spec 后，使用 `/spec archive` 归档，保持 changes/ 目录整洁。
+如果 AI 的理解有偏差，及时纠正：
+
+- "不是这样的，我需要的是..."
+- "这个任务太大了，拆成更小的步骤"
 
 ## 与 Plan Mode 的区别
 
@@ -251,29 +255,30 @@ Steering Documents 是项目级的全局治理文档，为 AI 提供上下文：
 |------|-----------|-----------|
 | 复杂度 | 简单任务 | 复杂功能 |
 | 文档 | 单个计划文件 | 多个结构化文档 |
-| 阶段 | 单阶段 | 四阶段工作流 |
+| 阶段 | 单阶段 | 六阶段工作流 |
 | 持久化 | 临时 | 永久归档 |
+| 任务追踪 | 无 | 依赖管理、进度显示 |
 | 适用场景 | Bug 修复、小改动 | 新功能、重构 |
 | 模式切换 | Shift+Tab | Shift+Tab |
 | 状态栏 | `‖ plan mode on` | `📋 spec: tasks 3/5` |
 
 ## 故障排除
 
-### Spec 创建失败
+### AI 没有使用 Spec 工具
 
-确保 Spec 名称只包含字母、数字和连字符，例如：
-- ✅ `user-auth`
-- ✅ `feature-123`
-- ❌ `user auth`（包含空格）
-- ❌ `feature/new`（包含斜杠）
+确保你已经通过 Shift+Tab 进入了 Spec 模式，状态栏应该显示 `📋 spec:`。
 
 ### 阶段转换失败
 
-检查当前阶段是否允许目标转换。例如，不能直接从 `init` 跳到 `implementation`。
+某些阶段转换是不允许的，例如不能直接从 `init` 跳到 `implementation`。按顺序完成各阶段即可。
 
-### 任务依赖未满足
+### 任务进度显示 0/0
 
-使用 `/spec status` 查看哪些依赖任务尚未完成，先完成依赖任务。
+确保在任务分解阶段让 AI 使用 `AddTask` 工具添加任务。你可以说："帮我添加任务到任务列表"。
+
+### 想要退出 Spec 模式
+
+按 `Shift+Tab` 切换到其他模式，或者说"退出 Spec 模式"。
 
 ## 参考资源
 

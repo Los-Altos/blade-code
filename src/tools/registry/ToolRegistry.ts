@@ -213,26 +213,30 @@ export class ToolRegistry extends EventEmitter {
     'UpdateSpec',
     'GetSpecContext',
     'TransitionSpecPhase',
+    'AddTask',
+    'UpdateTaskStatus',
     'ValidateSpec',
     'ExitSpecMode',
   ];
 
   /**
-   * 获取 Spec 模式可用工具（只读工具 + Spec 专用工具）
+   * 获取 Spec 模式可用工具
+   *
+   * Spec 模式暴露全量工具，因为：
+   * 1. 实现阶段需要 Edit/Write/Bash 来写代码
+   * 2. Spec 专用工具在 Spec 模式下自动批准
+   * 3. 权限控制由执行阶段的 PermissionStage 处理
    */
   getSpecModeFunctionDeclarations(): FunctionDeclaration[] {
-    const readOnlyTools = this.getReadOnlyTools();
-    const specTools = this.getAll().filter((tool) =>
-      ToolRegistry.SPEC_TOOLS.includes(tool.name)
-    );
+    // Spec 模式暴露全量工具
+    return this.getFunctionDeclarations();
+  }
 
-    // 合并去重
-    const toolSet = new Map<string, Tool>();
-    for (const tool of [...readOnlyTools, ...specTools]) {
-      toolSet.set(tool.name, tool);
-    }
-
-    return Array.from(toolSet.values()).map((tool) => tool.getFunctionDeclaration());
+  /**
+   * 检查是否为 Spec 专用工具
+   */
+  isSpecTool(toolName: string): boolean {
+    return ToolRegistry.SPEC_TOOLS.includes(toolName);
   }
 
   /**

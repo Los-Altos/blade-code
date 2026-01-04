@@ -1,13 +1,19 @@
 /**
  * Spec 状态管理器
  *
- * 单例模式，管理当前 Spec 会话状态和工作流转换
+ * 单例模式，管理当前 Spec 会话状态和工作流转换。
+ *
+ * **SSOT 设计**:
+ * - 所有状态存储在 Zustand Store (specSlice)
+ * - SpecManager 只是 Store 的操作包装器
+ * - 文件操作委托给 SpecFileManager
  */
 
 import { nanoid } from 'nanoid';
 import { PermissionMode } from '../config/types.js';
 import { createLogger, LogCategory } from '../logging/Logger.js';
-import { configActions } from '../store/vanilla.js';
+import type { SpecState } from '../store/slices/specSlice.js';
+import { configActions, vanillaStore } from '../store/vanilla.js';
 import { SpecFileManager } from './SpecFileManager.js';
 import {
   PHASE_TRANSITIONS,
@@ -16,7 +22,6 @@ import {
   type SpecOperationResult,
   type SpecPhase,
   type SpecSearchOptions,
-  type SpecState,
   type SpecTask,
   type SpecValidationResult,
   type SteeringContext,
@@ -28,17 +33,12 @@ const logger = createLogger(LogCategory.SPEC);
 
 /**
  * Spec 管理器
+ *
+ * 注意：不再维护内部状态，所有状态读写通过 Zustand Store
  */
 export class SpecManager {
   private static instance: SpecManager | null = null;
   private fileManager: SpecFileManager | null = null;
-  private state: SpecState = {
-    currentSpec: null,
-    specPath: null,
-    isActive: false,
-    steeringContext: null,
-    recentSpecs: [],
-  };
 
   private constructor() {}
 
@@ -59,15 +59,47 @@ export class SpecManager {
     SpecManager.instance = null;
   }
 
+  // =====================================
+  // Store 访问器（SSOT）
+  // =====================================
+
   /**
-   * 初始化管理器
+   * 获取 Store 中的 Spec 状态
+   */
+  private getStoreState() {
+    return vanillaStore.getState().spec;
+  }
+
+  /**
+   * 更新 Store 中的 Spec 状态
+   */
+  private updateStoreState(updates: Partial<SpecState>): void {
+    vanillaStore.setState((state) => ({
+      spec: {
+        ...state.spec,
+        ...updates,
+      },
+    }));
+  }
+
+  /**
+   * 初始化管理器（幂等，可重复调用）
    */
   async initialize(workspaceRoot: string): Promise<void> {
+    // 如果已经初始化过，跳过（幂等性）
+    if (this.fileManager) {
+      logger.debug('SpecManager already initialized, skipping...');
+      return;
+    }
+
     this.fileManager = new SpecFileManager(workspaceRoot);
     await this.fileManager.initializeDirectories();
 
-    // 加载 Steering Context
-    this.state.steeringContext = await this.fileManager.readSteeringContext();
+    // 加载 Steering Context 并更新 Store
+    const steeringContext = await this.fileManager.readSteeringContext();
+    this.updateStoreState({ steeringContext });
+
+    logger.debug('SpecManager initialized successfully');
   }
 
   /**
@@ -81,42 +113,42 @@ export class SpecManager {
   }
 
   // =====================================
-  // 状态访问
+  // 状态访问（从 Store 读取）
   // =====================================
 
   /**
    * 获取当前状态
    */
   getState(): SpecState {
-    return { ...this.state };
+    return { ...this.getStoreState() };
   }
 
   /**
    * 获取当前 Spec
    */
   getCurrentSpec(): SpecMetadata | null {
-    return this.state.currentSpec;
+    return this.getStoreState().currentSpec;
   }
 
   /**
    * 是否处于 Spec 模式
    */
   isActive(): boolean {
-    return this.state.isActive;
+    return this.getStoreState().isActive;
   }
 
   /**
    * 获取 Steering 上下文
    */
   getSteeringContext(): SteeringContext | null {
-    return this.state.steeringContext;
+    return this.getStoreState().steeringContext;
   }
 
   /**
    * 获取 Steering 上下文字符串（用于系统提示词）
    */
   async getSteeringContextString(): Promise<string | null> {
-    const ctx = this.state.steeringContext;
+    const ctx = this.getStoreState().steeringContext;
     if (!ctx) return null;
 
     const parts: string[] = [];
@@ -167,11 +199,17 @@ export class SpecManager {
     const proposalContent = this.generateProposalTemplate(name, description);
     await fm.writeSpecFile(name, 'proposal', proposalContent);
 
-    // 更新状态
-    this.state.currentSpec = metadata;
-    this.state.specPath = changePath;
-    this.state.isActive = true;
-    this.addToRecentSpecs(name);
+    // 更新最近使用列表
+    const recentSpecs = this.getStoreState().recentSpecs.filter((n) => n !== name);
+    recentSpecs.unshift(name);
+
+    // 更新 Store（SSOT）
+    this.updateStoreState({
+      currentSpec: metadata,
+      specPath: changePath,
+      isActive: true,
+      recentSpecs: recentSpecs.slice(0, 10),
+    });
 
     return {
       success: true,
@@ -200,10 +238,17 @@ export class SpecManager {
 
     const changePath = fm.getChangePath(name);
 
-    this.state.currentSpec = metadata;
-    this.state.specPath = changePath;
-    this.state.isActive = true;
-    this.addToRecentSpecs(name);
+    // 更新最近使用列表
+    const recentSpecs = this.getStoreState().recentSpecs.filter((n) => n !== name);
+    recentSpecs.unshift(name);
+
+    // 更新 Store（SSOT）
+    this.updateStoreState({
+      currentSpec: metadata,
+      specPath: changePath,
+      isActive: true,
+      recentSpecs: recentSpecs.slice(0, 10),
+    });
 
     return {
       success: true,
@@ -219,9 +264,11 @@ export class SpecManager {
    * 关闭当前 Spec（不删除）
    */
   closeSpec(): void {
-    this.state.currentSpec = null;
-    this.state.specPath = null;
-    this.state.isActive = false;
+    this.updateStoreState({
+      currentSpec: null,
+      specPath: null,
+      isActive: false,
+    });
   }
 
   /**
@@ -239,7 +286,7 @@ export class SpecManager {
    * 转换到下一阶段
    */
   async transitionPhase(targetPhase: SpecPhase): Promise<SpecOperationResult> {
-    const current = this.state.currentSpec;
+    const current = this.getCurrentSpec();
     if (!current) {
       return {
         success: false,
@@ -269,7 +316,10 @@ export class SpecManager {
       };
     }
 
-    this.state.currentSpec = updated;
+    // 更新 Store（SSOT）
+    this.updateStoreState({
+      currentSpec: updated,
+    });
 
     // 完成时自动切换到 DEFAULT 模式
     if (targetPhase === 'done') {
@@ -295,7 +345,7 @@ export class SpecManager {
    * 获取当前阶段允许的下一阶段
    */
   getAllowedTransitions(): SpecPhase[] {
-    const current = this.state.currentSpec;
+    const current = this.getCurrentSpec();
     if (!current) return [];
     return PHASE_TRANSITIONS[current.phase];
   }
@@ -316,7 +366,7 @@ export class SpecManager {
       complexity?: TaskComplexity;
     }
   ): Promise<SpecOperationResult> {
-    const current = this.state.currentSpec;
+    const current = this.getCurrentSpec();
     if (!current) {
       return {
         success: false,
@@ -335,8 +385,19 @@ export class SpecManager {
       complexity: options?.complexity || 'medium',
     };
 
-    current.tasks.push(task);
-    await this.getFileManager().writeMetadata(current.name, current);
+    const updatedSpec: SpecMetadata = {
+      ...current,
+      tasks: [...current.tasks, task],
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 持久化
+    await this.getFileManager().writeMetadata(current.name, updatedSpec);
+
+    // 更新 Store（SSOT）
+    this.updateStoreState({
+      currentSpec: updatedSpec,
+    });
 
     return {
       success: true,
@@ -352,7 +413,7 @@ export class SpecManager {
     taskId: string,
     status: TaskStatus
   ): Promise<SpecOperationResult> {
-    const current = this.state.currentSpec;
+    const current = this.getCurrentSpec();
     if (!current) {
       return {
         success: false,
@@ -370,24 +431,39 @@ export class SpecManager {
       };
     }
 
-    task.status = status;
-    if (status === 'completed') {
-      task.completedAt = new Date().toISOString();
-    }
+    // 更新任务
+    const updatedTask: SpecTask = {
+      ...task,
+      status,
+      completedAt: status === 'completed' ? new Date().toISOString() : task.completedAt,
+    };
 
-    // 更新当前任务 ID
-    if (status === 'in_progress') {
-      current.currentTaskId = taskId;
-    } else if (current.currentTaskId === taskId) {
-      current.currentTaskId = undefined;
-    }
+    const updatedTasks = current.tasks.map((t) => (t.id === taskId ? updatedTask : t));
 
-    await this.getFileManager().writeMetadata(current.name, current);
+    const updatedSpec: SpecMetadata = {
+      ...current,
+      tasks: updatedTasks,
+      currentTaskId:
+        status === 'in_progress'
+          ? taskId
+          : current.currentTaskId === taskId
+            ? undefined
+            : current.currentTaskId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 持久化
+    await this.getFileManager().writeMetadata(current.name, updatedSpec);
+
+    // 更新 Store（SSOT）
+    this.updateStoreState({
+      currentSpec: updatedSpec,
+    });
 
     return {
       success: true,
       message: `Task status updated to "${status}"`,
-      data: { task },
+      data: { task: updatedTask },
     };
   }
 
@@ -395,7 +471,7 @@ export class SpecManager {
    * 获取下一个待执行的任务
    */
   getNextTask(): SpecTask | null {
-    const current = this.state.currentSpec;
+    const current = this.getCurrentSpec();
     if (!current) return null;
 
     // 找到第一个 pending 且依赖都已完成的任务
@@ -416,7 +492,7 @@ export class SpecManager {
    * 获取任务进度
    */
   getTaskProgress(): { total: number; completed: number; percentage: number } {
-    const current = this.state.currentSpec;
+    const current = this.getCurrentSpec();
     if (!current || current.tasks.length === 0) {
       return { total: 0, completed: 0, percentage: 0 };
     }
@@ -507,7 +583,7 @@ export class SpecManager {
    * 归档当前 Spec
    */
   async archiveCurrentSpec(): Promise<SpecOperationResult> {
-    const current = this.state.currentSpec;
+    const current = this.getCurrentSpec();
     if (!current) {
       return {
         success: false,
@@ -527,7 +603,7 @@ export class SpecManager {
     // 移动到 archive
     await fm.archiveChange(current.name);
 
-    // 清除当前状态
+    // 清除当前状态（更新 Store）
     this.closeSpec();
 
     return {
@@ -547,7 +623,7 @@ export class SpecManager {
    * 验证当前 Spec 的完整性
    */
   async validateCurrentSpec(): Promise<SpecValidationResult> {
-    const current = this.state.currentSpec;
+    const current = this.getCurrentSpec();
     if (!current) {
       return {
         valid: false,
@@ -676,15 +752,6 @@ ${description}
 
 1.
 `;
-  }
-
-  /**
-   * 添加到最近使用列表
-   */
-  private addToRecentSpecs(name: string): void {
-    const recent = this.state.recentSpecs.filter((n) => n !== name);
-    recent.unshift(name);
-    this.state.recentSpecs = recent.slice(0, 10); // 保留最近 10 个
   }
 
   /**

@@ -157,6 +157,34 @@ TransitionSpecPhase({ targetPhase: "design" })
     }
 
     // Validate prerequisites for certain transitions
+    // 从 tasks 阶段转换到 implementation 时，必须至少添加一个任务
+    if (currentSpec.phase === 'tasks' && targetPhase === 'implementation') {
+      const progress = specManager.getTaskProgress();
+      if (progress.total === 0) {
+        return {
+          success: false,
+          llmContent:
+            '❌ Cannot transition to implementation: No tasks defined!\n\n' +
+            'You MUST use the **AddTask** tool to add tasks before starting implementation.\n\n' +
+            'Example:\n' +
+            '```\n' +
+            'AddTask({\n' +
+            '  title: "Create User model",\n' +
+            '  description: "Create User entity with required fields",\n' +
+            '  complexity: "low",\n' +
+            '  affectedFiles: ["src/models/User.ts"]\n' +
+            '})\n' +
+            '```\n\n' +
+            'After adding tasks, try transitioning again.',
+          displayContent: '❌ No tasks defined - use AddTask first',
+          error: {
+            type: ToolErrorType.VALIDATION_ERROR,
+            message: 'No tasks defined. Use AddTask tool to add tasks first.',
+          },
+        };
+      }
+    }
+
     if (targetPhase === 'done') {
       const progress = specManager.getTaskProgress();
       if (progress.total > 0 && progress.completed < progress.total) {

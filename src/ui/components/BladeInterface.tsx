@@ -9,6 +9,7 @@ import {
 import { createLogger, LogCategory } from '../../logging/Logger.js';
 import { safeExit } from '../../services/GracefulShutdown.js';
 import { SessionService } from '../../services/SessionService.js';
+import { SpecManager } from '../../spec/SpecManager.js';
 import {
   useActiveModal,
   useAppActions,
@@ -154,15 +155,41 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
       // 使用 configActions 自动同步内存 + 持久化
       await configActions().setPermissionMode(nextMode);
 
-      // Spec 模式：显示引导消息
+      // Spec 模式：初始化并检测已存在的 Spec
       if (nextMode === PermissionMode.SPEC) {
-        sessionActions.addAssistantMessage(
-          '📋 **已进入 Spec 模式**\n\n' +
-            '请告诉我你想实现什么功能，我会引导你完成整个工作流：\n' +
-            '`提案 → 需求 → 设计 → 任务 → 实现`\n\n' +
-            '例如："实现用户认证功能" 或 "添加暗黑模式支持"\n\n' +
-            '_按 Shift+Tab 可退出 Spec 模式_'
-        );
+        try {
+          const specManager = SpecManager.getInstance();
+          await specManager.initialize(process.cwd());
+
+          // 检查是否有已存在的活跃 Spec
+          const specs = await specManager.listSpecs();
+          if (specs.length > 0) {
+            // 加载最近的 Spec
+            const recentSpec = specs[0];
+            await specManager.loadSpec(recentSpec.name);
+            sessionActions.addAssistantMessage(
+              `📋 **已进入 Spec 模式**\n\n` +
+                `检测到已存在的 Spec: **${recentSpec.name}**\n` +
+                `当前阶段: ${recentSpec.phase}\n\n` +
+                `继续之前的工作，或告诉我你想做什么。`
+            );
+          } else {
+            sessionActions.addAssistantMessage(
+              '📋 **已进入 Spec 模式**\n\n' +
+                '请告诉我你想实现什么功能，我会引导你完成整个工作流：\n' +
+                '`提案 → 需求 → 设计 → 任务 → 实现`\n\n' +
+                '例如："实现用户认证功能" 或 "添加暗黑模式支持"'
+            );
+          }
+        } catch (error) {
+          logger.warn('Failed to initialize SpecManager:', error);
+          sessionActions.addAssistantMessage(
+            '📋 **已进入 Spec 模式**\n\n' +
+              '请告诉我你想实现什么功能，我会引导你完成整个工作流：\n' +
+              '`提案 → 需求 → 设计 → 任务 → 实现`\n\n' +
+              '例如："实现用户认证功能" 或 "添加暗黑模式支持"'
+          );
+        }
       }
     } catch (error) {
       logger.error(

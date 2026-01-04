@@ -101,21 +101,72 @@ export function formatToolCallSummary(
       const fileName = notebookPath?.split('/').pop() || 'notebook';
       return `📓 Editing notebook: ${fileName}`;
     }
+    // Spec Mode Tools
+    case 'EnterSpecMode': {
+      const name = params.name as string;
+      return `📋 Creating spec: ${name || 'new spec'}`;
+    }
+    case 'UpdateSpec': {
+      const fileType = params.fileType as string;
+      return `📝 Updating ${fileType}.md`;
+    }
+    case 'GetSpecContext': {
+      return `📊 Getting spec context`;
+    }
+    case 'TransitionSpecPhase': {
+      const targetPhase = params.targetPhase as string;
+      return `➡️ Transitioning to: ${targetPhase}`;
+    }
+    case 'AddTask': {
+      const title = params.title as string;
+      const truncatedTitle =
+        title && title.length > 30 ? title.substring(0, 30) + '...' : title;
+      return `➕ Adding task: ${truncatedTitle || 'task'}`;
+    }
+    case 'UpdateTaskStatus': {
+      const status = params.status as string;
+      const taskId = params.taskId as string;
+      const statusIcon =
+        status === 'completed' ? '✅' : status === 'in_progress' ? '🔄' : '⏸️';
+      return `${statusIcon} Task ${taskId?.substring(0, 8) || ''}: ${status}`;
+    }
+    case 'ValidateSpec': {
+      return `🔍 Validating spec`;
+    }
+    case 'ExitSpecMode': {
+      const archive = params.archive as boolean;
+      return archive ? `📦 Archiving spec` : `🚪 Exiting spec mode`;
+    }
     default:
       return `⚙️ ${toolName}`;
   }
 }
 
+interface ToolResult {
+  success?: boolean;
+  displayContent?: string;
+  llmContent?: unknown;
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * 安全获取 metadata 中的数值
+ */
+function getMetadataNumber(metadata: Record<string, unknown> | undefined, key: string): number {
+  const value = metadata?.[key];
+  return typeof value === 'number' ? value : 0;
+}
+
 /**
  * 判断是否显示工具详细内容
  */
-export function shouldShowToolDetail(toolName: string, result: any): boolean {
+export function shouldShowToolDetail(toolName: string, result: ToolResult): boolean {
   if (!result?.displayContent) return false;
 
   switch (toolName) {
     case 'Write':
       // 小文件显示预览（小于 10KB）
-      return (result.metadata?.file_size || 0) < 10000;
+      return getMetadataNumber(result.metadata, 'file_size') < 10000;
 
     case 'Edit':
       // 总是显示 diff 片段
@@ -123,15 +174,15 @@ export function shouldShowToolDetail(toolName: string, result: any): boolean {
 
     case 'Bash':
       // 短输出显示（小于 2000 字符）
-      return (result.metadata?.stdout_length || 0) < 2000;
+      return getMetadataNumber(result.metadata, 'stdout_length') < 2000;
 
     case 'Glob':
       // 显示匹配文件列表（最多 20 个）
-      return (result.metadata?.total_matches || 0) <= 20;
+      return getMetadataNumber(result.metadata, 'total_matches') <= 20;
 
     case 'Grep':
       // 显示匹配结果（最多 15 条）
-      return (result.metadata?.total_matches || 0) <= 15;
+      return getMetadataNumber(result.metadata, 'total_matches') <= 15;
 
     case 'WebFetch':
     case 'WebSearch':
@@ -140,7 +191,7 @@ export function shouldShowToolDetail(toolName: string, result: any): boolean {
 
     case 'Read':
       // 小文件显示预览（小于 3000 字符）
-      return (result.metadata?.content_length || 0) < 3000;
+      return getMetadataNumber(result.metadata, 'content_length') < 3000;
 
     case 'TodoWrite':
       // 不显示详细内容
@@ -156,7 +207,10 @@ export function shouldShowToolDetail(toolName: string, result: any): boolean {
  * 生成工具详细内容
  * 用于在工具执行后显示更多信息
  */
-export function generateToolDetail(toolName: string, result: any): string | null {
+export function generateToolDetail(
+  toolName: string,
+  result: ToolResult
+): string | null {
   if (!result?.success) return null;
 
   switch (toolName) {
@@ -203,15 +257,18 @@ export function generateToolDetail(toolName: string, result: any): string | null
     }
 
     case 'Bash': {
-      const stdout = result.llmContent?.stdout || '';
-      const stderr = result.llmContent?.stderr || '';
+      const llmContent = result.llmContent as { stdout?: string; stderr?: string } | undefined;
+      const stdout = llmContent?.stdout || '';
+      const stderr = llmContent?.stderr || '';
       const parts: string[] = [];
       if (stdout) parts.push(stdout);
       if (stderr) parts.push(`⚠️ ${stderr}`);
       return parts.join('\n') || null;
     }
 
-    default:
-      return result.metadata?.detail || null;
+    default: {
+      const detail = result.metadata?.detail;
+      return typeof detail === 'string' ? detail : null;
+    }
   }
 }

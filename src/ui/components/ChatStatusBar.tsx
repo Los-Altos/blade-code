@@ -21,7 +21,8 @@ import { useGitBranch } from '../hooks/useGitBranch.js';
  * 显示权限模式、快捷键提示、API状态和处理状态
  *
  * 状态管理：
- * - 使用 Zustand selectors 内部获取状态，消除 Props Drilling
+ * - 使用 Zustand selectors 获取状态（SSOT）
+ * - Spec 进度从 Store 读取（SpecManager 更新 Store）
  */
 export const ChatStatusBar: React.FC = React.memo(() => {
   // 使用 Zustand selectors 获取状态
@@ -36,6 +37,8 @@ export const ChatStatusBar: React.FC = React.memo(() => {
   const contextRemaining = useContextRemaining();
   const isCompacting = useIsCompacting();
   const thinkingModeEnabled = useThinkingModeEnabled();
+
+  // 从 Store 读取 Spec 进度（SSOT）
   const specProgress = useSpecProgress();
 
   // 检查当前模型是否支持 thinking

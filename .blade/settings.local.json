@@ -42,7 +42,19 @@
       "Edit(**/*.json)",
       "Bash(rm -f *)",
       "Bash(rm -rf *)",
-      "Bash(cd .blade/skills/base64-parser/scripts *)"
+      "Bash(cd .blade/skills/base64-parser/scripts *)",
+      "TransitionSpecPhase",
+      "UpdateSpec",
+      "AddTask",
+      "Bash(pwd)",
+      "UpdateTaskStatus",
+      "Edit(**/*.html)",
+      "Edit(**/*.js)",
+      "Edit(**/*.css)",
+      "Bash(pwd && *)",
+      "Bash(find src/utils *)",
+      "Edit(**/*.ts)",
+      "Edit(**/*.tsx)"
     ],
     "ask": [],
     "deny": []
