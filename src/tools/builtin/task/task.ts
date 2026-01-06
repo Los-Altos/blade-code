@@ -35,6 +35,45 @@ function getAvailableSubagentTypes(): [string, ...string[]] {
 }
 
 /**
+ * 动态生成 Task 工具的完整描述
+ * 必须是函数形式，因为 subagentRegistry 在模块加载时可能还未初始化
+ */
+function getTaskDescription(): string {
+  return `
+## Task
+
+Launch a new agent to handle complex, multi-step tasks autonomously.
+
+The Task tool launches specialized agents (subprocesses) that autonomously handle complex tasks. Each agent type has specific capabilities and tools available to it.
+
+${subagentRegistry.getDescriptionsForPrompt()}
+
+When using the Task tool, you must specify a subagent_type parameter to select which agent type to use.
+
+When NOT to use the Task tool:
+- If you want to read a specific file path, use the Read or Glob tool instead of the Task tool, to find the match more quickly
+- If you are searching for a specific class definition like "class Foo", use the Glob tool instead, to find the match more quickly
+- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the Task tool, to find the match more quickly
+- Other tasks that are not related to the agent descriptions above
+
+
+Usage notes:
+- Always include a short description (3-5 words) summarizing what the agent will do
+- Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
+- When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
+- You can optionally run agents in the background using the run_in_background parameter. When an agent runs in the background, you will need to use TaskOutput to retrieve its results once it's done. You can continue to work while background agents run - When you need their results to continue you can use TaskOutput in blocking mode to pause and wait for their results.
+- Agents can be resumed using the \`resume\` parameter by passing the agent ID from a previous invocation. When resumed, the agent continues with its full previous context preserved. When NOT resuming, each invocation starts fresh and you should provide a detailed task description with all necessary context.
+- When the agent is done, it will return a single message back to you along with its agent ID. You can use this ID to resume the agent later if needed for follow-up work.
+- Provide clear, detailed prompts so the agent can work autonomously and return exactly the information you need.
+- Agents with "access to current context" can see the full conversation history before the tool call. When using these agents, you can write concise prompts that reference earlier context (e.g., "investigate the error discussed above") instead of repeating information. The agent will receive all prior messages and understand the context.
+- The agent's outputs should generally be trusted
+- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent
+- If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
+- If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple Task tool use content blocks. For example, if you need to launch both a code-reviewer agent and a test-runner agent in parallel, send a single message with both tool calls.
+  `.trim();
+}
+
+/**
  * TaskTool - Subagent 调度器
  *
  * 核心设计：
@@ -72,38 +111,11 @@ export const taskTool = createTool({
   // 工具描述
   description: {
     short:
-      'Launch a specialized agent to handle complex, multi-step tasks autonomously',
-    long: `
-Launch a specialized agent to handle complex, multi-step tasks autonomously.
-
-The Task tool launches specialized agents (subprocesses) that autonomously handle complex tasks. Each agent type has specific capabilities and tools available to it.
-
-${subagentRegistry.getDescriptionsForPrompt()}
-
-**How to use the Task tool:**
-- Set subagent_type to ANY agent name from the list above (e.g., 'Explore', 'Plan', 'code-reviewer', etc.)
-- Each agent has a specific purpose described in its description - choose the one that best matches the task
-- The agent descriptions tell you when to use each agent (look for "Use this when...")
-
-**When NOT to use the Task tool:**
-- If you want to read a specific file path, use the Read or Glob tool instead of the Task tool, to find the match more quickly
-- If you are searching for a specific class definition like "class Foo", use the Glob tool instead, to find the match more quickly
-- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the Task tool, to find the match more quickly
-- Other tasks that are not related to the agent descriptions above
-
-**Usage notes:**
-- Always include a short description (3-5 words) summarizing what the agent will do
-- Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
-- When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
-- You can optionally run agents in the background using the run_in_background parameter. When an agent runs in the background, you will need to use TaskOutput to retrieve its results once it's done. You can continue to work while background agents run - When you need their results to continue you can use TaskOutput in blocking mode to pause and wait for their results.
-- Agents can be resumed using the \`resume\` parameter by passing the agent ID from a previous invocation. When resumed, the agent continues with its full previous context preserved. When NOT resuming, each invocation starts fresh and you should provide a detailed task description with all necessary context.
-- When the agent is done, it will return a single message back to you along with its agent ID. You can use this ID to resume the agent later if needed for follow-up work.
-- Provide clear, detailed prompts so the agent can work autonomously and return exactly the information you need.
-- The agent's outputs should generally be trusted
-- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent
-- If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
-- If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple Task tool use content blocks.
-    `.trim(),
+      'Launch a new agent to handle complex, multi-step tasks autonomously',
+    // 使用 getter 动态生成描述，确保 subagentRegistry 已初始化
+    get long() {
+      return getTaskDescription();
+    },
     usageNotes: [
       'subagent_type is required - choose from available agent types',
       'description should be 3-5 words (e.g., "Explore error handling")',

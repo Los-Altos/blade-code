@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import yaml from 'yaml';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
+import { builtinAgents } from './builtinAgents.js';
 import type { SubagentConfig, SubagentFrontmatter } from './types.js';
 
 const logger = createLogger(LogCategory.AGENT);
@@ -60,17 +61,16 @@ export class SubagentRegistry {
     }
 
     const descriptions = subagents.map((config) => {
-      let desc = `- ${config.name}: ${config.description}`;
+      // 工具列表：空数组表示所有工具
+      const toolsStr =
+        !config.tools || config.tools.length === 0
+          ? 'All tools'
+          : config.tools.join(', ');
 
-      // 添加工具列表
-      if (config.tools && config.tools.length > 0) {
-        desc += ` (Tools: ${config.tools.join(', ')})`;
-      }
-
-      return desc;
+      return `- ${config.name}: ${config.description} (Tools: ${toolsStr})`;
     });
 
-    return `Available subagent types and the tools they have access to:\n${descriptions.join('\n')}`;
+    return `Available agent types and the tools they have access to:\n${descriptions.join('\n')}`;
   }
 
   /**
@@ -89,7 +89,8 @@ export class SubagentRegistry {
       const filePath = path.join(dirPath, file);
       try {
         const config = this.parseConfigFile(filePath);
-        this.register(config);
+        // 使用 set 允许覆盖（用户/项目配置覆盖内置）
+        this.subagents.set(config.name, config);
       } catch (error) {
         logger.warn(`Failed to load subagent config from ${filePath}:`, error);
       }
@@ -131,22 +132,37 @@ export class SubagentRegistry {
   /**
    * 从标准位置加载所有 subagent 配置
    *
-   * 按优先级加载：
-   * 1. 用户级配置（~/.blade/agents/）
-   * 2. 项目级配置（.blade/agents/）
+   * 按优先级加载（后加载的会覆盖前面的）：
+   * 1. 内置配置（builtinAgents.ts）
+   * 2. 用户级配置（~/.blade/agents/）
+   * 3. 项目级配置（.blade/agents/）
    *
    * @returns 加载的 subagent 数量
    */
   loadFromStandardLocations(): number {
-    // 1. 加载用户级配置
+    // 1. 加载内置配置
+    this.loadBuiltinAgents();
+
+    // 2. 加载用户级配置（可覆盖内置）
     const userAgentsDir = path.join(os.homedir(), '.blade', 'agents');
     this.loadFromDirectory(userAgentsDir);
 
-    // 2. 加载项目级配置
+    // 3. 加载项目级配置（可覆盖用户级和内置）
     const projectAgentsDir = path.join(process.cwd(), '.blade', 'agents');
     this.loadFromDirectory(projectAgentsDir);
 
     return this.getAllNames().length;
+  }
+
+  /**
+   * 加载内置 subagent 配置
+   */
+  loadBuiltinAgents(): void {
+    for (const agent of builtinAgents) {
+      // 使用 set 而非 register，允许被后续配置覆盖
+      this.subagents.set(agent.name, agent);
+    }
+    logger.debug(`Loaded ${builtinAgents.length} builtin subagents`);
   }
 
   /**
