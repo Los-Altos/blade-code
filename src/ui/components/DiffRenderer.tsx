@@ -93,7 +93,7 @@ function parsePatch(patch: string): Array<{
 /**
  * DiffRenderer 组件
  */
-export const DiffRenderer: React.FC<DiffRendererProps> = ({
+export const DiffRenderer: React.FC<DiffRendererProps> = React.memo(({
   patch,
   startLine,
   matchLine,
@@ -197,4 +197,4 @@ export const DiffRenderer: React.FC<DiffRendererProps> = ({
       </Text>
     </Box>
   );
-};
+});

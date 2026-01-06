@@ -13,7 +13,7 @@ interface TodoPanelProps {
  * TODO 任务面板组件
  * 极简设计,清晰的层次感,最少的视觉干扰
  */
-export const TodoPanel: React.FC<TodoPanelProps> = ({
+export const TodoPanel: React.FC<TodoPanelProps> = React.memo(({
   todos,
   visible = true,
   compact = false,
@@ -55,14 +55,14 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({
       </Box>
     </Box>
   );
-};
+});
 
 interface TodoRowProps {
   todo: TodoItem;
   compact?: boolean;
 }
 
-const TodoRow: React.FC<TodoRowProps> = ({ todo, compact }) => {
+const TodoRow: React.FC<TodoRowProps> = React.memo(({ todo, compact }) => {
   // 简约符号：✓ (completed), ▶ (in progress), ○ (pending)
   let icon: string;
   let dimmed = false;
@@ -94,4 +94,4 @@ const TodoRow: React.FC<TodoRowProps> = ({ todo, compact }) => {
       </Text>
     </Box>
   );
-};
+});

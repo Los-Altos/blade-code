@@ -7,7 +7,6 @@ import {
   useContextRemaining,
   useCurrentModel,
   useIsCompacting,
-  useIsProcessing,
   useIsReady,
   usePermissionMode,
   useSpecProgress,
@@ -27,7 +26,6 @@ import { useGitBranch } from '../hooks/useGitBranch.js';
 export const ChatStatusBar: React.FC = React.memo(() => {
   // 使用 Zustand selectors 获取状态
   const hasApiKey = useIsReady();
-  const isProcessing = useIsProcessing();
   const permissionMode = usePermissionMode();
   const activeModal = useActiveModal();
   const showShortcuts = activeModal === 'shortcuts';
@@ -175,12 +173,7 @@ export const ChatStatusBar: React.FC = React.memo(() => {
                 {contextRemaining}%
               </Text>
             )}
-            {isProcessing && (
-              <>
-                <Text color="gray">·</Text>
-                <Text color="yellow">Processing...</Text>
-              </>
-            )}
+
             {awaitingSecondCtrlC && (
               <>
                 <Text color="gray">·</Text>

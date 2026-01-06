@@ -150,48 +150,25 @@ interface ToolResult {
 }
 
 /**
- * 安全获取 metadata 中的数值
- */
-function getMetadataNumber(metadata: Record<string, unknown> | undefined, key: string): number {
-  const value = metadata?.[key];
-  return typeof value === 'number' ? value : 0;
-}
-
-/**
  * 判断是否显示工具详细内容
  */
 export function shouldShowToolDetail(toolName: string, result: ToolResult): boolean {
-  if (!result?.displayContent) return false;
+  if (!result?.displayContent && !result?.success) return false;
 
   switch (toolName) {
     case 'Write':
-      // 小文件显示预览（小于 10KB）
-      return getMetadataNumber(result.metadata, 'file_size') < 10000;
-
     case 'Edit':
-      // 总是显示 diff 片段
-      return true;
-
-    case 'Bash':
-      // 短输出显示（小于 2000 字符）
-      return getMetadataNumber(result.metadata, 'stdout_length') < 2000;
-
+    case 'Read':
     case 'Glob':
-      // 显示匹配文件列表（最多 20 个）
-      return getMetadataNumber(result.metadata, 'total_matches') <= 20;
-
     case 'Grep':
-      // 显示匹配结果（最多 15 条）
-      return getMetadataNumber(result.metadata, 'total_matches') <= 15;
+    case 'Bash':
+      // 这些工具总是显示紧凑预览
+      return true;
 
     case 'WebFetch':
     case 'WebSearch':
-      // 总是显示网络请求结果
+      // 网络请求显示结果
       return true;
-
-    case 'Read':
-      // 小文件显示预览（小于 3000 字符）
-      return getMetadataNumber(result.metadata, 'content_length') < 3000;
 
     case 'TodoWrite':
       // 不显示详细内容
@@ -206,6 +183,11 @@ export function shouldShowToolDetail(toolName: string, result: ToolResult): bool
 /**
  * 生成工具详细内容
  * 用于在工具执行后显示更多信息
+ *
+ * 优化原则：
+ * - 紧凑预览：只显示前几行/项
+ * - 明确数量：显示 "... (+N more)" 表示剩余
+ * - 简洁格式：避免过多装饰
  */
 export function generateToolDetail(
   toolName: string,
@@ -217,10 +199,10 @@ export function generateToolDetail(
     case 'Glob': {
       const matches = result.metadata?.matches as Array<{ relative_path: string }>;
       if (!matches?.length) return null;
-      const maxShow = 20;
-      const lines = matches.slice(0, maxShow).map((m) => `  📄 ${m.relative_path}`);
+      const maxShow = 5; // 紧凑显示
+      const lines = matches.slice(0, maxShow).map((m) => m.relative_path);
       if (matches.length > maxShow) {
-        lines.push(`  ... 还有 ${matches.length - maxShow} 个文件`);
+        lines.push(`... (+${matches.length - maxShow} more)`);
       }
       return lines.join('\n');
     }
@@ -232,38 +214,90 @@ export function generateToolDetail(
         content?: string;
       }>;
       if (!Array.isArray(matches) || !matches.length) return null;
-      const maxShow = 15;
+      const maxShow = 5; // 紧凑显示
       const lines = matches.slice(0, maxShow).map((m) => {
-        if (m.line_number && m.content) {
-          const content =
-            m.content.length > 60 ? m.content.slice(0, 60) + '...' : m.content;
-          return `  ${m.file_path}:${m.line_number}: ${content}`;
+        const fileName = m.file_path.split('/').pop() || m.file_path;
+        if (m.line_number) {
+          return `${fileName}:${m.line_number}`;
         }
-        return `  📄 ${m.file_path}`;
+        return fileName;
       });
       if (matches.length > maxShow) {
-        lines.push(`  ... 还有 ${matches.length - maxShow} 条匹配`);
+        lines.push(`... (+${matches.length - maxShow} more)`);
       }
       return lines.join('\n');
     }
 
     case 'Read': {
-      // 显示文件内容预览
+      // 显示前几行预览 + 剩余行数
       const content = result.metadata?.content_preview || result.llmContent;
       if (typeof content !== 'string' || !content) return null;
-      const preview =
-        content.length > 500 ? content.slice(0, 500) + '\n... (已截断)' : content;
-      return preview;
+
+      const lines = content.split('\n');
+      const totalLines = lines.length;
+      const PREVIEW_LINES = 3;
+
+      if (totalLines <= PREVIEW_LINES + 1) {
+        return content;
+      }
+
+      const previewLines = lines.slice(0, PREVIEW_LINES);
+      return `${previewLines.join('\n')}\n... (+${totalLines - PREVIEW_LINES} line(s))`;
     }
 
     case 'Bash': {
-      const llmContent = result.llmContent as { stdout?: string; stderr?: string } | undefined;
+      const llmContent = result.llmContent as
+        | { stdout?: string; stderr?: string }
+        | undefined;
       const stdout = llmContent?.stdout || '';
       const stderr = llmContent?.stderr || '';
-      const parts: string[] = [];
-      if (stdout) parts.push(stdout);
-      if (stderr) parts.push(`⚠️ ${stderr}`);
-      return parts.join('\n') || null;
+
+      let output = stdout || stderr;
+      if (!output) return null;
+
+      // 限制输出行数
+      const lines = output.split('\n');
+      const maxLines = 8;
+      if (lines.length > maxLines) {
+        output =
+          lines.slice(0, maxLines).join('\n') +
+          `\n... (+${lines.length - maxLines} line(s))`;
+      }
+
+      if (stderr && !stdout) {
+        return `⚠️ ${output}`;
+      }
+      return output;
+    }
+
+    case 'Write': {
+      // 显示写入结果的简短预览
+      const content = result.metadata?.content as string;
+      if (!content) return null;
+
+      const lines = content.split('\n');
+      const maxLines = 3;
+      if (lines.length <= maxLines + 1) {
+        return content.slice(0, 200);
+      }
+      return `${lines.slice(0, maxLines).join('\n')}\n... (+${lines.length - maxLines} line(s))`;
+    }
+
+    case 'Edit': {
+      // 显示编辑的简短 diff
+      const diff = result.metadata?.diff_snippet as string;
+      if (diff) {
+        const lines = diff.split('\n');
+        const maxLines = 6;
+        if (lines.length > maxLines) {
+          return (
+            lines.slice(0, maxLines).join('\n') +
+            `\n... (+${lines.length - maxLines} line(s))`
+          );
+        }
+        return diff;
+      }
+      return null;
     }
 
     default: {

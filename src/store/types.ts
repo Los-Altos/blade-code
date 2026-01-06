@@ -110,7 +110,7 @@ export interface SessionActions {
   // 流式消息相关 actions
   startStreamingAssistantMessage: () => string; // 开始流式助手消息，返回消息 ID
   appendAssistantContent: (delta: string) => void; // 追加内容到当前流式消息
-  finalizeStreamingMessage: () => void; // 完成流式消息
+  finalizeStreamingMessage: (extraContent?: string, extraThinking?: string) => void; // 完成流式消息（可追加缓冲区剩余内容）
 }
 
 /**

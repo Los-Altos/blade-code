@@ -21,7 +21,7 @@ import {
   useSessionActions,
   useSessionId,
 } from '../../store/selectors/index.js';
-import { ensureStoreInitialized, getState } from '../../store/vanilla.js';
+import { ensureStoreInitialized } from '../../store/vanilla.js';
 import type { ConfirmationHandler } from '../../tools/types/ExecutionTypes.js';
 import type { ToolResult } from '../../tools/types/index.js';
 import {
@@ -231,12 +231,110 @@ export const useCommandHandler = (
     maxTurns: maxTurns,
   });
 
+  // ==================== 流式输出批处理 ====================
+  // 按多行/块输出，减少渲染次数
+  const FLUSH_TIMEOUT = 300; // 超时强制刷新（毫秒）- 增加到 300ms 让块更大
+  const MIN_LINES_TO_FLUSH = 5; // 累积 5 行后刷新
+  const MIN_CHARS_TO_FLUSH = 400; // 或累积 400 字符后刷新
+
+  // Content 批处理状态
+  const contentBufferRef = useRef('');
+  const contentFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Thinking 批处理状态
+  const thinkingBufferRef = useRef('');
+  const thinkingFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 刷新 content 缓冲区
+  const flushContentBuffer = useMemoizedFn(() => {
+    if (contentBufferRef.current) {
+      sessionActions.appendAssistantContent(contentBufferRef.current);
+      contentBufferRef.current = '';
+    }
+    if (contentFlushTimerRef.current) {
+      clearTimeout(contentFlushTimerRef.current);
+      contentFlushTimerRef.current = null;
+    }
+  });
+
+  // 刷新 thinking 缓冲区
+  const flushThinkingBuffer = useMemoizedFn(() => {
+    if (thinkingBufferRef.current) {
+      sessionActions.appendThinkingContent(thinkingBufferRef.current);
+      thinkingBufferRef.current = '';
+    }
+    if (thinkingFlushTimerRef.current) {
+      clearTimeout(thinkingFlushTimerRef.current);
+      thinkingFlushTimerRef.current = null;
+    }
+  });
+
+  // 统计换行符数量
+  const countNewlines = (str: string) => {
+    let count = 0;
+    for (const char of str) {
+      if (char === '\n') count++;
+    }
+    return count;
+  };
+
+  // 批量追加 content（按多行刷新）
+  const batchAppendContent = useMemoizedFn((delta: string) => {
+    contentBufferRef.current += delta;
+    const buffer = contentBufferRef.current;
+
+    // 检查是否达到刷新条件：多行 或 足够字符
+    const lineCount = countNewlines(buffer);
+    if (lineCount >= MIN_LINES_TO_FLUSH || buffer.length >= MIN_CHARS_TO_FLUSH) {
+      flushContentBuffer();
+      return;
+    }
+
+    // 未达到条件，设置超时兜底
+    if (!contentFlushTimerRef.current) {
+      contentFlushTimerRef.current = setTimeout(flushContentBuffer, FLUSH_TIMEOUT);
+    }
+  });
+
+  // 批量追加 thinking（按多行刷新）
+  const batchAppendThinking = useMemoizedFn((delta: string) => {
+    thinkingBufferRef.current += delta;
+    const buffer = thinkingBufferRef.current;
+
+    const lineCount = countNewlines(buffer);
+    if (lineCount >= MIN_LINES_TO_FLUSH || buffer.length >= MIN_CHARS_TO_FLUSH) {
+      flushThinkingBuffer();
+      return;
+    }
+
+    if (!thinkingFlushTimerRef.current) {
+      thinkingFlushTimerRef.current = setTimeout(flushThinkingBuffer, FLUSH_TIMEOUT);
+    }
+  });
+
+  // 重置批处理状态（新对话开始时调用）
+  const resetStreamingBuffers = useMemoizedFn(() => {
+    contentBufferRef.current = '';
+    if (contentFlushTimerRef.current) {
+      clearTimeout(contentFlushTimerRef.current);
+      contentFlushTimerRef.current = null;
+    }
+
+    thinkingBufferRef.current = '';
+    if (thinkingFlushTimerRef.current) {
+      clearTimeout(thinkingFlushTimerRef.current);
+      thinkingFlushTimerRef.current = null;
+    }
+  });
+
   // 清理函数
   useEffect(() => {
     return () => {
       cleanupAgent();
+      // 清理批处理定时器
+      resetStreamingBuffers();
     };
-  }, [cleanupAgent]);
+  }, [cleanupAgent, resetStreamingBuffers]);
 
   // 停止任务
   const handleAbort = useMemoizedFn(() => {
@@ -244,6 +342,10 @@ export const useCommandHandler = (
     if (!isProcessing) {
       return;
     }
+
+    // 先刷新缓冲区，确保已接收的内容不丢失
+    flushContentBuffer();
+    flushThinkingBuffer();
 
     // ⚠️ 顺序很重要：先触发 abort signal，再添加消息
     // 这样 Agent 的 signal.aborted 检查能生效，阻止后续回调
@@ -481,8 +583,8 @@ Remember: Follow the above instructions carefully to complete the user's request
 
           // ===== 流式增量回调 =====
 
-          // 流式内容增量
-          // appendAssistantContent 会自动创建流式消息（如果尚未创建）
+          // 流式内容增量（使用批处理减少渲染频率）
+          // batchAppendContent 会累积内容，每 50ms 刷新一次
           onContentDelta: (delta: string) => {
             contentDeltaCount++;
             contentDeltaTotalLen += delta.length;
@@ -491,12 +593,12 @@ Remember: Follow the above instructions carefully to complete the user's request
               deltaLen: delta.length,
               totalLen: contentDeltaTotalLen,
             });
-            sessionActions.appendAssistantContent(delta);
+            batchAppendContent(delta);
           },
 
-          // 流式推理内容增量（Thinking 模型）
+          // 流式推理内容增量（Thinking 模型，使用批处理）
           onThinkingDelta: (delta: string) => {
-            sessionActions.appendThinkingContent(delta);
+            batchAppendThinking(delta);
           },
 
           // ===== 完整内容回调（流结束时调用）=====
@@ -515,8 +617,27 @@ Remember: Follow the above instructions carefully to complete the user's request
             streamDebug('useCommandHandler', 'onStreamEnd', {
               contentDeltaCallCount: contentDeltaCount,
               contentDeltaTotalLen,
+              remainingBuffer: contentBufferRef.current.length,
             });
-            sessionActions.finalizeStreamingMessage();
+
+            // 清理定时器
+            if (contentFlushTimerRef.current) {
+              clearTimeout(contentFlushTimerRef.current);
+              contentFlushTimerRef.current = null;
+            }
+            if (thinkingFlushTimerRef.current) {
+              clearTimeout(thinkingFlushTimerRef.current);
+              thinkingFlushTimerRef.current = null;
+            }
+
+            // 一次原子操作：追加缓冲区剩余内容 + 完成消息
+            // 避免多次 Store 更新导致闪屏
+            const extraContent = contentBufferRef.current;
+            const extraThinking = thinkingBufferRef.current;
+            contentBufferRef.current = '';
+            thinkingBufferRef.current = '';
+
+            sessionActions.finalizeStreamingMessage(extraContent, extraThinking);
           },
 
           // LLM 输出内容（仅非流式模式）
@@ -689,6 +810,9 @@ Remember: Follow the above instructions carefully to complete the user's request
     // 这样可以防止竞态条件：如果用户快速取消并发送新消息，
     // 旧任务的 finally 不会影响新任务的状态
     const taskAbortController = commandActions.createAbortController();
+
+    // 重置流式批处理缓冲区
+    resetStreamingBuffers();
 
     // 设置处理状态
     commandActions.setProcessing(true);

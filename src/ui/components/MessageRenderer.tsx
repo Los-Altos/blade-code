@@ -396,6 +396,11 @@ function parseMarkdown(content: string): ParsedBlock[] {
     });
   }
 
+  // 过滤掉末尾的空行（避免与 marginBottom 叠加产生多余空白）
+  while (blocks.length > 0 && blocks[blocks.length - 1].type === 'empty') {
+    blocks.pop();
+  }
+
   return blocks;
 }
 
@@ -456,7 +461,7 @@ const CodeBlock: React.FC<{
 const Heading: React.FC<{
   content: string;
   level: number;
-}> = ({ content, level }) => {
+}> = React.memo(({ content, level }) => {
   const theme = useTheme();
 
   // 根据级别设置样式
@@ -492,37 +497,39 @@ const Heading: React.FC<{
         </Text>
       );
   }
-};
+});
 
 /**
  * 渲染水平线
  */
-const HorizontalRule: React.FC<{ terminalWidth: number }> = ({ terminalWidth }) => {
-  const theme = useTheme();
-  const lineWidth = Math.max(0, Math.min(terminalWidth - 4, 80));
-  return (
-    <Text dimColor color={theme.colors.text.muted}>
-      {'─'.repeat(lineWidth)}
-    </Text>
-  );
-};
+const HorizontalRule: React.FC<{ terminalWidth: number }> = React.memo(
+  ({ terminalWidth }) => {
+    const theme = useTheme();
+    const lineWidth = Math.max(0, Math.min(terminalWidth - 4, 80));
+    return (
+      <Text dimColor color={theme.colors.text.muted}>
+        {'─'.repeat(lineWidth)}
+      </Text>
+    );
+  }
+);
 
 /**
  * 渲染普通文本
  */
-const TextBlock: React.FC<{ content: string }> = ({ content }) => {
+const TextBlock: React.FC<{ content: string }> = React.memo(({ content }) => {
   return (
     <Text wrap="wrap">
       <InlineRenderer text={content} />
     </Text>
   );
-};
+});
 
 /**
  * 渲染 <command-message> 标签
  * 显示为带图标的状态消息
  */
-const CommandMessage: React.FC<{ content: string }> = ({ content }) => {
+const CommandMessage: React.FC<{ content: string }> = React.memo(({ content }) => {
   const theme = useTheme();
   return (
     <Box flexDirection="row" gap={1}>
@@ -532,7 +539,7 @@ const CommandMessage: React.FC<{ content: string }> = ({ content }) => {
       </Text>
     </Box>
   );
-};
+});
 
 /**
  * 工具详细内容渲染器（优化版）
@@ -548,7 +555,15 @@ const ToolDetailRenderer: React.FC<{
 }> = React.memo(({ detail, terminalWidth }) => {
   const theme = useTheme();
   const MAX_LINES = 50; // 最大显示行数
-  const lines = detail.split('\n');
+
+  // 过滤掉开头和结尾的空行
+  let lines = detail.split('\n');
+  while (lines.length > 0 && lines[0].trim() === '') {
+    lines.shift();
+  }
+  while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+    lines.pop();
+  }
 
   // 限制行数，超过部分显示省略提示
   const isTruncated = lines.length > MAX_LINES;
@@ -634,50 +649,13 @@ const ToolDetailRenderer: React.FC<{
 });
 
 /**
- * metadata 浅比较（避免 JSON.stringify 的性能开销）
- * 只比较关键字段，忽略大对象如 detail
- */
-function shallowCompareMetadata(
-  prev: Record<string, unknown> | undefined,
-  next: Record<string, unknown> | undefined
-): boolean {
-  // 引用相同
-  if (prev === next) return true;
-  // 一个为空另一个不为空
-  if (!prev || !next) return prev === next;
-
-  // 只比较关键字段（避免比较 detail 等大对象）
-  return (
-    prev.toolName === next.toolName &&
-    prev.phase === next.phase &&
-    prev.summary === next.summary
-  );
-}
-
-/**
- * 计算文本在终端中的实际显示行数
- * 考虑终端宽度导致的自动换行
- */
-function calculateDisplayLines(text: string, terminalWidth: number): number {
-  if (terminalWidth <= 0) return 1;
-  const lines = text.split('\n');
-  let totalLines = 0;
-  for (const line of lines) {
-    // 每行至少占 1 行，超过终端宽度时会自动换行
-    const lineLength = line.length || 1; // 空行也占 1 行
-    totalLines += Math.max(1, Math.ceil(lineLength / terminalWidth));
-  }
-  return totalLines;
-}
-
-/**
  * 截断内容以适应可用终端高度（参考 Gemini CLI）
  *
  * 只在 pending 状态下截断，避免流式输出时内容超过终端高度导致闪烁
  *
- * 🆕 考虑终端宽度导致的自动换行：
- * - 计算实际显示行数（非 \n 分割的逻辑行数）
- * - 确保截断后内容不超过终端可见高度
+ * 🆕 优化：使用字符级快速截断，避免遍历所有行
+ * - 直接从末尾截取估算的字符数
+ * - 大幅减少长内容的计算开销
  */
 function truncateContentForHeight(
   content: string,
@@ -694,35 +672,33 @@ function truncateContentForHeight(
   const RESERVED_LINES = 8;
   const maxDisplayLines = Math.max(1, availableHeight - RESERVED_LINES);
 
-  const lines = content.split('\n');
+  // 🆕 快速路径：估算最大字符数，直接从末尾截取
+  // 假设每行平均 terminalWidth * 0.8 个字符（考虑换行和短行）
+  const avgCharsPerLine = Math.max(40, terminalWidth * 0.8);
+  const estimatedMaxChars = maxDisplayLines * avgCharsPerLine;
 
-  // 从后往前累计行数，直到达到 maxDisplayLines
-  let displayLineCount = 0;
-  let startLineIndex = lines.length;
-
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i];
-    const lineDisplayCount = Math.max(1, Math.ceil((line.length || 1) / terminalWidth));
-
-    if (displayLineCount + lineDisplayCount > maxDisplayLines) {
-      break;
-    }
-
-    displayLineCount += lineDisplayCount;
-    startLineIndex = i;
-  }
-
-  // 如果不需要截断
-  if (startLineIndex === 0) {
+  // 如果内容长度在估算范围内，不需要截断
+  if (content.length <= estimatedMaxChars) {
     return { content, isTruncated: false, hiddenLines: 0 };
   }
 
-  // 截断并返回可见内容
-  const visibleLines = lines.slice(startLineIndex);
-  const hiddenLines = startLineIndex;
+  // 从末尾截取，多留一些余量确保不超过显示区域
+  const safeMaxChars = Math.floor(estimatedMaxChars * 0.9);
+  const startIndex = content.length - safeMaxChars;
+
+  // 找到最近的换行符，确保从完整行开始
+  let adjustedStartIndex = startIndex;
+  const nextNewline = content.indexOf('\n', startIndex);
+  if (nextNewline !== -1 && nextNewline - startIndex < avgCharsPerLine) {
+    adjustedStartIndex = nextNewline + 1;
+  }
+
+  const visibleContent = content.slice(adjustedStartIndex);
+  const hiddenContent = content.slice(0, adjustedStartIndex);
+  const hiddenLines = (hiddenContent.match(/\n/g) || []).length + 1;
 
   return {
-    content: visibleLines.join('\n'),
+    content: visibleContent,
     isTruncated: true,
     hiddenLines,
   };
@@ -761,18 +737,6 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
       [content, availableTerminalHeight, isPending, terminalWidth]
     );
 
-    // 🔍 DEBUG: 追踪渲染模式（写入文件）
-    React.useEffect(() => {
-      if (role === 'assistant') {
-        const fs = require('fs');
-        const renderMode = isPending ? 'PLAINTEXT' : 'MARKDOWN';
-        const logicalLines = displayContent.split('\n').length;
-        const displayLines = calculateDisplayLines(displayContent, terminalWidth);
-        const msg = `[${new Date().toISOString()}] MessageRenderer: mode=${renderMode}, isPending=${isPending}, isTruncated=${isTruncated}, logicalLines=${logicalLines}, displayLines=${displayLines}, terminalWidth=${terminalWidth}\n`;
-        fs.appendFileSync('/tmp/blade-debug.log', msg);
-      }
-    });
-
     // 使用 useMemo 缓存角色样式计算
     const roleStyle = React.useMemo(
       () => getRoleStyle(role, theme.colors, metadata),
@@ -780,12 +744,12 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
     );
     const { color, prefix } = roleStyle;
 
-    // 处理 tool 消息的详细内容
+    // 处理 tool 消息的详细内容（complete 阶段）
     if (role === 'tool' && metadata && 'detail' in metadata) {
       const toolMetadata = metadata as { detail?: string; phase?: string };
       if (toolMetadata.detail) {
         return (
-          <Box flexDirection="column" marginBottom={1}>
+          <Box flexDirection="column" marginBottom={noMargin ? 0 : 1}>
             {/* 摘要行 */}
             <Box flexDirection="row">
               <Box marginRight={1}>
@@ -797,7 +761,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
             </Box>
 
             {/* 详细内容（优化渲染） */}
-            <Box marginLeft={prefix.length + 1} marginTop={1}>
+            <Box marginLeft={prefix.length + 1}>
               <ToolDetailRenderer
                 detail={toolMetadata.detail}
                 terminalWidth={terminalWidth - (prefix.length + 1)}
@@ -808,41 +772,73 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
       }
     }
 
-    if (isPending) {
-      const prefixIndent = prefix.length + 1;
-      return (
-        <Box flexDirection="column" marginBottom={noMargin ? 0 : 1} flexShrink={0}>
-          {isTruncated && (
-            <Box flexDirection="row" flexShrink={0}>
-              <Box width={prefixIndent} flexShrink={0} />
-              <Text color={theme.colors.text.muted} dimColor>
-                ↑ {hiddenLines} lines above (streaming...)
-              </Text>
-            </Box>
-          )}
-          <Box flexDirection="row" flexShrink={0}>
-            {hidePrefix ? (
-              <Box width={prefixIndent} flexShrink={0} />
-            ) : (
-              <Box marginRight={1} flexShrink={0}>
-                <Text color={color} bold>
-                  {prefix}
-                </Text>
-              </Box>
-            )}
-            <Box flexGrow={1} flexShrink={0}>
-              <Text wrap="wrap">{displayContent}</Text>
-            </Box>
-          </Box>
-        </Box>
-      );
-    }
+    // 流式模式优化：分离已完成行和当前行
+    // - 只对已完成行做 Markdown 解析（结构稳定）
+    // - 当前行作为纯文本追加（避免未闭合结构导致的解析问题）
+    const { completedContent, currentLine } = React.useMemo(() => {
+      if (!isPending) {
+        return { completedContent: displayContent, currentLine: '' };
+      }
+      const lastNewlineIndex = displayContent.lastIndexOf('\n');
+      if (lastNewlineIndex === -1) {
+        // 没有换行符，全部作为当前行
+        return { completedContent: '', currentLine: displayContent };
+      }
+      return {
+        completedContent: displayContent.slice(0, lastNewlineIndex + 1),
+        currentLine: displayContent.slice(lastNewlineIndex + 1),
+      };
+    }, [displayContent, isPending]);
 
-    const blocks = parseMarkdown(displayContent);
+    // 增量解析优化：使用 ref 缓存已解析的 blocks，只在 completedContent 增长时追加解析
+    const blocksRef = React.useRef<{ content: string; blocks: ParsedBlock[] }>({
+      content: '',
+      blocks: [],
+    });
+
+    const blocks = React.useMemo(() => {
+      const cached = blocksRef.current;
+
+      // 非 pending 模式或内容完全变化，重新解析
+      if (!isPending || !completedContent.startsWith(cached.content)) {
+        const newBlocks = parseMarkdown(completedContent);
+        blocksRef.current = { content: completedContent, blocks: newBlocks };
+        return newBlocks;
+      }
+
+      // 内容没有增长，复用缓存
+      if (completedContent === cached.content) {
+        return cached.blocks;
+      }
+
+      // 增量解析：只解析新增的部分
+      const newContent = completedContent.slice(cached.content.length);
+      const newBlocks = parseMarkdown(newContent);
+
+      // 合并 blocks（注意：这里简化处理，实际可能需要更复杂的合并逻辑）
+      const mergedBlocks = [...cached.blocks, ...newBlocks];
+      blocksRef.current = { content: completedContent, blocks: mergedBlocks };
+      return mergedBlocks;
+    }, [completedContent, isPending]);
     const prefixIndent = prefix.length + 1;
 
+    // 决定是否需要底部间距：
+    // - tool 消息的 'start' 阶段不需要（等待结果）
+    // - tool 消息的 'complete' 阶段需要（工具调用结束）
+    // - 其他消息需要
+    const isToolStart = role === 'tool' && metadata?.phase === 'start';
+    const shouldHaveMargin = !noMargin && !isToolStart;
+
     return (
-      <Box flexDirection="column" marginBottom={noMargin ? 0 : 1} flexShrink={0}>
+      <Box flexDirection="column" marginBottom={shouldHaveMargin ? 1 : 0} flexShrink={0}>
+        {isTruncated && (
+          <Box flexDirection="row" flexShrink={0}>
+            <Box width={prefixIndent} flexShrink={0} />
+            <Text color={theme.colors.text.muted} dimColor>
+              ↑ {hiddenLines} lines above (streaming...)
+            </Text>
+          </Box>
+        )}
         {blocks.map((block, index) => {
           if (block.type === 'empty') {
             return <Box key={index} height={1} flexShrink={0} />;
@@ -902,6 +898,23 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
             </Box>
           );
         })}
+        {/* 流式模式：渲染当前行（纯文本，避免未闭合结构的解析问题） */}
+        {currentLine && (
+          <Box flexDirection="row" flexShrink={0}>
+            {blocks.length === 0 && !hidePrefix ? (
+              <Box marginRight={1} flexShrink={0}>
+                <Text color={color} bold>
+                  {prefix}
+                </Text>
+              </Box>
+            ) : (
+              <Box width={prefixIndent} flexShrink={0} />
+            )}
+            <Box flexGrow={1} flexShrink={0}>
+              <Text wrap="wrap">{currentLine}</Text>
+            </Box>
+          </Box>
+        )}
       </Box>
     );
   },
@@ -914,7 +927,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
       prevProps.availableTerminalHeight === nextProps.availableTerminalHeight &&
       prevProps.hidePrefix === nextProps.hidePrefix &&
       prevProps.noMargin === nextProps.noMargin &&
-      shallowCompareMetadata(prevProps.metadata, nextProps.metadata)
+      prevProps.metadata === nextProps.metadata
     );
   }
 );

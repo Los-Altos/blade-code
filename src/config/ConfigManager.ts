@@ -78,9 +78,6 @@ export class ConfigManager {
       // 4. 解析环境变量插值
       this.resolveEnvInterpolation(config);
 
-      // 5. 确保 Git 忽略 settings.local.json
-      await this.ensureGitIgnore(config.debug);
-
       if (config.debug) {
         console.log('[ConfigManager] Configuration loaded successfully');
       }
@@ -256,34 +253,6 @@ export class ConfigManager {
       if (typeof value === 'string') {
         (config as unknown as Record<string, unknown>)[key] = resolve(value);
       }
-    }
-  }
-
-  /**
-   * 确保 .gitignore 包含 settings.local.json
-   */
-  private async ensureGitIgnore(debug?: boolean | string): Promise<void> {
-    const gitignorePath = path.join(process.cwd(), '.gitignore');
-    const pattern = '.blade/settings.local.json';
-
-    try {
-      let content = '';
-
-      if (await this.fileExists(gitignorePath)) {
-        content = await fs.readFile(gitignorePath, 'utf-8');
-      }
-
-      if (!content.includes(pattern)) {
-        const newContent =
-          content.trim() + '\n\n# Blade local settings\n' + pattern + '\n';
-        await fs.writeFile(gitignorePath, newContent, 'utf-8');
-
-        if (debug) {
-          console.log('[ConfigManager] Added .blade/settings.local.json to .gitignore');
-        }
-      }
-    } catch (_error) {
-      // 忽略错误,不影响主流程
     }
   }
 

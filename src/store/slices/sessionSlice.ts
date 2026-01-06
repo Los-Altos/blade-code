@@ -396,17 +396,24 @@ export const createSessionSlice: StateCreator<BladeStore, [], [], SessionSlice> 
     /**
      * 完成当前流式消息
      * 将 currentStreamingContent 作为完整消息添加到 messages 数组，清理流式状态
+     *
+     * @param extraContent 可选的额外内容（缓冲区剩余），会追加到流式内容
+     * @param extraThinking 可选的额外 thinking 内容（缓冲区剩余）
      */
-    finalizeStreamingMessage: () => {
+    finalizeStreamingMessage: (extraContent?: string, extraThinking?: string) => {
       set((state) => {
         const streamingId = state.session.currentStreamingMessageId;
-        const streamingContent = state.session.currentStreamingContent;
 
         if (!streamingId) {
           return state;
         }
 
-        const thinkingContent = state.session.currentThinkingContent;
+        // 合并内容：Store 中的 + 缓冲区剩余的
+        const streamingContent =
+          state.session.currentStreamingContent + (extraContent || '');
+        const thinkingContent =
+          (state.session.currentThinkingContent || '') + (extraThinking || '');
+
         if (streamingContent.length > 0) {
           const finalMessage: SessionMessage = {
             id: streamingId,
