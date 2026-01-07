@@ -68,5 +68,6 @@ blade-context/
 .cache/
 .parcel-cache/
 
-# Blade local settings
+# Local settings
 .blade/settings.local.json
+.claude/settings.local.json

@@ -367,7 +367,7 @@ All notable changes to this project will be documented in this file.
   - 使用 picomatch 替代自制 glob 匹配实现
   - 添加 vendor ripgrep 支持（可选，~40-50MB）
 - 新增下载脚本: `npm run vendor:ripgrep`
-- 完整文档: `docs/development/implementation/grep-tool.md`
+- 完整文档（已迁移）: `/Users/example/Documents/my-files/deep-search/blade-code/docs/development/implementation/grep-tool.md`
 
 ### 🧹 移除过时组件
 

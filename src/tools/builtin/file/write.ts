@@ -109,7 +109,7 @@ export const writeTool = createTool({
           };
         }
 
-        // 🔴 检查文件是否被外部程序修改（对齐 gemini-cli：强制失败）
+        // 🔴 检查文件是否被外部程序修改（强制失败）
         const externalModCheck = await tracker.checkExternalModification(file_path);
         if (externalModCheck.isExternal) {
           return {

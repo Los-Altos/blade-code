@@ -12,6 +12,8 @@
 * 使用指南
   * [Slash 命令](guides/slash-commands.md)
   * [Subagents 系统](guides/subagents.md)
+  * [Skills 系统](guides/skills.md)
+  * [Hooks 钩子](guides/hooks.md)
   * [Plan 模式](guides/plan-mode.md)
   * [Spec 模式](guides/spec-mode.md)
   * [@ 文件提及](guides/at-file-mentions.md)
@@ -26,6 +28,4 @@
 * [更新日志](changelog.md)
 
 * 其他
-  * [开发者文档](../development/README.md)
-  * [贡献指南](../contributing/README.md)
   * [GitHub](https://github.com/echoVic/blade-code)

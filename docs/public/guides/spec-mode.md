@@ -1,287 +1,277 @@
-# Spec Mode 用户指南
+# 📐 Spec 模式
 
-Spec Mode（规格驱动开发模式）是 Blade Code 的高级功能，帮助你在编码前先定义清晰的规格说明，提高 AI 辅助编码的质量和效率。
+Spec 模式是 Blade 的结构化开发工作流，通过规格文件（Spec）驱动复杂功能的迭代开发。
 
-## 什么是 Spec-Driven Development？
+## 概述
 
-Spec-Driven Development (SDD) 是一种结构化的开发方法论，核心理念是：
+Spec 模式的核心理念：
 
-1. **先规划后编码** - 在编写代码前，先记录项目目标、架构和需求
-2. **单一信息源** - 通过 spec 文件作为项目的权威参考
-3. **结构化工作流** - 遵循 Requirements → Design → Tasks → Implementation 的流程
+1. **规格先行** - 先定义功能规格，再实现代码
+2. **变更追踪** - 记录每次变更的详细信息
+3. **迭代开发** - 支持多轮迭代，逐步完善
+4. **可审计** - 所有变更可追溯
 
-研究表明，使用结构化规格的 LLM 输出质量显著提高：
+## 启动方式
 
-> "1 iteration with structure was of similar accuracy to 8 iterations with unstructured prompts"
+### CLI 参数
 
-## 快速开始
-
-### 进入 Spec 模式
-
-按 `Shift+Tab` 循环切换模式：
-
-```
-DEFAULT → AUTO_EDIT → PLAN → SPEC → DEFAULT
+```bash
+blade --permission-mode spec
 ```
 
-状态栏会显示当前模式和进度：
+### 运行时切换
+
+在交互界面按 `Shift+Tab` 循环切换权限模式，直到显示 `Spec`。
+
+## 工作流程
 
 ```
-📋 spec: tasks 3/5 (shift+tab to cycle)
+┌─────────────────────────────────────────────────────────────┐
+│                      Spec 模式工作流                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   1. 进入 Spec 模式                                         │
+│      blade --permission-mode spec                           │
+│                         ↓                                   │
+│   2. 描述功能需求                                           │
+│      "实现用户认证功能"                                      │
+│                         ↓                                   │
+│   3. AI 创建/更新 Spec 文件                                 │
+│      .blade/specs/user-auth.md                              │
+│                         ↓                                   │
+│   4. 用户审核 Spec                                          │
+│      确认功能范围和实现方案                                  │
+│                         ↓                                   │
+│   5. AI 实现功能                                            │
+│      按 Spec 逐步实现                                       │
+│                         ↓                                   │
+│   6. 记录变更                                               │
+│      .blade/changes/001-user-model.md                       │
+│                         ↓                                   │
+│   7. 迭代优化                                               │
+│      根据反馈更新 Spec 和实现                               │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 对话驱动工作流
-
-进入 Spec 模式后，**无需记忆任何命令**，只需与 AI 自然对话：
-
-**示例对话：**
-
-```
-你: 我想实现用户认证功能
-
-AI: 好的，让我为你创建一个新的 Spec。
-    [调用 EnterSpecMode 工具]
-    ✅ 已创建 Spec: user-auth
-
-    现在让我们定义需求。这个认证功能需要支持哪些登录方式？
-
-你: 需要支持邮箱密码登录和 OAuth2
-
-AI: 明白了，让我更新需求文档...
-    [调用 UpdateSpec 工具]
-
-    需求已记录。接下来进入设计阶段，还是直接开始任务分解？
-
-你: 直接开始任务分解
-
-AI: [调用 TransitionSpecPhase 工具]
-    已进入任务分解阶段。让我创建任务列表...
-    [调用 AddTask 工具]
-
-    任务 1: 创建 User 模型
-    任务 2: 实现邮箱密码登录
-    任务 3: 集成 OAuth2
-
-    准备好开始实现了吗？
-
-你: 开始吧
-
-AI: [调用 UpdateTaskStatus 工具]
-    开始任务 1: 创建 User 模型...
-```
-
-## 六阶段工作流
-
-Spec Mode 遵循六个阶段：
-
-```
-┌───────┐    ┌─────────────┐    ┌──────────┐    ┌───────┐    ┌──────────────┐    ┌──────┐
-│ init  │ → │ requirements│ → │  design  │ → │ tasks │ → │implementation│ → │ done │
-│提案创建│    │  需求定义    │    │ 架构设计  │    │任务分解│    │    实现中     │    │已完成│
-└───────┘    └─────────────┘    └──────────┘    └───────┘    └──────────────┘    └──────┘
-```
-
-### 1. Init（提案创建）
-
-进入 Spec 模式后，告诉 AI 你想实现什么功能，AI 会自动创建 Spec。
-
-**你可以说：**
-- "我想实现用户认证功能"
-- "帮我添加暗黑模式支持"
-- "重构订单处理模块"
-
-### 2. Requirements（需求定义）
-
-AI 会使用 EARS 格式帮你定义需求：
-
-- **Ubiquitous** - "系统应..."
-- **Event-driven** - "当 [触发条件] 时，系统应..."
-- **Unwanted** - "如果 [条件]，则系统应..."
-- **State-driven** - "当处于 [状态] 时，系统应..."
-
-**你可以说：**
-- "需求定义好了，继续"
-- "还需要添加一个需求：支持记住登录状态"
-
-### 3. Design（架构设计）
-
-可选阶段，AI 会创建技术架构文档，包含：
-
-- 组件图（Mermaid）
-- 数据流图
-- API 契约
-- 数据库 Schema 变更
-
-**你可以说：**
-- "跳过设计阶段，直接任务分解"
-- "帮我画一个架构图"
-
-### 4. Tasks（任务分解）
-
-AI 会将设计拆分为原子任务，每个任务包含：
-
-- 标题和描述
-- 复杂度（low/medium/high）
-- 依赖关系
-- 影响的文件
-
-**你可以说：**
-- "任务分解好了，开始实现"
-- "把这个任务拆成两个更小的任务"
-
-### 5. Implementation（实现）
-
-AI 会逐个执行任务，你可以：
-
-**你可以说：**
-- "开始实现"
-- "这个任务完成了"
-- "先跳过这个任务"
-
-### 6. Done（完成）
-
-当所有任务完成后，AI 会归档 Spec 并自动退出 Spec 模式。
-
-**你可以说：**
-- "全部完成了"
-- "归档这个 Spec"
-
-## AI 工具
-
-在 Spec 模式下，AI 会自动使用这些工具：
-
-| 工具 | 用途 |
-|------|------|
-| `EnterSpecMode` | 创建新 Spec |
-| `UpdateSpec` | 更新文档（proposal/requirements/design/tasks） |
-| `GetSpecContext` | 获取当前上下文和进度 |
-| `TransitionSpecPhase` | 阶段转换 |
-| `AddTask` | 添加任务 |
-| `UpdateTaskStatus` | 更新任务状态 |
-| `ValidateSpec` | 验证完整性 |
-| `ExitSpecMode` | 退出/归档 |
-
-## 目录结构
-
-Spec Mode 在项目根目录创建以下结构：
+## 文件结构
 
 ```
 .blade/
-├── specs/              # 权威规格（单一信息源）
-│   └── [domain]/
-│       └── spec.md
-├── changes/            # 活跃的变更提案
-│   └── <feature>/
-│       ├── proposal.md    # 提案描述
-│       ├── spec.md        # 规格文件
-│       ├── requirements.md # 需求文档
-│       ├── design.md      # 设计文档
-│       ├── tasks.md       # 任务分解
-│       └── .meta.json     # 元数据
-├── archive/            # 已完成的变更
-└── steering/           # 全局治理文档
-    ├── constitution.md # 项目治理原则
-    ├── product.md      # 产品愿景
-    ├── tech.md         # 技术栈约束
-    └── structure.md    # 代码组织模式
+  ├─ specs/              # 规格文件目录
+  │   ├─ user-auth.md    # 用户认证规格
+  │   └─ api-design.md   # API 设计规格
+  └─ changes/            # 变更记录目录
+      ├─ 001-user-model.md
+      ├─ 002-auth-service.md
+      └─ 003-api-endpoints.md
 ```
 
-## Steering Documents
+## Spec 文件格式
 
-Steering Documents 是项目级的全局治理文档，为 AI 提供上下文：
+```markdown
+# 用户认证系统
 
-### constitution.md
+## 概述
 
-定义项目的核心原则和约束，例如：
-- 代码风格要求
-- 安全准则
-- 性能目标
+实现完整的用户认证功能，包括注册、登录、密码重置。
 
-### product.md
+## 功能需求
 
-描述产品愿景和目标：
-- 目标用户
-- 核心功能
-- 成功指标
+### 用户注册
 
-### tech.md
+- [ ] 邮箱注册
+- [ ] 密码强度验证
+- [ ] 邮箱验证
 
-记录技术栈和约束：
-- 使用的框架和库
-- 兼容性要求
-- 部署环境
+### 用户登录
 
-### structure.md
+- [ ] 邮箱/密码登录
+- [ ] JWT Token 生成
+- [ ] 会话管理
 
-描述代码组织模式：
-- 目录结构
-- 命名约定
-- 模块划分
+### 密码重置
+
+- [ ] 发送重置邮件
+- [ ] 重置链接验证
+- [ ] 密码更新
+
+## 技术方案
+
+### 数据模型
+
+```typescript
+interface User {
+  id: string;
+  email: string;
+  passwordHash: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### API 设计
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| /auth/register | POST | 用户注册 |
+| /auth/login | POST | 用户登录 |
+| /auth/reset-password | POST | 密码重置 |
+
+## 实现状态
+
+- [x] 数据模型设计
+- [x] 注册接口
+- [ ] 登录接口
+- [ ] 密码重置
+```
+
+## 变更记录格式
+
+```markdown
+# 变更 001: 用户数据模型
+
+## 变更信息
+
+- **日期**: 2024-01-15
+- **关联 Spec**: user-auth.md
+- **状态**: 已完成
+
+## 变更内容
+
+### 新增文件
+
+- `src/models/User.ts` - 用户数据模型
+- `src/types/user.ts` - 用户类型定义
+
+### 修改文件
+
+- `src/index.ts` - 添加模型导出
+
+## 代码变更
+
+```diff
++ // src/models/User.ts
++ export interface User {
++   id: string;
++   email: string;
++   passwordHash: string;
++ }
+```
+
+## 测试
+
+- [x] 类型检查通过
+- [x] 单元测试通过
+```
+
+## Spec 工具
+
+Spec 模式提供专用工具：
+
+| 工具 | 说明 |
+|------|------|
+| `SpecCreate` | 创建新的 Spec 文件 |
+| `SpecUpdate` | 更新现有 Spec |
+| `SpecRead` | 读取 Spec 内容 |
+| `ChangeRecord` | 记录变更 |
+
+## 使用示例
+
+### 创建新功能
+
+```bash
+blade --permission-mode spec
+
+用户: 帮我实现一个用户认证系统
+
+AI: 我来创建功能规格文件...
+    [创建 .blade/specs/user-auth.md]
+    
+    规格文件已创建，包含以下内容：
+    - 功能需求
+    - 技术方案
+    - 实现计划
+    
+    请审核规格，确认后我将开始实现。
+```
+
+### 迭代开发
+
+```bash
+用户: 开始实现用户注册功能
+
+AI: 好的，我将按照规格实现用户注册...
+    [创建 src/models/User.ts]
+    [创建 src/services/auth.ts]
+    [记录变更到 .blade/changes/001-user-model.md]
+    
+    用户注册功能已实现，变更已记录。
+    下一步是实现登录功能。
+```
+
+### 更新规格
+
+```bash
+用户: 需要添加 OAuth 登录支持
+
+AI: 我来更新规格文件...
+    [更新 .blade/specs/user-auth.md]
+    
+    规格已更新，新增 OAuth 登录需求：
+    - GitHub OAuth
+    - Google OAuth
+    
+    确认后我将开始实现。
+```
+
+## 与 Plan 模式的区别
+
+| 特性 | Spec 模式 | Plan 模式 |
+|------|-----------|-----------|
+| 用途 | 结构化开发 | 调研和规划 |
+| 产出 | Spec + Changes | 方案文档 |
+| 工作流 | 迭代开发 | 单次规划 |
+| 持久化 | 规格和变更持久化 | 方案文档 |
+| 适用场景 | 复杂功能开发 | 技术调研 |
 
 ## 最佳实践
 
-### 1. 从小开始
+### 1. 规格先行
 
-对于简单任务，使用 Plan Mode 即可。Spec Mode 更适合：
-- 需要多个文件变更的功能
-- 涉及架构决策的任务
-- 需要团队协作的特性
+先创建完整的 Spec，再开始实现：
 
-### 2. 保持 Spec 小而聚焦
+```
+帮我创建一个完整的用户认证系统规格，
+包括功能需求、技术方案、API 设计
+```
 
-每个 Spec 应该解决一个明确的问题。如果 Spec 太大，考虑拆分为多个独立的 Specs。
+### 2. 小步迭代
 
-### 3. 清晰表达意图
+每次只实现一个小功能，及时记录变更：
 
-虽然是对话驱动，但清晰表达你的需求可以让 AI 更好地理解和执行：
+```
+先实现用户注册功能，完成后记录变更
+```
 
-- ✅ "我需要一个支持 JWT 和 OAuth2 的用户认证系统"
-- ❌ "帮我做个登录"
+### 3. 及时更新规格
 
-### 4. 利用 Steering Documents
+需求变化时更新 Spec：
 
-在开始任何 Spec 之前，先告诉 AI 你的项目约束，AI 会自动创建 Steering Documents。
+```
+需求变更：需要支持手机号登录，请更新规格
+```
 
-### 5. 及时反馈
+### 4. 审核变更记录
 
-如果 AI 的理解有偏差，及时纠正：
+定期审核变更记录，确保实现符合规格：
 
-- "不是这样的，我需要的是..."
-- "这个任务太大了，拆成更小的步骤"
+```
+显示所有变更记录，我需要审核
+```
 
-## 与 Plan Mode 的区别
+## 相关资源
 
-| 特性 | Plan Mode | Spec Mode |
-|------|-----------|-----------|
-| 复杂度 | 简单任务 | 复杂功能 |
-| 文档 | 单个计划文件 | 多个结构化文档 |
-| 阶段 | 单阶段 | 六阶段工作流 |
-| 持久化 | 临时 | 永久归档 |
-| 任务追踪 | 无 | 依赖管理、进度显示 |
-| 适用场景 | Bug 修复、小改动 | 新功能、重构 |
-| 模式切换 | Shift+Tab | Shift+Tab |
-| 状态栏 | `‖ plan mode on` | `📋 spec: tasks 3/5` |
-
-## 故障排除
-
-### AI 没有使用 Spec 工具
-
-确保你已经通过 Shift+Tab 进入了 Spec 模式，状态栏应该显示 `📋 spec:`。
-
-### 阶段转换失败
-
-某些阶段转换是不允许的，例如不能直接从 `init` 跳到 `implementation`。按顺序完成各阶段即可。
-
-### 任务进度显示 0/0
-
-确保在任务分解阶段让 AI 使用 `AddTask` 工具添加任务。你可以说："帮我添加任务到任务列表"。
-
-### 想要退出 Spec 模式
-
-按 `Shift+Tab` 切换到其他模式，或者说"退出 Spec 模式"。
-
-## 参考资源
-
-- [GitHub Spec Kit](https://github.com/github/spec-kit) - GitHub 官方 SDD 工具包
-- [OpenSpec](https://github.com/Fission-AI/OpenSpec) - 轻量级规格工作流
-- [Anthropic Best Practices](https://www.anthropic.com/engineering/claude-code-best-practices)
+- [权限控制](../configuration/permissions.md) - 权限模式详解
+- [Plan 模式](plan-mode.md) - 调研和规划
+- [Subagents](subagents.md) - 子代理系统

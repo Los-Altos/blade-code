@@ -1,24 +1,90 @@
 # 🎨 主题系统
 
-Blade 内置 13 套终端主题（详见 `src/ui/themes/presets.ts`），并在启动时根据配置加载。主题切换与配置完全在本地完成，无需网络。
+Blade 内置 13 套终端主题，支持运行时切换，无需重启。
 
 ## 内置主题
 
-`ayu-dark`、`dracula`、`monokai`、`nord`、`solarized-light`、`solarized-dark`、`tokyo-night`、`github`、`gruvbox`、`one-dark`、`catppuccin`、`rose-pine`、`kanagawa`。
+| 主题名 | 风格 | 说明 |
+|--------|------|------|
+| `github` | 浅色 | GitHub 风格（默认） |
+| `ayu-dark` | 深色 | Ayu 深色主题 |
+| `dracula` | 深色 | Dracula 经典主题 |
+| `monokai` | 深色 | Monokai 经典主题 |
+| `nord` | 深色 | Nord 极地主题 |
+| `solarized-light` | 浅色 | Solarized 浅色 |
+| `solarized-dark` | 深色 | Solarized 深色 |
+| `tokyo-night` | 深色 | Tokyo Night 主题 |
+| `gruvbox` | 深色 | Gruvbox 复古主题 |
+| `one-dark` | 深色 | Atom One Dark |
+| `catppuccin` | 深色 | Catppuccin 柔和主题 |
+| `rose-pine` | 深色 | Rosé Pine 主题 |
+| `kanagawa` | 深色 | Kanagawa 日式主题 |
 
 ## 使用方式
 
-- **配置文件**：在 `config.json` 中设置 `theme`，例如 `"theme": "dracula"`。
-- **运行时切换**：在 UI 输入 `/theme` 打开主题选择器，立即生效并写回配置。
+### 配置文件设置
 
-> 当前代码未实现 CLI 子命令切换主题，也未提供环境变量入口。
+在 `~/.blade/config.json` 或 `.blade/config.json` 中设置：
 
-## 自定义主题
+```json
+{
+  "theme": "dracula"
+}
+```
 
-自定义主题可通过代码扩展（`themeManager.addTheme`），但官方发行版未暴露配置文件入口。若需自定义，可在本地 fork 后按 `Theme` 接口定义颜色、间距、字体等字段。
+### 运行时切换
 
-## 相关实现
+在交互界面输入 `/theme` 打开主题选择器：
 
-- 主题定义与列表：`src/ui/themes/presets.ts`、`src/ui/themes/types.ts`
-- 主题管理：`src/ui/themes/ThemeManager.ts`
-- Slash 入口：`src/slash-commands/theme.ts`
+```
+/theme
+```
+
+选择后立即生效并自动保存到配置文件。
+
+## 主题效果
+
+主题会影响以下 UI 元素：
+
+- **文本颜色** - 普通文本、高亮文本、错误提示
+- **代码高亮** - 语法着色、关键字、字符串、注释
+- **边框样式** - 面板边框、分隔线
+- **状态指示** - 成功、警告、错误状态颜色
+- **背景色** - 消息区、输入区背景
+
+## 主题预览
+
+### GitHub（默认浅色）
+
+```
+┌─────────────────────────────────────┐
+│ 🗡️ Blade Code                       │
+│ 浅色背景，清晰的对比度              │
+│ 适合明亮环境使用                    │
+└─────────────────────────────────────┘
+```
+
+### Dracula（深色）
+
+```
+┌─────────────────────────────────────┐
+│ 🗡️ Blade Code                       │
+│ 紫色调深色主题                      │
+│ 护眼且美观                          │
+└─────────────────────────────────────┘
+```
+
+### Tokyo Night（深色）
+
+```
+┌─────────────────────────────────────┐
+│ 🗡️ Blade Code                       │
+│ 蓝紫色调，现代感                    │
+│ 流行的编辑器主题                    │
+└─────────────────────────────────────┘
+```
+
+## 相关资源
+
+- [配置系统](config-system.md) - 完整配置说明
+- 主题源码：`src/ui/themes/presets.ts`

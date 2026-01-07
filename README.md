@@ -159,7 +159,7 @@ cd blade-code && pnpm install && pnpm dev
 ## 🔗 相关资源
 
 - [NPM 包](https://www.npmjs.com/package/blade-code)
-- [问题反馈](https://github.com/echoVic/blade-doc/issues)
+- [问题反馈](https://github.com/echoVic/blade-code/issues)
 
 ---
 

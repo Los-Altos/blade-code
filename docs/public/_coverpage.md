@@ -4,13 +4,14 @@
 
 # Blade Code
 
-> 🗡️ 智能 AI 命令行工具
+> 🗡️ 智能 AI 编程助手
 
-- 🤖 基于大语言模型的自然语言交互
-- 🛠️ 丰富的内置工具系统
-- 🔒 三级权限控制，安全可靠
-- 🎨 现代化的终端 UI
-- 🔗 支持 MCP 协议扩展
+- 🤖 多模型支持：OpenAI、Anthropic、Gemini、Azure、Copilot
+- 🛠️ 丰富的工具系统：文件操作、搜索、Shell、网络
+- 🔒 五级权限控制：default、autoEdit、plan、yolo、spec
+- 🎨 现代化终端 UI：13 套内置主题
+- 🔗 MCP 协议扩展：无限扩展能力
+- ⚡ Skills & Hooks：动态 Prompt 和工具钩子
 
 [GitHub](https://github.com/echoVic/blade-code)
 [快速开始](getting-started/quick-start.md)

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 讨论区
+    url: https://github.com/echoVic/blade-code/discussions
+    about: 有问题或想法？欢迎在讨论区交流
+  - name: 📖 文档
+    url: https://echovic.github.io/blade-doc
+    about: 查看用户文档获取使用帮助
+  - name: 🔒 安全漏洞
+    url: https://github.com/echoVic/blade-code/security/advisories/new
+    about: 请勿公开报告安全漏洞，使用私密报告功能

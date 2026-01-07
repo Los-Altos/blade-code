@@ -200,7 +200,7 @@ export class FileAccessTracker {
       // 计算时间差（文件 mtime - 我们的操作时间）
       const timeDiff = stats.mtimeMs - record.mtime;
 
-      // 使用 2 秒缓冲（对齐 gemini-cli）
+      // 使用 2 秒缓冲
       // 如果文件在我们操作后 2 秒之后被修改，判定为外部修改
       if (timeDiff > 2000) {
         return {

@@ -1,0 +1,35 @@
+# Blade Code - Code Owners
+# 
+# 这个文件定义了代码审查的负责人
+# 详见: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# 默认所有者 - 所有文件的默认审查者
+* @echoVic
+
+# 核心模块
+/src/agent/ @echoVic
+/src/tools/ @echoVic
+/src/services/ @echoVic
+
+# 配置和安全
+/src/config/ @echoVic
+/src/security/ @echoVic
+SECURITY.md @echoVic
+
+# MCP 协议
+/src/mcp/ @echoVic
+
+# UI 组件
+/src/ui/ @echoVic
+
+# 文档
+/docs/ @echoVic
+*.md @echoVic
+
+# CI/CD 和构建
+/.github/ @echoVic
+/scripts/ @echoVic
+package.json @echoVic
+
+# 测试
+/tests/ @echoVic

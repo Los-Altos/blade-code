@@ -9,9 +9,7 @@
   },
   "files": [
     "dist",
-    "bin",
     "vendor/ripgrep/**",
-    "config.env.example",
     "README.md",
     "CHANGELOG.md"
   ],
@@ -80,7 +78,7 @@
   },
   "homepage": "https://github.com/echoVic/blade-code",
   "bugs": {
-    "url": "https://github.com/echoVic/blade-doc/issues"
+    "url": "https://github.com/echoVic/blade-code/issues"
   },
   "engines": {
     "node": ">=16.0.0"

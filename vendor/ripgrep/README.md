@@ -2,6 +2,15 @@
 
 此目录用于存放各平台的 ripgrep 二进制文件。
 
+## 许可证
+
+ripgrep 由 [BurntSushi](https://github.com/BurntSushi) 开发，采用 **Unlicense/MIT 双许可证**。
+
+- 项目地址: https://github.com/BurntSushi/ripgrep
+- 许可证: [Unlicense](https://github.com/BurntSushi/ripgrep/blob/master/UNLICENSE) 或 [MIT](https://github.com/BurntSushi/ripgrep/blob/master/LICENSE-MIT)
+
+本目录中的二进制文件直接从 ripgrep 官方 GitHub Releases 下载，未做任何修改。
+
 ## 目录结构
 
 ```text

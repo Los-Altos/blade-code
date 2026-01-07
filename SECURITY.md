@@ -13,7 +13,9 @@ We take security seriously. If you discover a security vulnerability in Blade Co
 ### How to Report
 
 1. **DO NOT** create a public GitHub issue for security vulnerabilities
-2. Send an email to the maintainer or use GitHub's private vulnerability reporting feature
+2. Use one of the following methods:
+   - **GitHub Security Advisories (推荐)**: [Report a vulnerability](https://github.com/echoVic/blade-code/security/advisories/new)
+   - **Email**: echovic007@163.com 或通过 GitHub 联系维护者
 3. Include as much detail as possible:
    - Description of the vulnerability
    - Steps to reproduce
@@ -22,9 +24,9 @@ We take security seriously. If you discover a security vulnerability in Blade Co
 
 ### What to Expect
 
-25→- **Response Time**: We will respond as soon as possible, typically within 3 business days
-26→- **Resolution**: Critical vulnerabilities will be prioritized and patched as soon as possible
-27→- **Credit**: We will credit reporters in the release notes (unless you prefer to remain anonymous)
+- **Response Time**: We will respond as soon as possible, typically within 3 business days
+- **Resolution**: Critical vulnerabilities will be prioritized and patched as soon as possible
+- **Credit**: We will credit reporters in the release notes (unless you prefer to remain anonymous)
 
 ## Security Best Practices
 

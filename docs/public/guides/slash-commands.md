@@ -1,47 +1,220 @@
-# Slash 命令
+# ⚡ Slash 命令
 
-Slash 命令由 `src/slash-commands` 提供，输入 `/` 触发建议，`Tab` 补全，`Enter` 执行。无论命令成功与否都会显示结果或错误提示。
+Slash 命令是 Blade 的快捷操作入口，输入 `/` 触发建议，`Tab` 补全，`Enter` 执行。
 
-## 可用命令（当前实现）
+## 内置命令
 
-| 命令 | 作用 | 备注 |
-| --- | --- | --- |
-| `/help` | 列出所有 Slash 命令 | 内置帮助。 |
-| `/clear` | 清空消息区 | 同 `Ctrl+L` 清屏逻辑。 |
-| `/exit` | 退出程序 | 同 `Ctrl+C`。 |
-| `/version` | 显示版本信息 | 从 `package.json` 读取。 |
-| `/status` | 显示当前项目/配置概览 | 检查 `BLADE.md`、项目类型等。 |
-| `/context` / `/cost` | 显示上下文/成本示例信息 | 当前为静态示例，便于占位。 |
-| `/init` | 分析项目生成或改进 `BLADE.md` | 调用 Agent 读取代码并写入 `BLADE.md`。 |
-| `/model [add|remove]` | 管理模型配置 | 无参时弹出模型选择器；`add` 打开向导；`remove <name>` 删除匹配名称。 |
-| `/theme` | 打开主题选择器 | 立即应用并写回配置。 |
-| `/permissions` | 打开权限管理器 | 操作 `.blade/settings.local.json`。 |
-| `/mcp` | 显示 MCP 状态 | 由内置命令输出当前配置。 |
-| `/agents [list|create|help]` | 管理子代理配置 | 读取 `.blade/agents` / `~/.blade/agents`；`list` 文本列出，`create` 打开创建向导。 |
-| `/resume` | 打开会话选择器 | 可恢复历史对话。 |
-| `/compact` | 手动触发上下文压缩 | 调用 UI 压缩逻辑。 |
-| `/git [status|log|diff|review|commit]` | Git 状态/日志/差异，`review/commit` 会调用 Agent 协助生成描述 | 需在 Git 仓库中使用。 |
+| 命令 | 别名 | 说明 |
+|------|------|------|
+| `/help` | `/h` | 显示所有可用命令 |
+| `/clear` | `/cls` | 清空消息区（同 `Ctrl+L`） |
+| `/exit` | `/quit`, `/q` | 退出程序 |
+| `/version` | `/v` | 显示版本信息 |
+| `/status` | - | 显示当前项目/配置状态 |
+| `/context` | - | 显示上下文使用情况 |
+| `/init` | - | 分析项目生成 BLADE.md |
+| `/model` | - | 模型管理 |
+| `/theme` | - | 切换主题 |
+| `/permissions` | - | 管理权限规则 |
+| `/mcp` | - | 显示 MCP 状态 |
+| `/agents` | - | 管理子代理 |
+| `/resume` | - | 恢复历史会话 |
+| `/compact` | - | 手动压缩上下文 |
+| `/git` | `/g` | Git 操作 |
+
+## 命令详解
+
+### /init
+
+分析当前项目并生成或改进 `BLADE.md` 配置文件：
+
+```bash
+/init
+```
+
+- 如果 `BLADE.md` 不存在，会自动分析项目结构并生成
+- 如果已存在，会分析现有内容并提供改进建议
+
+### /model
+
+模型管理命令：
+
+```bash
+/model          # 打开模型选择器
+/model add      # 添加新模型配置
+/model remove <name>  # 删除指定模型
+```
+
+### /git
+
+Git 仓库查询和 AI 辅助：
+
+```bash
+/git            # 显示 Git 状态（默认）
+/git status     # 显示 Git 状态
+/git log [n]    # 显示最近 n 条提交（默认 5）
+/git diff       # 显示暂存区 diff
+/git review     # AI 代码审查
+/git commit     # AI 生成 commit message 并提交
+/git pre-commit # AI 生成 commit message（不提交）
+```
+
+### /agents
+
+子代理管理：
+
+```bash
+/agents         # 打开代理管理器
+/agents list    # 列出所有代理
+/agents create  # 创建新代理
+/agents help    # 显示帮助
+```
+
+### /resume
+
+会话恢复：
+
+```bash
+/resume         # 打开会话选择器
+```
+
+### /compact
+
+手动压缩上下文，生成总结并节省 token：
+
+```bash
+/compact
+```
+
+### /permissions
+
+打开权限管理器，编辑 `.blade/settings.local.json`：
+
+```bash
+/permissions
+```
+
+### /mcp
+
+显示 MCP 服务器状态和可用工具：
+
+```bash
+/mcp
+```
+
+### /theme
+
+打开主题选择器：
+
+```bash
+/theme
+```
+
+### /context
+
+显示当前上下文使用情况：
+
+```bash
+/context
+```
+
+输出示例：
+
+```
+📊 上下文使用情况
+
+当前会话:
+- 消息数量: 15
+- Token 使用: 12,345 / 128,000
+- 使用率: 9.6%
+- 剩余容量: 90.4%
+
+模型信息:
+- 模型: qwen-max
+- 上下文窗口: 128,000 tokens
+
+状态: 🟢 正常
+```
+
+## 自定义命令
+
+Blade 支持自定义 Slash 命令，通过 Markdown 文件定义：
+
+### 命令位置
+
+```
+~/.blade/commands/          # 用户级命令
+<project>/.blade/commands/  # 项目级命令
+```
+
+### 命令格式
+
+创建 `.md` 文件，使用 YAML frontmatter 定义元数据：
+
+```markdown
+---
+name: review
+description: 代码审查命令
+argumentHint: <file_path>
+---
+
+请对以下文件进行代码审查：
+
+{{args}}
+
+重点关注：
+1. 代码质量
+2. 潜在 bug
+3. 性能问题
+```
+
+### 元数据字段
+
+| 字段 | 说明 |
+|------|------|
+| `name` | 命令名称（必填） |
+| `description` | 命令描述 |
+| `argumentHint` | 参数提示 |
+
+### 使用自定义命令
+
+```bash
+/review src/agent/Agent.ts
+```
 
 ## 补全与导航
 
-- 输入 `/` 自动展示建议；继续输入可模糊匹配（Fuse.js）。
-- `Tab` 选中当前高亮项；`↑/↓` 在建议列表中移动。
-- 输入包含空格后不再展示命令建议，避免干扰子参数输入。
+- 输入 `/` 自动展示建议
+- 继续输入可模糊匹配
+- `Tab` 选中当前高亮项
+- `↑/↓` 在建议列表中移动
+- 输入包含空格后不再展示命令建议
 
 ## 典型用法
 
 ```bash
-/init                     # 生成或改进 BLADE.md
-/git status               # 查看 Git 状态
-/git review               # 让 Agent 生成变更点评
-/model add                # 新增模型配置
-/permissions              # 编辑本地权限规则
-/theme                    # 切换主题
-/resume                   # 选择历史会话
+# 项目初始化
+/init
+
+# Git 工作流
+/git status
+/git review
+/git commit
+
+# 模型切换
+/model
+
+# 会话管理
+/resume
+/compact
+
+# 配置管理
+/permissions
+/theme
 ```
 
-## 注意事项
+## 相关资源
 
-- 部分命令（如 `/context`、`/cost`、`/config`）当前为占位信息，仅展示示例文本。
-- Slash 命令执行前会确保配置 Store 已初始化；如配置缺失会在对话区提示错误。
-- `/git` 系列依赖本地 Git 状态，遇到缺失或异常会返回错误消息而非中断程序。
+- [快速开始](../getting-started/quick-start.md) - 基础使用
+- [Subagents](subagents.md) - 子代理系统
+- [CLI 命令](../reference/cli-commands.md) - 命令行参数

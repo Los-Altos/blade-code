@@ -1,91 +1,306 @@
 # 🔒 权限系统
 
-本文对应当前实现的 `PermissionChecker` / `ExecutionPipeline`，描述 allow/ask/deny 规则、权限模式以及确认持久化行为。
+Blade 提供完善的权限控制系统，确保 AI 操作的安全性和可控性。
 
-## 权限级别与匹配
+## 权限级别
 
-- `allow`：自动允许执行。
-- `ask`：需要用户确认。
-- `deny`：直接拒绝（最高优先级）。
+| 级别 | 说明 | 优先级 |
+|------|------|--------|
+| `deny` | 直接拒绝执行 | 最高 |
+| `allow` | 自动允许执行 | 中 |
+| `ask` | 需要用户确认 | 低 |
 
-匹配顺序：`deny` > `allow` > `ask` > 默认（ask）。规则通过 `picomatch` 支持精确、前缀、`*`/`**` 通配和带参数的 glob：
-
-```json
-{
-  "permissions": {
-    "allow": [
-      "Read(file_path:**/*.ts)",
-      "Grep"
-    ],
-    "deny": [
-      "Read(file_path:**/.env*)",
-      "Bash(rm -rf *)"
-    ]
-  }
-}
-```
-
-签名格式：`Tool(param1:value1, param2:value2)`；`*` / `**` 可匹配任意内容，参数值同样支持 glob。
+匹配顺序：`deny` > `allow` > `ask` > 默认（ask）
 
 ## 权限模式
 
-权限模式在权限阶段强制覆盖结果：
+Blade 提供五种权限模式，可通过 `Shift+Tab` 循环切换（UI 中）或 CLI 参数指定：
 
-| 模式 | 自动允许 | 拒绝 | 说明 |
-| --- | --- | --- | --- |
-| `default` | 所有只读工具 | - | 只读工具（Read、Glob、Grep、WebFetch、WebSearch、BashOutput、TodoWrite、Plan 工具、Task）直接通过。 |
-| `autoEdit` | 只读 + Write 类工具（Edit/Write/NotebookEdit） | - | 适合频繁改文件。 |
-| `yolo` | 所有工具 | - | 跳过所有确认，需自担风险。 |
-| `plan` | 只读工具 | 其他全部拒绝 | 适合调研/方案阶段，必须用 ExitPlanMode 提交方案后再切换模式。 |
+### DEFAULT 模式（默认）
 
-> UI 中 `Shift+Tab` 循环 `default → autoEdit → plan`，`yolo` 需通过 CLI/配置设置。
+```
+✅ 自动批准: 只读工具（Read、Glob、Grep、WebFetch、WebSearch、TodoWrite、Task、Plan 工具）
+❌ 需要确认: Write 工具（Edit、Write、NotebookEdit）、Execute 工具（Bash、Skill、SlashCommand）
+```
 
-## 确认与持久化
+适用场景：日常使用，平衡安全与效率。
 
-- 当规则判定为 `ask` 时，`ConfirmationStage` 会调用 UI 的确认弹窗。
-- 选择“会话内记住”会把抽象后的规则写入 `.blade/settings.local.json`，立即刷新内存配置，后续同类操作不再弹窗。
-- **轮次上限确认**：当 LLM 响应轮次达到阈值（默认 100 轮）时，也会触发确认弹窗。用户选择“继续”可重置计数器，选择“停止”则终止任务。
-- 抽象逻辑由各工具的 `abstractPermissionRule` 提供，例如：
-  - Bash：提取主命令，记为 `Bash(command:npm *)` 等；
-  - Edit/Write：基于 `file_path` 生成 `Edit(file_path:**/*.ts)`；
-  - WebFetch/WebSearch：生成域名级或 `search:*` 规则；
-  - Task/SlashCommand 返回空字符串（不自动生成规则）。
+### AUTO_EDIT 模式
 
-## 配置位置
+```
+✅ 自动批准: 只读工具 + Write 工具
+❌ 需要确认: Execute 工具（Bash、Skill、SlashCommand）
+```
 
-行为配置存放在 `settings.json` / `settings.local.json`（加载顺序见配置系统章节），示例：
+适用场景：频繁修改代码的开发任务。
+
+### PLAN 模式
+
+```
+✅ 自动批准: 只读工具
+❌ 拦截所有修改: Write 和 Execute 工具
+🔵 特殊工具: ExitPlanMode（用于提交方案）
+```
+
+适用场景：调研阶段，生成实现方案，用户批准后退出。
+
+### SPEC 模式
+
+```
+✅ 自动批准: 只读工具 + Spec 专用工具
+❌ 需要确认: Write 和 Execute 工具（除 Spec 工具外）
+📁 持久化: Spec 文件保存到 .blade/specs/ 或 .blade/changes/
+```
+
+适用场景：复杂功能开发，结构化工作流。
+
+### YOLO 模式（危险）
+
+```
+✅ 自动批准: 所有工具
+⚠️ 警告: 完全信任 AI，跳过所有确认
+```
+
+适用场景：高度可控的环境或演示场景。
+
+## 权限规则配置
+
+### 规则格式
+
+```
+Tool(param1:value1, param2:value2)
+```
+
+支持 `*` 和 `**` 通配符（使用 picomatch）：
 
 ```json
 {
-  "permissionMode": "default",
   "permissions": {
     "allow": [
-      "Bash(git status*)",
-      "Read(file_path:**/*.md)"
-    ],
-    "ask": [
-      "Write",
-      "Edit"
+      "Read",
+      "Read(file_path:**/*.ts)",
+      "Bash(git *)",
+      "Bash(npm run *)"
     ],
     "deny": [
       "Read(file_path:**/.env*)",
+      "Read(file_path:**/*.pem)",
+      "Bash(rm -rf *)",
       "Bash(sudo *)"
     ]
   }
 }
 ```
 
+### 常用规则示例
+
+#### 文件访问控制
+
+```json
+{
+  "allow": [
+    "Read(file_path:**/*.{ts,tsx,js,jsx,md,json})",
+    "Write(file_path:**/*.ts)",
+    "Edit(file_path:src/**/*)"
+  ],
+  "deny": [
+    "Read(file_path:**/.env*)",
+    "Read(file_path:**/*.pem)",
+    "Read(file_path:**/secrets/**)",
+    "Write(file_path:**/node_modules/**)"
+  ]
+}
+```
+
+#### 命令执行控制
+
+```json
+{
+  "allow": [
+    "Bash(git *)",
+    "Bash(npm run *)",
+    "Bash(pnpm *)",
+    "Bash(ls *)",
+    "Bash(cat *)",
+    "Bash(head *)",
+    "Bash(tail *)"
+  ],
+  "deny": [
+    "Bash(rm -rf *)",
+    "Bash(sudo *)",
+    "Bash(chmod *)",
+    "Bash(curl * | bash)",
+    "Bash(wget * | bash)"
+  ]
+}
+```
+
+#### 网络访问控制
+
+```json
+{
+  "allow": [
+    "WebFetch(url:https://api.github.com/**)",
+    "WebFetch(url:https://registry.npmjs.org/**)",
+    "WebSearch"
+  ],
+  "deny": [
+    "WebFetch(url:http://**)",
+    "WebFetch(url:**/admin/**)"
+  ]
+}
+```
+
+## 确认与持久化
+
+### 确认弹窗
+
+当规则判定为 `ask` 时，会弹出确认弹窗：
+
+```
+┌─────────────────────────────────────────┐
+│ 🔧 工具调用确认                          │
+├─────────────────────────────────────────┤
+│ Bash: npm run build                     │
+│                                         │
+│ [Y] 允许  [N] 拒绝  [A] 会话内记住       │
+└─────────────────────────────────────────┘
+```
+
+### 会话内记住
+
+选择"会话内记住"会把抽象后的规则写入 `.blade/settings.local.json`：
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build*)"
+    ]
+  }
+}
+```
+
+### 规则抽象
+
+不同工具的规则抽象方式：
+
+| 工具 | 抽象规则示例 |
+|------|-------------|
+| Bash | `Bash(command:npm *)` |
+| Edit/Write | `Edit(file_path:**/*.ts)` |
+| WebFetch | `WebFetch(url:https://api.github.com/**)` |
+| WebSearch | `WebSearch(query:*)` |
+| Task/SlashCommand | 不自动生成规则 |
+
+## 轮次上限
+
+长时间任务达到轮次阈值时会暂停并询问：
+
+```json
+{
+  "maxTurns": 100
+}
+```
+
+- `0` - 禁用对话
+- `-1` - 使用默认值（100）
+- `N > 0` - 限制为 N 轮
+
+用户可选择"继续"重置计数器，或"停止"终止任务。
+
+## CLI 参数
+
+```bash
+# 指定权限模式
+blade --permission-mode default
+blade --permission-mode autoEdit
+blade --permission-mode plan
+blade --permission-mode yolo
+blade --yolo  # 等同于 --permission-mode yolo
+
+# 指定轮次上限
+blade --max-turns 50
+```
+
 ## 最佳实践
 
-- **保护敏感文件**：`Read(file_path:**/.env*)`、`Read(file_path:**/*.pem)`。
-- **限制危险命令**：`Bash(rm -rf *)`、`Bash(sudo *)`。
-- **按文件类型放行读取**：`Read(file_path:**/*.{ts,tsx,js,jsx,md,json})`。
-- **按命令族放行**：`Bash(git *)`、`Bash(npm run *)`。
-- 使用 `settings.local.json` 存放个人信任规则，避免提交到仓库。
+### 1. 保护敏感文件
 
-## 相关代码
+```json
+{
+  "deny": [
+    "Read(file_path:**/.env*)",
+    "Read(file_path:**/*.pem)",
+    "Read(file_path:**/*.key)",
+    "Read(file_path:**/secrets/**)",
+    "Read(file_path:**/.git/config)"
+  ]
+}
+```
 
-- 权限判定：`src/config/PermissionChecker.ts`
-- 模式覆盖与确认：`src/tools/execution/PipelineStages.ts`
-- 默认规则与模式枚举：`src/config/defaults.ts`、`src/config/types.ts`
-- 自动落盘：`configActions().appendLocalPermissionAllowRule`（由确认阶段调用）
+### 2. 限制危险命令
+
+```json
+{
+  "deny": [
+    "Bash(rm -rf *)",
+    "Bash(sudo *)",
+    "Bash(chmod 777 *)",
+    "Bash(> /dev/*)",
+    "Bash(curl * | bash)",
+    "Bash(wget * | bash)"
+  ]
+}
+```
+
+### 3. 按项目类型放行
+
+Node.js 项目：
+
+```json
+{
+  "allow": [
+    "Bash(npm *)",
+    "Bash(pnpm *)",
+    "Bash(yarn *)",
+    "Bash(node *)",
+    "Bash(npx *)"
+  ]
+}
+```
+
+Python 项目：
+
+```json
+{
+  "allow": [
+    "Bash(python *)",
+    "Bash(pip *)",
+    "Bash(poetry *)",
+    "Bash(pytest *)"
+  ]
+}
+```
+
+### 4. 使用 settings.local.json
+
+个人信任规则放在 `settings.local.json`，避免提交到仓库：
+
+```json
+{
+  "permissionMode": "autoEdit",
+  "permissions": {
+    "allow": [
+      "Bash(npm run build*)",
+      "Bash(docker *)"
+    ]
+  }
+}
+```
+
+## 相关资源
+
+- [配置系统](config-system.md) - 完整配置说明
+- [Plan 模式](../guides/plan-mode.md) - Plan 模式详解
+- [Spec 模式](../guides/spec-mode.md) - Spec 模式详解

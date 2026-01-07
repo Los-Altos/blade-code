@@ -407,7 +407,6 @@ function parseMarkdown(content: string): ParsedBlock[] {
 /**
  * 渲染代码块
  *
- * 参考 Gemini CLI：在 isPending 模式下限制代码块高度，避免长代码块导致闪烁
  */
 const CodeBlock: React.FC<{
   content: string;
@@ -419,7 +418,7 @@ const CodeBlock: React.FC<{
   ({ content, language, terminalWidth, isPending = false, availableHeight }) => {
     const theme = useTheme();
 
-    // 流式模式下限制代码块高度（参考 Gemini CLI RenderCodeBlock）
+    // 流式模式下限制代码块高度
     if (isPending && availableHeight !== undefined) {
       const lines = content.split('\n');
       const RESERVED_LINES = 4; // 预留行数（边框、提示等）
@@ -649,7 +648,7 @@ const ToolDetailRenderer: React.FC<{
 });
 
 /**
- * 截断内容以适应可用终端高度（参考 Gemini CLI）
+ * 截断内容以适应可用终端高度
  *
  * 只在 pending 状态下截断，避免流式输出时内容超过终端高度导致闪烁
  *
