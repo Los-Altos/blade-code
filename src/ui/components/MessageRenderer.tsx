@@ -557,7 +557,7 @@ const ToolDetailRenderer: React.FC<{
   const MAX_LINES = 50; // 最大显示行数
 
   // 过滤掉开头和结尾的空行
-  let lines = detail.split('\n');
+  const lines = detail.split('\n');
   while (lines.length > 0 && lines[0].trim() === '') {
     lines.shift();
   }
@@ -830,7 +830,11 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
     const shouldHaveMargin = !noMargin && !isToolStart;
 
     return (
-      <Box flexDirection="column" marginBottom={shouldHaveMargin ? 1 : 0} flexShrink={0}>
+      <Box
+        flexDirection="column"
+        marginBottom={shouldHaveMargin ? 1 : 0}
+        flexShrink={0}
+      >
         {isTruncated && (
           <Box flexDirection="row" flexShrink={0}>
             <Box width={prefixIndent} flexShrink={0} />

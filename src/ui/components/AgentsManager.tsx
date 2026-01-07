@@ -8,11 +8,14 @@ import { useMemoizedFn } from 'ahooks';
 import { Box, Text, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
 import fs from 'node:fs';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { subagentRegistry } from '../../agent/subagents/SubagentRegistry.js';
 import type { SubagentConfig } from '../../agent/subagents/types.js';
 import { useCtrlCHandler } from '../hooks/useCtrlCHandler.js';
 import { AgentCreationWizard } from './AgentCreationWizard.js';
+
+/** 每页显示的 agents 数量 */
+const PAGE_SIZE = 10;
 
 type ViewMode =
   | 'menu'
@@ -49,6 +52,7 @@ export function AgentsManager({
   const [mode, setMode] = useState<ViewMode>(initialMode);
   const [selectedAgent, setSelectedAgent] = useState<SubagentConfig | null>(null);
   const [refreshKey, setRefreshKey] = useState(0); // 用于触发重新加载
+  const [currentPage, setCurrentPage] = useState(0); // 当前页码（从0开始）
 
   // 重新加载 registry
   const reloadAgents = useMemoizedFn(() => {
@@ -61,6 +65,34 @@ export function AgentsManager({
   const allAgents = useMemo(() => {
     return subagentRegistry.getAllSubagents();
   }, [refreshKey]);
+
+  // 分页计算
+  const totalPages = Math.ceil(allAgents.length / PAGE_SIZE) || 1;
+  const pagedAgents = useMemo(() => {
+    const start = currentPage * PAGE_SIZE;
+    return allAgents.slice(start, start + PAGE_SIZE);
+  }, [allAgents, currentPage]);
+
+  // 钳制 currentPage，防止列表变短后显示空页
+  useEffect(() => {
+    const maxPage = Math.max(0, totalPages - 1);
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
+  }, [totalPages, currentPage]);
+
+  // 翻页处理
+  const goToNextPage = useMemoizedFn(() => {
+    if (currentPage < totalPages - 1) {
+      setCurrentPage((p) => p + 1);
+    }
+  });
+
+  const goToPrevPage = useMemoizedFn(() => {
+    if (currentPage > 0) {
+      setCurrentPage((p) => p - 1);
+    }
+  });
 
   // 主菜单选项
   const menuItems: MenuItem[] = [
@@ -122,6 +154,7 @@ export function AgentsManager({
 
   // ESC 键处理：返回上一步或取消
   // Ctrl+C 处理：智能退出
+  // ← → 键处理：列表视图翻页
   // 注意：create 和 editWizard 模式下不拦截 ESC，让向导组件自己处理
   useInput(
     (input, key) => {
@@ -131,6 +164,7 @@ export function AgentsManager({
           onCancel?.();
         } else if (mode === 'list' || mode === 'edit' || mode === 'delete') {
           // 列表/选择视图返回主菜单
+          setCurrentPage(0); // 重置页码
           backToMenu();
         } else if (mode === 'deleteConfirm') {
           // 删除确认返回上一步
@@ -139,6 +173,13 @@ export function AgentsManager({
         // create 和 editWizard 模式：不处理，让向导组件自己处理 ESC
       } else if ((key.ctrl && input === 'c') || (key.meta && input === 'c')) {
         handleCtrlC();
+      } else if (mode === 'list') {
+        // 列表视图翻页
+        if (key.leftArrow || input === 'h') {
+          goToPrevPage();
+        } else if (key.rightArrow || input === 'l') {
+          goToNextPage();
+        }
       }
     },
     { isActive: mode !== 'create' && mode !== 'editWizard' }
@@ -192,10 +233,16 @@ export function AgentsManager({
           <Text bold color="cyan">
             📋 所有 Agents
           </Text>
-          <Text color="gray"> (找到 {allAgents.length} 个)</Text>
+          <Text color="gray"> (共 {allAgents.length} 个)</Text>
+          {totalPages > 1 && (
+            <Text color="yellow">
+              {' '}
+              第 {currentPage + 1}/{totalPages} 页
+            </Text>
+          )}
         </Box>
 
-        {allAgents.map((agent: SubagentConfig) => (
+        {pagedAgents.map((agent: SubagentConfig) => (
           <Box key={agent.name} flexDirection="column" paddingLeft={2}>
             <Box>
               <Text>
@@ -221,7 +268,11 @@ export function AgentsManager({
         ))}
 
         <Box marginTop={1} paddingLeft={2}>
-          <Text dimColor>按 ESC 返回菜单</Text>
+          {totalPages > 1 ? (
+            <Text dimColor>← → 翻页 | ESC 返回菜单</Text>
+          ) : (
+            <Text dimColor>按 ESC 返回菜单</Text>
+          )}
         </Box>
       </Box>
     );

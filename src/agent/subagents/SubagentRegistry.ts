@@ -5,8 +5,19 @@ import yaml from 'yaml';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
 import { builtinAgents } from './builtinAgents.js';
 import type { SubagentConfig, SubagentFrontmatter } from './types.js';
+import { mapClaudeCodePermissionMode } from './types.js';
 
 const logger = createLogger(LogCategory.AGENT);
+
+/**
+ * 配置来源类型
+ */
+type ConfigSource =
+  | 'builtin'
+  | 'claude-code-user'
+  | 'claude-code-project'
+  | 'blade-user'
+  | 'blade-project';
 
 /**
  * Subagent 注册表
@@ -76,8 +87,9 @@ export class SubagentRegistry {
   /**
    * 从目录加载所有 subagent 配置文件
    * @param dirPath - 配置文件目录
+   * @param source - 配置来源（用于调试和优先级追踪）
    */
-  loadFromDirectory(dirPath: string): void {
+  loadFromDirectory(dirPath: string, source?: ConfigSource): void {
     if (!fs.existsSync(dirPath)) {
       return;
     }
@@ -88,7 +100,7 @@ export class SubagentRegistry {
 
       const filePath = path.join(dirPath, file);
       try {
-        const config = this.parseConfigFile(filePath);
+        const config = this.parseConfigFile(filePath, source);
         // 使用 set 允许覆盖（用户/项目配置覆盖内置）
         this.subagents.set(config.name, config);
       } catch (error) {
@@ -99,12 +111,18 @@ export class SubagentRegistry {
 
   /**
    * 解析 Markdown + YAML frontmatter 配置文件
+   *
+   * 兼容 Claude Code 官方格式：
+   * - tools 支持逗号分隔字符串或数组
+   * - model 支持 sonnet/opus/haiku 或 'inherit'
+   * - permissionMode 支持权限模式
+   * - skills 支持自动加载的 skills
    */
-  private parseConfigFile(filePath: string): SubagentConfig {
+  private parseConfigFile(filePath: string, source?: ConfigSource): SubagentConfig {
     const content = fs.readFileSync(filePath, 'utf-8');
 
-    // 解析 YAML frontmatter
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    // 解析 YAML frontmatter（支持 \r\n 和 \n）
+    const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
     if (!frontmatterMatch) {
       throw new Error(`No YAML frontmatter found in ${filePath}`);
     }
@@ -120,13 +138,48 @@ export class SubagentRegistry {
     // 使用 Markdown 内容作为系统提示
     const systemPrompt = markdownContent.trim();
 
+    // 解析 tools（支持逗号分隔字符串或数组）
+    const tools = this.parseStringOrArray(frontmatter.tools);
+
+    // 解析 skills（支持逗号分隔字符串或数组）
+    const skills = this.parseStringOrArray(frontmatter.skills);
+
+    // 映射 permissionMode（Claude Code → Blade）
+    const permissionMode = mapClaudeCodePermissionMode(frontmatter.permissionMode);
+
     return {
       name: frontmatter.name,
       description: frontmatter.description,
       systemPrompt,
-      tools: frontmatter.tools,
+      tools,
+      color: frontmatter.color,
       configPath: filePath,
+      model: frontmatter.model || 'inherit', // 默认继承父 Agent 模型
+      permissionMode,
+      skills,
+      source,
     };
+  }
+
+  /**
+   * 解析逗号分隔字符串或数组为字符串数组
+   * @param value - 逗号分隔字符串或数组
+   * @returns 字符串数组，如果输入为空则返回 undefined
+   */
+  private parseStringOrArray(value: string | string[] | undefined): string[] | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((s) => s.trim()).filter(Boolean);
+    }
+
+    // 逗号分隔字符串
+    return value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
   /**
@@ -134,8 +187,12 @@ export class SubagentRegistry {
    *
    * 按优先级加载（后加载的会覆盖前面的）：
    * 1. 内置配置（builtinAgents.ts）
-   * 2. 用户级配置（~/.blade/agents/）
-   * 3. 项目级配置（.blade/agents/）
+   * 2. Claude Code 用户级配置（~/.claude/agents/）
+   * 3. Claude Code 项目级配置（.claude/agents/）
+   * 4. Blade 用户级配置（~/.blade/agents/）
+   * 5. Blade 项目级配置（.blade/agents/）
+   *
+   * 这样 Blade 配置可以覆盖 Claude Code 配置，实现自定义扩展
    *
    * @returns 加载的 subagent 数量
    */
@@ -143,15 +200,26 @@ export class SubagentRegistry {
     // 1. 加载内置配置
     this.loadBuiltinAgents();
 
-    // 2. 加载用户级配置（可覆盖内置）
-    const userAgentsDir = path.join(os.homedir(), '.blade', 'agents');
-    this.loadFromDirectory(userAgentsDir);
+    // 2. 加载 Claude Code 用户级配置（可覆盖内置）
+    const claudeCodeUserAgentsDir = path.join(os.homedir(), '.claude', 'agents');
+    this.loadFromDirectory(claudeCodeUserAgentsDir, 'claude-code-user');
 
-    // 3. 加载项目级配置（可覆盖用户级和内置）
-    const projectAgentsDir = path.join(process.cwd(), '.blade', 'agents');
-    this.loadFromDirectory(projectAgentsDir);
+    // 3. 加载 Claude Code 项目级配置（可覆盖用户级）
+    const claudeCodeProjectAgentsDir = path.join(process.cwd(), '.claude', 'agents');
+    this.loadFromDirectory(claudeCodeProjectAgentsDir, 'claude-code-project');
 
-    return this.getAllNames().length;
+    // 4. 加载 Blade 用户级配置（可覆盖 Claude Code）
+    const bladeUserAgentsDir = path.join(os.homedir(), '.blade', 'agents');
+    this.loadFromDirectory(bladeUserAgentsDir, 'blade-user');
+
+    // 5. 加载 Blade 项目级配置（可覆盖所有）
+    const bladeProjectAgentsDir = path.join(process.cwd(), '.blade', 'agents');
+    this.loadFromDirectory(bladeProjectAgentsDir, 'blade-project');
+
+    const count = this.getAllNames().length;
+    logger.debug(`📦 Loaded ${count} subagents from standard locations`);
+
+    return count;
   }
 
   /**
@@ -160,7 +228,11 @@ export class SubagentRegistry {
   loadBuiltinAgents(): void {
     for (const agent of builtinAgents) {
       // 使用 set 而非 register，允许被后续配置覆盖
-      this.subagents.set(agent.name, agent);
+      this.subagents.set(agent.name, {
+        ...agent,
+        model: agent.model || 'inherit', // 默认继承父 Agent 模型
+        source: 'builtin',
+      });
     }
     logger.debug(`Loaded ${builtinAgents.length} builtin subagents`);
   }
@@ -170,6 +242,49 @@ export class SubagentRegistry {
    */
   clear(): void {
     this.subagents.clear();
+  }
+
+  /**
+   * 获取按来源分组的 subagents
+   * 用于 UI 展示和调试
+   */
+  getSubagentsBySource(): Record<ConfigSource, SubagentConfig[]> {
+    const result: Record<ConfigSource, SubagentConfig[]> = {
+      builtin: [],
+      'claude-code-user': [],
+      'claude-code-project': [],
+      'blade-user': [],
+      'blade-project': [],
+    };
+
+    for (const config of this.subagents.values()) {
+      const source = config.source || 'builtin';
+      result[source].push(config);
+    }
+
+    return result;
+  }
+
+  /**
+   * 获取 Claude Code 配置目录路径
+   * 用于 UI 展示
+   */
+  static getClaudeCodeAgentsDir(type: 'user' | 'project'): string {
+    if (type === 'user') {
+      return path.join(os.homedir(), '.claude', 'agents');
+    }
+    return path.join(process.cwd(), '.claude', 'agents');
+  }
+
+  /**
+   * 获取 Blade 配置目录路径
+   * 用于 UI 展示
+   */
+  static getBladeAgentsDir(type: 'user' | 'project'): string {
+    if (type === 'user') {
+      return path.join(os.homedir(), '.blade', 'agents');
+    }
+    return path.join(process.cwd(), '.blade', 'agents');
   }
 }
 
