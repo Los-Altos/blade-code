@@ -1,5 +1,7 @@
 import type { Argv } from 'yargs';
 import { Agent } from '../agent/Agent.js';
+import { getPluginRegistry, integrateAllPlugins } from '../plugins/index.js';
+import { executeSlashCommand, isSlashCommand } from '../slash-commands/index.js';
 
 interface PrintOptions {
   print?: boolean;
@@ -10,6 +12,7 @@ interface PrintOptions {
   appendSystemPrompt?: string;
   systemPrompt?: string;
   maxTurns?: number;
+  message?: string;
   _?: (string | number)[];
 }
 
@@ -67,16 +70,18 @@ export function printCommand(yargs: Argv) {
       }
 
       try {
-        const agent = await Agent.create({
-          systemPrompt: argv.systemPrompt,
-          appendSystemPrompt: argv.appendSystemPrompt,
-          maxTurns: argv.maxTurns,
-        });
+        // 初始化插件系统
+        const pluginRegistry = getPluginRegistry();
+        const pluginResult = await pluginRegistry.initialize(process.cwd(), []);
+        if (pluginResult.plugins.length > 0) {
+          await integrateAllPlugins();
+        }
 
         let input = '';
 
         // 如果有 message 参数，使用它
-        const message = argv._?.[0];
+        // 优先使用命名参数 argv.message，其次使用位置参数 argv._[0]
+        const message = argv.message || argv._?.[0];
         if (message && typeof message === 'string') {
           input = message;
         } else if (!process.stdin.isTTY) {
@@ -89,6 +94,49 @@ export function printCommand(yargs: Argv) {
         } else {
           input = 'Hello';
         }
+
+        // 检查是否为 slash 命令
+        if (isSlashCommand(input)) {
+          const result = await executeSlashCommand(input, {
+            cwd: process.cwd(),
+            workspaceRoot: process.cwd(),
+          });
+
+          // 处理不同的 slash 命令结果
+          if (!result.success) {
+            console.error(`Error: ${result.error || '未知错误'}`);
+            process.exit(1);
+          }
+
+          // 检查是否需要通过 Agent 处理（invoke_skill, invoke_custom_command, invoke_plugin_command）
+          const data = result.data as Record<string, unknown> | undefined;
+          if (data?.action === 'invoke_skill') {
+            const skillName = data.skillName as string;
+            const skillArgs = data.skillArgs as string | undefined;
+            input = skillArgs
+              ? `Please use the "${skillName}" skill to help me with: ${skillArgs}`
+              : `Please use the "${skillName}" skill.`;
+          } else if (
+            data?.action === 'invoke_custom_command' ||
+            data?.action === 'invoke_plugin_command'
+          ) {
+            const processedContent = data.processedContent as string;
+            const commandName = data.commandName as string;
+            input = `# Custom Command: /${commandName}\n\n${processedContent}`;
+          } else {
+            // 普通 slash 命令，直接输出结果
+            if (result.message) {
+              console.log(result.message);
+            }
+            process.exit(0);
+          }
+        }
+
+        const agent = await Agent.create({
+          systemPrompt: argv.systemPrompt,
+          appendSystemPrompt: argv.appendSystemPrompt,
+          maxTurns: argv.maxTurns,
+        });
 
         // 根据是否有系统提示词选择不同的调用方式
         let response: string;

@@ -1465,7 +1465,9 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
       // 获取流式生成器
       const stream = this.chatService.streamChat(messages, tools, options?.signal);
 
+      let chunkCount = 0;
       for await (const chunk of stream) {
+        chunkCount++;
         // 检查 abort 信号
         if (options?.signal?.aborted) {
           break;
@@ -1518,6 +1520,18 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
         fullReasoningContentLen: fullReasoningContent.length,
         toolCallAccumulatorSize: toolCallAccumulator.size,
       });
+
+      // 如果流返回0个chunk且没有被中止，回退到非流式模式
+      // 某些 API（如 qwen3-coder-plus）可能不完全支持流式响应
+      if (
+        chunkCount === 0 &&
+        !options?.signal?.aborted &&
+        fullContent.length === 0 &&
+        toolCallAccumulator.size === 0
+      ) {
+        logger.warn('[Agent] 流式响应返回0个chunk，回退到非流式模式');
+        return this.chatService.chat(messages, tools, options?.signal);
+      }
 
       // 构造完整响应
       return {

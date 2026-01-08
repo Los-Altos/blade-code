@@ -61,6 +61,23 @@ interface InvokeCustomCommandData {
 }
 
 /**
+ * invoke_plugin_command action 的数据类型
+ */
+interface InvokePluginCommandData {
+  action: 'invoke_plugin_command';
+  commandName: string;
+  pluginName: string;
+  processedContent: string;
+  config: {
+    description?: string;
+    allowedTools?: string[];
+    argumentHint?: string;
+    model?: string;
+    disableModelInvocation?: boolean;
+  };
+}
+
+/**
  * 处理 slash 命令返回的 UI 消息
  * 直接调用 appActions 而非使用 ActionMapper
  *
@@ -96,6 +113,9 @@ function handleSlashMessage(
       return true;
     case 'show_hooks_manager':
       appActions.setActiveModal('hooksManager');
+      return true;
+    case 'show_plugins_manager':
+      appActions.setActiveModal('pluginsManager');
       return true;
     case 'show_agent_creation_wizard':
       appActions.setActiveModal('agentCreationWizard');
@@ -153,6 +173,19 @@ function isInvokeCustomCommandAction(data: unknown): data is InvokeCustomCommand
     (data as InvokeCustomCommandData).action === 'invoke_custom_command' &&
     typeof (data as InvokeCustomCommandData).commandName === 'string' &&
     typeof (data as InvokeCustomCommandData).processedContent === 'string'
+  );
+}
+
+/**
+ * 检查 data 是否为 invoke_plugin_command action
+ */
+function isInvokePluginCommandAction(data: unknown): data is InvokePluginCommandData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    (data as InvokePluginCommandData).action === 'invoke_plugin_command' &&
+    typeof (data as InvokePluginCommandData).commandName === 'string' &&
+    typeof (data as InvokePluginCommandData).processedContent === 'string'
   );
 }
 
@@ -438,6 +471,39 @@ export const useCommandHandler = (
             const commandPrompt = `# Custom Command: /${commandName}
 
 The user has invoked the custom command "/${commandName}". Follow the instructions below to complete the task.
+
+---
+
+${processedContent}
+
+---
+
+Remember: Follow the above instructions carefully to complete the user's request.`;
+
+            // 修改 resolved，让后续 Agent 流程使用 commandPrompt
+            resolved = {
+              displayText: command,
+              text: commandPrompt,
+              images: [],
+              parts: [{ type: 'text', text: commandPrompt }],
+            };
+            // 不 return，跳出 if (isSlashCommand) 分支，进入普通消息处理
+          }
+
+          // 处理 invoke_plugin_command action（User-invoked Plugin Command）
+          // 用户输入 /plugin:command args 时，处理后的内容发送给 AI
+          if (isInvokePluginCommandAction(slashResult.data)) {
+            const { commandName, pluginName, processedContent } = slashResult.data;
+
+            // 显示用户消息
+            sessionActions.addUserMessage(command);
+            userMessageAlreadyAdded = true;
+            isSkillOrCommandInvocation = true;
+
+            // 构建完整的命令提示（已包含处理后的内容）
+            const commandPrompt = `# Plugin Command: /${commandName}
+
+The user has invoked the plugin command "/${commandName}" from plugin "${pluginName}". Follow the instructions below to complete the task.
 
 ---
 

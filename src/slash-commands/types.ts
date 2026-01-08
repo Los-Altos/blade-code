@@ -16,8 +16,10 @@ export type SlashCommandAction =
   | 'show_permissions_editor'
   | 'show_skills_manager'
   | 'show_hooks_manager'
+  | 'show_plugins_manager'
   | 'invoke_skill'
-  | 'invoke_custom_command';
+  | 'invoke_custom_command'
+  | 'invoke_plugin_command';
 
 /**
  * Slash command 返回的结构化数据

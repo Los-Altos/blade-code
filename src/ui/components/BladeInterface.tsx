@@ -45,6 +45,7 @@ import { MessageArea } from './MessageArea.js';
 import { ModelConfigWizard } from './ModelConfigWizard.js';
 import { ModelSelector } from './ModelSelector.js';
 import { PermissionsManager } from './PermissionsManager.js';
+import { PluginsManager } from './PluginsManager.js';
 import { SessionSelector } from './SessionSelector.js';
 import { SkillsManager } from './SkillsManager.js';
 import { SpecStatusPanel } from './SpecStatusPanel.js';
@@ -551,6 +552,7 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
   const agentsManagerVisible = activeModal === 'agentsManager';
   const agentCreationWizardVisible = activeModal === 'agentCreationWizard';
   const skillsManagerVisible = activeModal === 'skillsManager';
+  const pluginsManagerVisible = activeModal === 'pluginsManager';
   const editingInitialConfig = editingModel
     ? {
         name: editingModel.name,
@@ -658,6 +660,12 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
         {skillsManagerVisible && (
           <Box marginTop={1} paddingX={2}>
             <SkillsManager onComplete={closeModal} onCancel={closeModal} />
+          </Box>
+        )}
+
+        {pluginsManagerVisible && (
+          <Box marginTop={1} paddingX={2}>
+            <PluginsManager onComplete={closeModal} onCancel={closeModal} />
           </Box>
         )}
 

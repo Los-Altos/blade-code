@@ -128,6 +128,35 @@ export class McpRegistry extends EventEmitter {
   }
 
   /**
+   * 重连指定服务器（用于从 ERROR 状态恢复）
+   * 这个方法可以在首次连接失败或意外断开后使用
+   */
+  async reconnectServer(name: string): Promise<void> {
+    const serverInfo = this.servers.get(name);
+    if (!serverInfo) {
+      throw new Error(`MCP服务器 "${name}" 未注册`);
+    }
+
+    // 如果已连接，先断开
+    if (serverInfo.status === McpConnectionStatus.CONNECTED) {
+      await serverInfo.client.disconnect();
+    }
+
+    // 尝试重新连接
+    try {
+      serverInfo.status = McpConnectionStatus.CONNECTING;
+      await serverInfo.client.connect();
+      serverInfo.connectedAt = new Date();
+      serverInfo.lastError = undefined;
+      serverInfo.tools = serverInfo.client.availableTools;
+    } catch (error) {
+      serverInfo.lastError = error as Error;
+      serverInfo.status = McpConnectionStatus.ERROR;
+      throw error;
+    }
+  }
+
+  /**
    * 获取所有可用工具（包含冲突处理）
    *
    * 工具命名策略：

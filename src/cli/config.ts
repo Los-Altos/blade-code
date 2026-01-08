@@ -192,6 +192,13 @@ export const globalOptions = {
     describe: 'Comma-separated list of setting sources to load',
     group: 'Configuration:',
   },
+  'plugin-dir': {
+    alias: ['pluginDir'],
+    type: 'array',
+    string: true,
+    describe: 'Load plugins from specified directories',
+    group: 'Plugin Options:',
+  },
 } satisfies Record<string, Options>;
 
 export const cliConfig = {

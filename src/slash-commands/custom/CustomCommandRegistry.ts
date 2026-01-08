@@ -5,6 +5,7 @@
  * 单例模式
  */
 
+import type { PluginCommand } from '../../plugins/types.js';
 import { CustomCommandExecutor } from './CustomCommandExecutor.js';
 import { CustomCommandLoader } from './CustomCommandLoader.js';
 import type {
@@ -17,6 +18,8 @@ export class CustomCommandRegistry {
   private static instance: CustomCommandRegistry;
 
   private commands: Map<string, CustomCommand> = new Map();
+  /** Plugin commands stored separately with namespaced names */
+  private pluginCommands: Map<string, PluginCommand> = new Map();
   private loader = new CustomCommandLoader();
   private executor = new CustomCommandExecutor();
   private initialized = false;
@@ -268,5 +271,135 @@ export class CustomCommandRegistry {
     }
 
     return { text, includedCount, totalCount };
+  }
+
+  // ============================================================
+  // Plugin Command Methods
+  // ============================================================
+
+  /**
+   * 注册插件命令
+   *
+   * Plugin commands are stored with their namespaced names (e.g., "plugin:command")
+   * to prevent conflicts with other plugins or standalone commands.
+   *
+   * @param cmd - Plugin command to register
+   */
+  registerPluginCommand(cmd: PluginCommand): void {
+    this.pluginCommands.set(cmd.namespacedName, cmd);
+  }
+
+  /**
+   * 查找插件命令
+   *
+   * Supports both:
+   * - Full namespaced name: "plugin:command"
+   * - Short name if unique: "command"
+   *
+   * @param name - Command name to find
+   * @returns Plugin command or undefined
+   */
+  findPluginCommand(name: string): PluginCommand | undefined {
+    // Try exact namespaced match first
+    const exact = this.pluginCommands.get(name);
+    if (exact) return exact;
+
+    // Try short name match (if unique)
+    const matches: PluginCommand[] = [];
+    for (const cmd of this.pluginCommands.values()) {
+      if (cmd.originalName === name) {
+        matches.push(cmd);
+      }
+    }
+
+    // Only return if exactly one match
+    if (matches.length === 1) {
+      return matches[0];
+    }
+
+    return undefined;
+  }
+
+  /**
+   * 检查插件命令是否存在
+   */
+  hasPluginCommand(name: string): boolean {
+    return this.findPluginCommand(name) !== undefined;
+  }
+
+  /**
+   * 获取所有插件命令
+   */
+  getAllPluginCommands(): PluginCommand[] {
+    return Array.from(this.pluginCommands.values());
+  }
+
+  /**
+   * 执行插件命令
+   *
+   * @param name - Command name (namespaced or short)
+   * @param context - Execution context
+   * @returns Processed command content, or null if not found
+   */
+  async executePluginCommand(
+    name: string,
+    context: CustomCommandExecutionContext
+  ): Promise<string | null> {
+    const cmd = this.findPluginCommand(name);
+    if (!cmd) return null;
+
+    // Convert PluginCommand to CustomCommand format for executor
+    const customCmd: CustomCommand = {
+      name: cmd.namespacedName,
+      config: cmd.config,
+      content: cmd.content,
+      path: cmd.path,
+      source: 'project', // Plugin commands are treated as project-level
+      sourceDir: 'blade',
+    };
+
+    return this.executor.execute(customCmd, context);
+  }
+
+  /**
+   * 清除所有插件命令
+   * Called when refreshing plugins
+   */
+  clearPluginCommands(): void {
+    this.pluginCommands.clear();
+  }
+
+  /**
+   * 获取插件命令数量
+   */
+  getPluginCommandCount(): number {
+    return this.pluginCommands.size;
+  }
+
+  /**
+   * 检查命令名是否有多个插件提供（冲突）
+   */
+  hasPluginCommandConflict(shortName: string): boolean {
+    let count = 0;
+    for (const cmd of this.pluginCommands.values()) {
+      if (cmd.originalName === shortName) {
+        count++;
+        if (count > 1) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 获取提供指定命令的所有插件名称
+   */
+  getPluginCommandProviders(shortName: string): string[] {
+    const providers: string[] = [];
+    for (const cmd of this.pluginCommands.values()) {
+      if (cmd.originalName === shortName) {
+        providers.push(cmd.pluginName);
+      }
+    }
+    return providers;
   }
 }

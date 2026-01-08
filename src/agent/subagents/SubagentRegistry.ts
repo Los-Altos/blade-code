@@ -10,14 +10,15 @@ import { mapClaudeCodePermissionMode } from './types.js';
 const logger = createLogger(LogCategory.AGENT);
 
 /**
- * 配置来源类型
+ * 配置来源类型（不包含动态的 plugin:xxx 格式）
  */
 type ConfigSource =
   | 'builtin'
   | 'claude-code-user'
   | 'claude-code-project'
   | 'blade-user'
-  | 'blade-project';
+  | 'blade-project'
+  | 'plugin';
 
 /**
  * Subagent 注册表
@@ -157,7 +158,8 @@ export class SubagentRegistry {
       model: frontmatter.model || 'inherit', // 默认继承父 Agent 模型
       permissionMode,
       skills,
-      source,
+      // ConfigSource 包含 'plugin' 用于分组，但 parseConfigFile 不会使用 'plugin'
+      source: source as Exclude<ConfigSource, 'plugin'>,
     };
   }
 
@@ -255,14 +257,33 @@ export class SubagentRegistry {
       'claude-code-project': [],
       'blade-user': [],
       'blade-project': [],
+      plugin: [],
     };
 
     for (const config of this.subagents.values()) {
       const source = config.source || 'builtin';
-      result[source].push(config);
+      // Map plugin:xxx sources to 'plugin' category
+      const category: ConfigSource = source.startsWith('plugin:') ? 'plugin' : source as ConfigSource;
+      result[category].push(config);
     }
 
     return result;
+  }
+
+  /**
+   * 清除所有插件代理
+   * Called when refreshing plugins
+   */
+  clearPluginAgents(): void {
+    const toDelete: string[] = [];
+    for (const [name, config] of this.subagents.entries()) {
+      if (config.source?.startsWith('plugin:')) {
+        toDelete.push(name);
+      }
+    }
+    for (const name of toDelete) {
+      this.subagents.delete(name);
+    }
   }
 
   /**

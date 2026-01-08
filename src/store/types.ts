@@ -172,7 +172,8 @@ export type ActiveModal =
   | 'agentsManager'
   | 'agentCreationWizard'
   | 'skillsManager'
-  | 'hooksManager';
+  | 'hooksManager'
+  | 'pluginsManager';
 
 /**
  * 应用状态（纯 UI 状态）

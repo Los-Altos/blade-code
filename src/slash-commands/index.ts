@@ -3,6 +3,7 @@
  */
 
 import Fuse from 'fuse.js';
+import { getPluginRegistry } from '../plugins/index.js';
 import { discoverSkills, getSkillRegistry } from '../skills/index.js';
 import type { SkillMetadata } from '../skills/types.js';
 import { builtinCommands } from './builtinCommands.js';
@@ -18,6 +19,7 @@ import { loginCommand } from './login.js';
 import { logoutCommand } from './logout.js';
 import modelCommand from './model.js';
 import permissionsCommand from './permissions.js';
+import pluginsCommand from './plugins.js';
 import skillsCommand from './skills.js';
 import tasksCommand from './tasks.js';
 import themeCommand from './theme.js';
@@ -43,6 +45,7 @@ const slashCommands: SlashCommandRegistry = {
   login: loginCommand,
   logout: logoutCommand,
   tasks: tasksCommand,
+  plugins: pluginsCommand,
 };
 
 /**
@@ -202,7 +205,38 @@ export async function executeSlashCommand(
       }
     }
 
-    // 3. 确保 SkillRegistry 已初始化，再查找 User-invocable Skill
+    // 3. 查找插件命令（支持命名空间格式 /plugin:command）
+    const pluginRegistry = getPluginRegistry();
+    const pluginCommand = pluginRegistry.findCommand(command);
+    if (pluginCommand) {
+      const workspaceRoot = context.workspaceRoot || process.cwd();
+
+      // 执行插件命令
+      const processedContent = await customRegistry.executePluginCommand(
+        pluginCommand.namespacedName,
+        {
+          args,
+          workspaceRoot,
+          signal: context.signal,
+        }
+      );
+
+      if (processedContent) {
+        return {
+          success: true,
+          message: `执行插件命令: /${pluginCommand.namespacedName}`,
+          data: {
+            action: 'invoke_plugin_command',
+            commandName: pluginCommand.namespacedName,
+            pluginName: pluginCommand.pluginName,
+            processedContent,
+            config: pluginCommand.config,
+          },
+        };
+      }
+    }
+
+    // 4. 确保 SkillRegistry 已初始化，再查找 User-invocable Skill
     await ensureSkillsInitialized();
     const skill = findUserInvocableSkill(command);
     if (skill) {
@@ -210,7 +244,7 @@ export async function executeSlashCommand(
       return await skillCommand.handler(args, context);
     }
 
-    // 4. 未找到命令
+    // 5. 未找到命令
     return {
       success: false,
       error: `未知命令: /${command}\n使用 /help 查看可用命令`,
@@ -224,7 +258,7 @@ export async function executeSlashCommand(
 }
 
 /**
- * 获取所有注册的命令（包括自定义命令和 User-invocable Skills）
+ * 获取所有注册的命令（包括自定义命令、插件命令和 User-invocable Skills）
  */
 export function getRegisteredCommands(): SlashCommand[] {
   const builtinCmds = Object.values(slashCommands);
@@ -241,11 +275,23 @@ export function getRegisteredCommands(): SlashCommand[] {
     handler: async () => ({ success: true }),
   }));
 
+  // 获取插件命令并转换为 SlashCommand
+  const pluginRegistry = getPluginRegistry();
+  const pluginCmds = pluginRegistry.getAllCommands().map((cmd) => ({
+    name: cmd.namespacedName,
+    description: cmd.config.description || cmd.content.slice(0, 50),
+    usage: cmd.config.argumentHint
+      ? `/${cmd.namespacedName} ${cmd.config.argumentHint}`
+      : `/${cmd.namespacedName}`,
+    category: 'plugin',
+    handler: async () => ({ success: true }),
+  }));
+
   // 获取 User-invocable Skills 并转换为 SlashCommand
   const skillRegistry = getSkillRegistry();
   const skillCmds = skillRegistry.getUserInvocableSkills().map(createSkillSlashCommand);
 
-  return [...builtinCmds, ...customCmds, ...skillCmds];
+  return [...builtinCmds, ...customCmds, ...pluginCmds, ...skillCmds];
 }
 
 /**
@@ -285,6 +331,7 @@ export function getFuzzyCommandSuggestions(input: string): CommandSuggestion[] {
     argumentHint: undefined as string | undefined,
     isCustom: false,
     isSkill: false,
+    isPlugin: false,
   }));
 
   // 添加自定义命令
@@ -297,6 +344,20 @@ export function getFuzzyCommandSuggestions(input: string): CommandSuggestion[] {
     argumentHint: cmd.config.argumentHint,
     isCustom: true,
     isSkill: false,
+    isPlugin: false,
+  }));
+
+  // 添加插件命令
+  const pluginRegistry = getPluginRegistry();
+  const pluginSearchable = pluginRegistry.getAllCommands().map((cmd) => ({
+    name: cmd.namespacedName,
+    description: cmd.config.description || cmd.content.slice(0, 50),
+    aliases: [cmd.originalName], // 支持短名称搜索
+    label: `(plugin: ${cmd.pluginName})` as string | undefined,
+    argumentHint: cmd.config.argumentHint,
+    isCustom: false,
+    isSkill: false,
+    isPlugin: true,
   }));
 
   // 添加 User-invocable Skills
@@ -309,11 +370,13 @@ export function getFuzzyCommandSuggestions(input: string): CommandSuggestion[] {
     argumentHint: skill.argumentHint,
     isCustom: false,
     isSkill: true,
+    isPlugin: false,
   }));
 
   const searchableCommands = [
     ...builtinSearchable,
     ...customSearchable,
+    ...pluginSearchable,
     ...skillSearchable,
   ];
 

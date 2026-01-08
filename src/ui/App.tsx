@@ -10,6 +10,7 @@ import {
 } from '../config/index.js';
 import { HookManager } from '../hooks/HookManager.js';
 import { McpRegistry } from '../mcp/McpRegistry.js';
+import { getPluginRegistry, integrateAllPlugins } from '../plugins/index.js';
 import { registerCleanup } from '../services/GracefulShutdown.js';
 import type { VersionCheckResult } from '../services/VersionChecker.js';
 import { discoverSkills } from '../skills/index.js';
@@ -199,7 +200,44 @@ export const AppWrapper: React.FC<AppProps> = (props) => {
       }
     }
 
-    // 10. 注册退出清理函数
+    // 10. 初始化插件系统（加载 --plugin-dir 指定的插件和默认目录插件）
+    try {
+      const pluginRegistry = getPluginRegistry();
+      const pluginResult = await pluginRegistry.initialize(
+        process.cwd(),
+        props.pluginDir || []
+      );
+
+      if (props.debug && pluginResult.plugins.length > 0) {
+        console.log(
+          `✓ 已加载 ${pluginResult.plugins.length} 个插件: ${pluginResult.plugins.map((p) => p.manifest.name).join(', ')}`
+        );
+      }
+
+      // 将插件集成到各子系统
+      if (pluginResult.plugins.length > 0) {
+        const integrationResult = await integrateAllPlugins();
+        if (props.debug) {
+          const { totalCommands, totalSkills, totalAgents, totalMcpServers } =
+            integrationResult;
+          console.log(
+            `  ✓ 已集成: ${totalCommands} 命令, ${totalSkills} 技能, ${totalAgents} 代理, ${totalMcpServers} MCP 服务器`
+          );
+        }
+      }
+
+      if (pluginResult.errors.length > 0 && props.debug) {
+        for (const error of pluginResult.errors) {
+          console.warn(`⚠️ 插件加载错误 (${error.path}): ${error.error}`);
+        }
+      }
+    } catch (error) {
+      if (props.debug) {
+        console.warn('⚠️ 插件系统初始化失败:', formatErrorMessage(error));
+      }
+    }
+
+    // 11. 注册退出清理函数
     registerCleanup(async () => {
       BackgroundShellManager.getInstance().killAll();
       await McpRegistry.getInstance().disconnectAll();
