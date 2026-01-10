@@ -518,9 +518,22 @@ export class AnthropicChatService implements IChatService {
       let eventCount = 0;
       let totalContent = '';
       let toolCallsReceived = false;
+      // 累积 usage：message_start 提供 input_tokens，message_delta 提供 output_tokens
+      let accumulatedInputTokens = 0;
+      let accumulatedOutputTokens = 0;
 
       for await (const event of stream) {
         eventCount++;
+
+        if (event.type === 'message_start') {
+          const usage = (event as { message?: { usage?: { input_tokens: number; output_tokens: number } } })
+            .message?.usage;
+          if (usage) {
+            accumulatedInputTokens = usage.input_tokens || 0;
+            // message_start 的 output_tokens 通常为 0，但也记录一下
+            accumulatedOutputTokens = usage.output_tokens || 0;
+          }
+        }
 
         if (event.type === 'content_block_start') {
           // 内容块开始
@@ -569,7 +582,14 @@ export class AnthropicChatService implements IChatService {
             };
           }
         } else if (event.type === 'message_delta') {
-          // 消息级别增量（包含 stop_reason）
+          // 消息级别增量（包含 stop_reason 和 output_tokens）
+          const deltaUsage = (event as { usage?: { input_tokens?: number; output_tokens: number } })
+            .usage;
+          if (deltaUsage) {
+            // message_delta 主要提供 output_tokens，累积到总数
+            accumulatedOutputTokens += deltaUsage.output_tokens || 0;
+          }
+
           const stopReason = event.delta.stop_reason;
           if (stopReason) {
             _logger.debug('🏁 [AnthropicChatService] Stream finished:', stopReason);
@@ -592,7 +612,15 @@ export class AnthropicChatService implements IChatService {
               finishReason = stopReason;
             }
 
-            yield { finishReason };
+            // 在流结束时 yield 完整的 usage（合并 message_start 和 message_delta 的数据）
+            yield {
+              finishReason,
+              usage: {
+                promptTokens: accumulatedInputTokens,
+                completionTokens: accumulatedOutputTokens,
+                totalTokens: accumulatedInputTokens + accumulatedOutputTokens,
+              },
+            };
           }
         }
       }

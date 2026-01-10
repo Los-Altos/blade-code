@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import type {
+  ChatCompletionChunk,
   ChatCompletionMessageParam,
   ChatCompletionMessageToolCall,
   ChatCompletionTool,
@@ -55,6 +56,17 @@ function extractReasoningFromMessage(
     }
   }
   return undefined;
+}
+
+function isStreamUsageUnsupportedError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('stream_options') ||
+    message.includes('include_usage') ||
+    message.includes('unknown parameter') ||
+    message.includes('unrecognized request argument')
+  );
 }
 
 /**
@@ -488,6 +500,7 @@ export class OpenAIChatService implements IChatService {
       max_tokens: this.config.maxOutputTokens ?? 32768,
       temperature: this.config.temperature ?? 0.0,
       stream: true as const,
+      stream_options: { include_usage: true },
     };
 
     _logger.debug('📤 [ChatService] Stream request params:', {
@@ -501,9 +514,19 @@ export class OpenAIChatService implements IChatService {
     });
 
     try {
-      const stream = await this.client.chat.completions.create(requestParams, {
-        signal,
-      });
+      let stream: AsyncIterable<ChatCompletionChunk>;
+      try {
+        stream = await this.client.chat.completions.create(requestParams, { signal });
+      } catch (error) {
+        if (!isStreamUsageUnsupportedError(error)) {
+          throw error;
+        }
+        _logger.warn(
+          '⚠️ [ChatService] stream_options 不被支持，已降级为无 usage 流式请求'
+        );
+        const { stream_options: _unused, ...fallbackParams } = requestParams;
+        stream = await this.client.chat.completions.create(fallbackParams, { signal });
+      }
       const requestDuration = Date.now() - startTime;
       _logger.debug('📥 [ChatService] Stream started in', requestDuration, 'ms');
 
@@ -514,15 +537,47 @@ export class OpenAIChatService implements IChatService {
 
       for await (const chunk of stream) {
         chunkCount++;
+        const chunkUsage = (
+          chunk as {
+            usage?: {
+              prompt_tokens?: number;
+              completion_tokens?: number;
+              total_tokens?: number;
+              reasoning_tokens?: number;
+            };
+          }
+        ).usage;
 
         // ✅ 验证 chunk 格式
         if (!chunk || !chunk.choices || !Array.isArray(chunk.choices)) {
+          if (chunkUsage) {
+            yield {
+              usage: {
+                promptTokens: chunkUsage.prompt_tokens || 0,
+                completionTokens: chunkUsage.completion_tokens || 0,
+                totalTokens: chunkUsage.total_tokens || 0,
+                reasoningTokens: chunkUsage.reasoning_tokens,
+              },
+            };
+            continue;
+          }
           _logger.warn('⚠️ [ChatService] Invalid chunk format in stream', chunkCount);
           continue;
         }
 
         const delta = chunk.choices[0]?.delta;
         if (!delta) {
+          if (chunkUsage) {
+            yield {
+              usage: {
+                promptTokens: chunkUsage.prompt_tokens || 0,
+                completionTokens: chunkUsage.completion_tokens || 0,
+                totalTokens: chunkUsage.total_tokens || 0,
+                reasoningTokens: chunkUsage.reasoning_tokens,
+              },
+            };
+            continue;
+          }
           _logger.warn('⚠️ [ChatService] Empty delta in chunk', chunkCount);
           continue;
         }
@@ -555,13 +610,23 @@ export class OpenAIChatService implements IChatService {
             duration: Date.now() - startTime + 'ms',
           });
         }
-
-        yield {
+        const streamChunk: StreamChunk = {
           content: delta.content || undefined,
           reasoningContent: reasoningChunk,
           toolCalls: delta.tool_calls,
           finishReason: finishReason || undefined,
         };
+
+        if (chunkUsage) {
+          streamChunk.usage = {
+            promptTokens: chunkUsage.prompt_tokens || 0,
+            completionTokens: chunkUsage.completion_tokens || 0,
+            totalTokens: chunkUsage.total_tokens || 0,
+            reasoningTokens: chunkUsage.reasoning_tokens,
+          };
+        }
+
+        yield streamChunk;
       }
 
       _logger.debug('✅ [ChatService] Stream completed successfully');

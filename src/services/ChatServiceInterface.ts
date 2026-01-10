@@ -86,16 +86,18 @@ export type ReasoningFieldName =
 /**
  * 聊天响应
  */
+export interface UsageInfo {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  reasoningTokens?: number; // Thinking 模型消耗的推理 tokens
+}
+
 export interface ChatResponse {
   content: string;
   reasoningContent?: string; // Thinking 模型的推理过程（如 DeepSeek R1）
   toolCalls?: ChatCompletionMessageToolCall[];
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    reasoningTokens?: number; // Thinking 模型消耗的推理 tokens
-  };
+  usage?: UsageInfo;
 }
 
 /**
@@ -107,6 +109,7 @@ export interface StreamChunk {
   // biome-ignore lint/suspicious/noExplicitAny: 不同 provider 的 tool call 类型不同
   toolCalls?: any[];
   finishReason?: string;
+  usage?: UsageInfo; // 流式响应的使用统计（通常仅在结束时提供）
 }
 
 /**

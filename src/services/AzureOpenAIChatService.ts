@@ -12,6 +12,7 @@
 
 import { AzureOpenAI } from 'openai';
 import type {
+  ChatCompletionChunk,
   ChatCompletionMessageParam,
   ChatCompletionMessageToolCall,
   ChatCompletionTool,
@@ -49,6 +50,17 @@ function filterOrphanToolMessages(messages: Message[]): Message[] {
     }
     return true;
   });
+}
+
+function isStreamUsageUnsupportedError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('stream_options') ||
+    message.includes('include_usage') ||
+    message.includes('unknown parameter') ||
+    message.includes('unrecognized request argument')
+  );
 }
 
 export class AzureOpenAIChatService implements IChatService {
@@ -310,6 +322,7 @@ export class AzureOpenAIChatService implements IChatService {
       max_tokens: this.config.maxOutputTokens ?? 32768,
       temperature: this.config.temperature ?? 0.0,
       stream: true as const,
+      stream_options: { include_usage: true },
     };
 
     _logger.debug('📤 [AzureOpenAIChatService] Stream request params:', {
@@ -321,9 +334,19 @@ export class AzureOpenAIChatService implements IChatService {
     });
 
     try {
-      const stream = await this.client.chat.completions.create(requestParams, {
-        signal,
-      });
+      let stream: AsyncIterable<ChatCompletionChunk>;
+      try {
+        stream = await this.client.chat.completions.create(requestParams, { signal });
+      } catch (error) {
+        if (!isStreamUsageUnsupportedError(error)) {
+          throw error;
+        }
+        _logger.warn(
+          '⚠️ [AzureOpenAIChatService] stream_options 不被支持，已降级为无 usage 流式请求'
+        );
+        const { stream_options: _unused, ...fallbackParams } = requestParams;
+        stream = await this.client.chat.completions.create(fallbackParams, { signal });
+      }
       const requestDuration = Date.now() - startTime;
       _logger.debug(
         '📥 [AzureOpenAIChatService] Stream started in',
@@ -337,8 +360,27 @@ export class AzureOpenAIChatService implements IChatService {
 
       for await (const chunk of stream) {
         chunkCount++;
+        const chunkUsage = (
+          chunk as {
+            usage?: {
+              prompt_tokens?: number;
+              completion_tokens?: number;
+              total_tokens?: number;
+            };
+          }
+        ).usage;
 
         if (!chunk || !chunk.choices || !Array.isArray(chunk.choices)) {
+          if (chunkUsage) {
+            yield {
+              usage: {
+                promptTokens: chunkUsage.prompt_tokens || 0,
+                completionTokens: chunkUsage.completion_tokens || 0,
+                totalTokens: chunkUsage.total_tokens || 0,
+              },
+            };
+            continue;
+          }
           _logger.warn(
             '⚠️ [AzureOpenAIChatService] Invalid chunk format in stream',
             chunkCount
@@ -348,6 +390,16 @@ export class AzureOpenAIChatService implements IChatService {
 
         const delta = chunk.choices[0]?.delta;
         if (!delta) {
+          if (chunkUsage) {
+            yield {
+              usage: {
+                promptTokens: chunkUsage.prompt_tokens || 0,
+                completionTokens: chunkUsage.completion_tokens || 0,
+                totalTokens: chunkUsage.total_tokens || 0,
+              },
+            };
+            continue;
+          }
           _logger.warn('⚠️ [AzureOpenAIChatService] Empty delta in chunk', chunkCount);
           continue;
         }
@@ -375,11 +427,21 @@ export class AzureOpenAIChatService implements IChatService {
           });
         }
 
-        yield {
+        const streamChunk: StreamChunk = {
           content: delta.content || undefined,
           toolCalls: delta.tool_calls,
           finishReason: finishReason || undefined,
         };
+
+        if (chunkUsage) {
+          streamChunk.usage = {
+            promptTokens: chunkUsage.prompt_tokens || 0,
+            completionTokens: chunkUsage.completion_tokens || 0,
+            totalTokens: chunkUsage.total_tokens || 0,
+          };
+        }
+
+        yield streamChunk;
       }
 
       _logger.debug('✅ [AzureOpenAIChatService] Stream completed successfully');

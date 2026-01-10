@@ -484,6 +484,8 @@ export class GeminiChatService implements IChatService {
 
         const candidate = chunk.candidates?.[0];
         const parts = candidate?.content?.parts || [];
+        const usageMetadata = chunk.usageMetadata;
+
         for (const part of parts) {
           if ('text' in part && part.text) {
             totalContent += part.text;
@@ -527,7 +529,23 @@ export class GeminiChatService implements IChatService {
             mappedReason = finishReason.toLowerCase();
           }
 
-          yield { finishReason: mappedReason };
+          const streamChunk: StreamChunk = { finishReason: mappedReason };
+          if (usageMetadata) {
+            streamChunk.usage = {
+              promptTokens: usageMetadata.promptTokenCount || 0,
+              completionTokens: usageMetadata.candidatesTokenCount || 0,
+              totalTokens: usageMetadata.totalTokenCount || 0,
+            };
+          }
+          yield streamChunk;
+        } else if (usageMetadata) {
+          yield {
+            usage: {
+              promptTokens: usageMetadata.promptTokenCount || 0,
+              completionTokens: usageMetadata.candidatesTokenCount || 0,
+              totalTokens: usageMetadata.totalTokenCount || 0,
+            },
+          };
         }
       }
 

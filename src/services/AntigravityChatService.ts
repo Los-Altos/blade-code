@@ -849,6 +849,16 @@ export class AntigravityChatService implements IChatService {
               const chunk = JSON.parse(data) as AntigravityStreamChunk;
               eventCount++;
 
+              if (chunk.usageMetadata) {
+                yield {
+                  usage: {
+                    promptTokens: chunk.usageMetadata.promptTokenCount || 0,
+                    completionTokens: chunk.usageMetadata.candidatesTokenCount || 0,
+                    totalTokens: chunk.usageMetadata.totalTokenCount || 0,
+                  },
+                };
+              }
+
               const candidate = chunk.candidates?.[0];
               const parts = candidate?.content?.parts || [];
 

@@ -1458,6 +1458,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
     // 累积器
     let fullContent = '';
     let fullReasoningContent = '';
+    let streamUsage: ChatResponse['usage'];
     const toolCallAccumulator = new Map<
       number,
       { id: string; name: string; arguments: string }
@@ -1495,6 +1496,11 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
           fullReasoningContent += chunk.reasoningContent;
           // 调用增量回调
           options?.onThinkingDelta?.(chunk.reasoningContent);
+        }
+
+        // 2.5 记录流式 usage（通常只在结束时提供）
+        if (chunk.usage) {
+          streamUsage = chunk.usage;
         }
 
         // 3. 累积工具调用参数
@@ -1540,8 +1546,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
         content: fullContent,
         reasoningContent: fullReasoningContent || undefined,
         toolCalls: this.buildFinalToolCalls(toolCallAccumulator),
-        // 流式响应通常不返回 usage，可以在调用方估算
-        usage: undefined,
+        usage: streamUsage,
       };
     } catch (error) {
       // 检查是否是流式不支持的错误，如果是则降级到非流式
