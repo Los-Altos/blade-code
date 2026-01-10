@@ -5,6 +5,8 @@
  * API 格式与 OpenAI 兼容，但使用 Copilot Token 认证。
  */
 
+import { isPlainObject } from 'lodash-es';
+import type { ChatCompletionMessageFunctionToolCall } from 'openai/resources/chat';
 import { createLogger, LogCategory } from '../logging/Logger.js';
 import { proxyFetch } from '../utils/proxyFetch.js';
 import type {
@@ -59,8 +61,7 @@ export class CopilotChatService implements IChatService {
     tools?: Array<{
       name: string;
       description: string;
-      // biome-ignore lint/suspicious/noExplicitAny: 工具参数格式不确定
-      parameters: any;
+      parameters: unknown;
     }>,
     signal?: AbortSignal
   ): Promise<ChatResponse> {
@@ -98,8 +99,7 @@ export class CopilotChatService implements IChatService {
     tools?: Array<{
       name: string;
       description: string;
-      // biome-ignore lint/suspicious/noExplicitAny: 工具参数格式不确定
-      parameters: any;
+      parameters: unknown;
     }>,
     signal?: AbortSignal
   ): AsyncGenerator<StreamChunk, void, unknown> {
@@ -145,10 +145,8 @@ export class CopilotChatService implements IChatService {
       let buffer = '';
 
       // 用于累积 tool calls
-      const toolCallsAccumulator: Map<
-        number,
-        { id: string; type: string; function: { name: string; arguments: string } }
-      > = new Map();
+      const toolCallsAccumulator: Map<number, ChatCompletionMessageFunctionToolCall> =
+        new Map();
 
       while (true) {
         const { done, value } = await reader.read();
@@ -200,7 +198,7 @@ export class CopilotChatService implements IChatService {
                     // 新的 tool call
                     toolCallsAccumulator.set(tc.index, {
                       id: tc.id || '',
-                      type: tc.type || 'function',
+                      type: 'function',
                       function: {
                         name: tc.function?.name || '',
                         arguments: tc.function?.arguments || '',
@@ -304,8 +302,7 @@ export class CopilotChatService implements IChatService {
     tools?: Array<{
       name: string;
       description: string;
-      // biome-ignore lint/suspicious/noExplicitAny: 工具参数格式不确定
-      parameters: any;
+      parameters: unknown;
     }>,
     stream = false
   ): CopilotChatRequest {
@@ -396,28 +393,29 @@ export class CopilotChatService implements IChatService {
   /**
    * 清理参数中不支持的字段
    */
-  // biome-ignore lint/suspicious/noExplicitAny: 参数格式不确定
-  private cleanParameters(params: any): Record<string, unknown> {
-    if (!params || typeof params !== 'object') {
-      return params;
-    }
+  private cleanParameters(params: unknown): Record<string, unknown> {
+    if (!isPlainObject(params)) return {};
 
     const cleaned: Record<string, unknown> = {};
 
-    for (const [key, value] of Object.entries(params)) {
+    for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
       // 跳过不支持的字段
       if (['$ref', 'const', 'default'].includes(key)) {
         continue;
       }
 
-      if (key === 'properties' && typeof value === 'object' && value !== null) {
+      if (key === 'properties' && isPlainObject(value)) {
         // 递归清理 properties
         const cleanedProps: Record<string, unknown> = {};
-        for (const [propKey, propValue] of Object.entries(value)) {
-          cleanedProps[propKey] = this.cleanParameters(propValue);
+        for (const [propKey, propValue] of Object.entries(
+          value as Record<string, unknown>
+        )) {
+          cleanedProps[propKey] = isPlainObject(propValue)
+            ? this.cleanParameters(propValue)
+            : propValue;
         }
         cleaned[key] = cleanedProps;
-      } else if (key === 'items' && typeof value === 'object' && value !== null) {
+      } else if (key === 'items' && isPlainObject(value)) {
         // 递归清理 items
         cleaned[key] = this.cleanParameters(value);
       } else {

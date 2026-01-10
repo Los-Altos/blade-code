@@ -3,6 +3,8 @@
  * 基于MCP协议规范的TypeScript接口
  */
 
+import type { JSONSchema7 } from 'json-schema';
+
 /**
  * MCP连接状态
  */
@@ -19,11 +21,7 @@ export enum McpConnectionStatus {
 export interface McpToolDefinition {
   name: string;
   description: string;
-  inputSchema: {
-    type: 'object';
-    properties: Record<string, any>;
-    required?: string[];
-  };
+  inputSchema: JSONSchema7;
 }
 
 /**

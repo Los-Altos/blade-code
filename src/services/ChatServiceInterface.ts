@@ -3,7 +3,7 @@
  * 定义统一的聊天服务接口，支持多种 API 提供商
  */
 
-import type { ChatCompletionMessageToolCall } from 'openai/resources/chat';
+import type { ChatCompletionChunk, ChatCompletionMessageToolCall } from 'openai/resources/chat';
 import { isBuiltinApiKey } from '../config/builtinModels.js';
 import type { ProviderType } from '../config/types.js';
 import { createLogger, LogCategory } from '../logging/Logger.js';
@@ -101,13 +101,21 @@ export interface ChatResponse {
 }
 
 /**
+ * 流式 tool_calls 的统一类型：
+ * - OpenAI/Azure 流式 delta 期间的 tool call（id 等字段可能是可选的）
+ * - 以及收敛后的完整 tool call
+ */
+export type StreamToolCall =
+  | ChatCompletionMessageToolCall
+  | ChatCompletionChunk.Choice.Delta.ToolCall;
+
+/**
  * 流式响应块
  */
 export interface StreamChunk {
   content?: string;
   reasoningContent?: string; // Thinking 模型的推理过程片段
-  // biome-ignore lint/suspicious/noExplicitAny: 不同 provider 的 tool call 类型不同
-  toolCalls?: any[];
+  toolCalls?: StreamToolCall[];
   finishReason?: string;
   usage?: UsageInfo; // 流式响应的使用统计（通常仅在结束时提供）
 }
@@ -125,8 +133,7 @@ export interface IChatService {
     tools?: Array<{
       name: string;
       description: string;
-      // biome-ignore lint/suspicious/noExplicitAny: 工具参数格式不确定
-      parameters: any;
+      parameters: unknown;
     }>,
     signal?: AbortSignal
   ): Promise<ChatResponse>;
@@ -139,8 +146,7 @@ export interface IChatService {
     tools?: Array<{
       name: string;
       description: string;
-      // biome-ignore lint/suspicious/noExplicitAny: 工具参数格式不确定
-      parameters: any;
+      parameters: unknown;
     }>,
     signal?: AbortSignal
   ): AsyncGenerator<StreamChunk, void, unknown>;

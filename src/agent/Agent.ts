@@ -35,7 +35,18 @@ import {
   createChatServiceAsync,
   type IChatService,
   type Message,
+  type StreamToolCall,
 } from '../services/ChatServiceInterface.js';
+import type { JsonValue } from '../store/types.js';
+
+function toJsonValue(value: string | object): JsonValue {
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.parse(JSON.stringify(value)) as JsonValue;
+  } catch {
+    return String(value);
+  }
+}
 import { discoverSkills, injectSkillsMetadata } from '../skills/index.js';
 import { SpecManager } from '../spec/SpecManager.js';
 import {
@@ -1163,7 +1174,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
                 toolCallsCount: allToolResults.length,
                 duration: Date.now() - startTime,
                 shouldExitLoop: true,
-                targetMode: result.metadata.targetMode,
+                targetMode: result.metadata?.targetMode,
               },
             };
           }
@@ -1195,7 +1206,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
               lastMessageUuid = await contextMgr.saveToolResult(
                 context.sessionId,
                 toolCall.id,
-                result.success ? result.llmContent : undefined,
+                result.success ? toJsonValue(result.llmContent) : null,
                 toolUseUuid,
                 result.success ? undefined : result.error?.message
               );
@@ -1564,10 +1575,13 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
    */
   private accumulateToolCall(
     accumulator: Map<number, { id: string; name: string; arguments: string }>,
-    // biome-ignore lint/suspicious/noExplicitAny: 不同 provider 格式不同
-    chunk: any
+    chunk: StreamToolCall
   ): void {
-    const tc = chunk;
+    const tc = chunk as {
+      index?: number;
+      id?: string;
+      function?: { name?: string; arguments?: string };
+    };
     const index = tc.index ?? 0;
 
     if (!accumulator.has(index)) {

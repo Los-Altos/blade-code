@@ -4,13 +4,18 @@
  */
 
 import { encodingForModel } from 'js-tiktoken';
+import type { ChatCompletionMessageToolCall } from 'openai/resources/chat';
 import type { Message } from '../services/ChatServiceInterface.js';
+
+interface Encoding {
+  encode: (text: string) => number[];
+}
 
 /**
  * Token Counter - 计算和管理 token 数量
  */
 export class TokenCounter {
-  private static encodingCache = new Map<string, any>();
+  private static encodingCache = new Map<string, Encoding>();
 
   /**
    * 计算消息列表的 token 数量
@@ -93,16 +98,20 @@ export class TokenCounter {
    * @param modelName - 模型名称
    * @returns encoding 实例
    */
-  private static getEncoding(modelName: string): any {
+  private static getEncoding(modelName: string): Encoding {
     if (!this.encodingCache.has(modelName)) {
       try {
         // 尝试获取模型的 encoding
-        const encoding = encodingForModel(modelName as any);
+        const encoding = encodingForModel(
+          modelName as Parameters<typeof encodingForModel>[0]
+        ) as unknown as Encoding;
         this.encodingCache.set(modelName, encoding);
       } catch {
         // 如果模型不支持，使用 cl100k_base（GPT-4 的 encoding）
         try {
-          const encoding = encodingForModel('gpt-4' as any);
+          const encoding = encodingForModel(
+            'gpt-4' as Parameters<typeof encodingForModel>[0]
+          ) as unknown as Encoding;
           this.encodingCache.set(modelName, encoding);
         } catch {
           // 最后的降级方案：使用粗略估算
@@ -119,7 +128,7 @@ export class TokenCounter {
       }
     }
 
-    return this.encodingCache.get(modelName);
+    return this.encodingCache.get(modelName)!;
   }
 
   /**
@@ -129,7 +138,10 @@ export class TokenCounter {
    * @param encoding - encoding 实例
    * @returns token 数量
    */
-  private static countToolCallTokens(toolCalls: any[], encoding: any): number {
+  private static countToolCallTokens(
+    toolCalls: ChatCompletionMessageToolCall[],
+    encoding: Encoding
+  ): number {
     let tokens = 0;
 
     for (const call of toolCalls) {
@@ -137,17 +149,13 @@ export class TokenCounter {
       tokens += 4;
 
       // 函数名
-      if (call.function?.name) {
+      if (call.type === 'function' && call.function?.name) {
         tokens += encoding.encode(call.function.name).length;
       }
 
       // 参数
-      if (call.function?.arguments) {
-        const args =
-          typeof call.function.arguments === 'string'
-            ? call.function.arguments
-            : JSON.stringify(call.function.arguments);
-        tokens += encoding.encode(args).length;
+      if (call.type === 'function' && call.function?.arguments) {
+        tokens += encoding.encode(call.function.arguments).length;
       }
 
       // ID

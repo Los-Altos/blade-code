@@ -10,7 +10,7 @@
  *
  */
 
-import { execFile, spawn } from 'child_process';
+import { type ExecFileException, execFile, spawn } from 'child_process';
 import { existsSync, mkdirSync, rmSync } from 'fs';
 import { join, resolve } from 'path';
 import { promisify } from 'util';
@@ -35,10 +35,12 @@ async function gitExec(cwd: string, args: string[]): Promise<GitExecResult> {
     execFile(
       'git',
       args,
-      { cwd, maxBuffer: 10 * 1024 * 1024 }, // 10MB buffer
-      (error, stdout, stderr) => {
+      { cwd, maxBuffer: 10 * 1024 * 1024, encoding: 'utf8' }, // 10MB buffer
+      (error: ExecFileException | null, stdout, stderr) => {
+        const code =
+          error == null ? 0 : typeof error.code === 'number' ? error.code : 1;
         resolve({
-          code: error ? (error as any).code || 1 : 0,
+          code,
           stdout: stdout || '',
           stderr: stderr || '',
         });

@@ -1,5 +1,29 @@
+import { isPlainObject } from 'lodash-es';
 import { ZodError, ZodIssue, z } from 'zod';
 import { ToolErrorType } from '../types/index.js';
+
+type ZodIssueExtra = ZodIssue & {
+  received?: unknown;
+  expected?: unknown;
+  minimum?: number;
+  maximum?: number;
+  inclusive?: boolean;
+  validation?: unknown;
+  options?: unknown;
+  keys?: unknown;
+  type?: unknown;
+};
+
+function formatUnknown(value: unknown): string {
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'string') return value;
+  try {
+    const json = JSON.stringify(value);
+    return json === undefined ? String(value) : json;
+  } catch {
+    return String(value);
+  }
+}
 
 /**
  * 工具验证错误
@@ -10,7 +34,7 @@ export class ToolValidationError extends Error {
     public readonly issues: Array<{
       field: string;
       message: string;
-      value?: any;
+      value?: unknown;
     }>,
     public readonly type: ToolErrorType = ToolErrorType.VALIDATION_ERROR
   ) {
@@ -24,46 +48,49 @@ export class ToolValidationError extends Error {
  */
 function translateZodIssue(issue: ZodIssue): string {
   const { code } = issue;
-  const received = (issue as any).received;
+  const extra = issue as ZodIssueExtra;
+  const received = extra.received;
 
   switch (code) {
     case 'invalid_type': {
-      const expected = (issue as any).expected;
-      return `类型错误：期望 ${expected}，实际收到 ${received}`;
+      const expected = extra.expected;
+      return `类型错误：期望 ${formatUnknown(expected)}，实际收到 ${formatUnknown(received)}`;
     }
 
     case 'too_small': {
-      const minimum = (issue as any).minimum;
-      const inclusive = (issue as any).inclusive;
-      if ((issue as any).type === 'string') {
+      const minimum = extra.minimum;
+      const inclusive = extra.inclusive;
+      const issueType = typeof extra.type === 'string' ? extra.type : undefined;
+      if (issueType === 'string' && typeof minimum === 'number') {
         return `长度不能少于 ${minimum} 个字符`;
       }
-      if ((issue as any).type === 'number') {
+      if (issueType === 'number' && typeof minimum === 'number') {
         return `不能小于${inclusive ? '等于' : ''} ${minimum}`;
       }
-      if ((issue as any).type === 'array') {
+      if (issueType === 'array' && typeof minimum === 'number') {
         return `数组长度不能少于 ${minimum}`;
       }
       return `值太小`;
     }
 
     case 'too_big': {
-      const maximum = (issue as any).maximum;
-      const inclusiveMax = (issue as any).inclusive;
-      if ((issue as any).type === 'string') {
+      const maximum = extra.maximum;
+      const inclusiveMax = extra.inclusive;
+      const issueType = typeof extra.type === 'string' ? extra.type : undefined;
+      if (issueType === 'string' && typeof maximum === 'number') {
         return `长度不能超过 ${maximum} 个字符`;
       }
-      if ((issue as any).type === 'number') {
+      if (issueType === 'number' && typeof maximum === 'number') {
         return `不能大于${inclusiveMax ? '等于' : ''} ${maximum}`;
       }
-      if ((issue as any).type === 'array') {
+      if (issueType === 'array' && typeof maximum === 'number') {
         return `数组长度不能超过 ${maximum}`;
       }
       return `值太大`;
     }
 
     case 'invalid_string': {
-      const validation = (issue as any).validation;
+      const validation = extra.validation;
       if (validation === 'email') {
         return '必须是有效的电子邮件地址';
       }
@@ -73,31 +100,40 @@ function translateZodIssue(issue: ZodIssue): string {
       if (validation === 'uuid') {
         return '必须是有效的 UUID';
       }
-      if (typeof validation === 'object' && validation.includes) {
-        return `必须包含 "${validation.includes}"`;
-      }
-      if (typeof validation === 'object' && validation.startsWith) {
-        return `必须以 "${validation.startsWith}" 开头`;
-      }
-      if (typeof validation === 'object' && validation.endsWith) {
-        return `必须以 "${validation.endsWith}" 结尾`;
+      if (isPlainObject(validation)) {
+        const v = validation as Record<string, unknown>;
+        if (typeof v.includes === 'string') {
+          return `必须包含 "${v.includes}"`;
+        }
+        if (typeof v.startsWith === 'string') {
+          return `必须以 "${v.startsWith}" 开头`;
+        }
+        if (typeof v.endsWith === 'string') {
+          return `必须以 "${v.endsWith}" 结尾`;
+        }
       }
       return '字符串格式不正确';
     }
 
     case 'invalid_enum_value': {
-      const options = (issue as any).options;
-      return `必须是以下值之一：${options.join(', ')}`;
+      const options = extra.options;
+      if (Array.isArray(options)) {
+        return `必须是以下值之一：${options.map((o) => formatUnknown(o)).join(', ')}`;
+      }
+      return '必须是枚举允许的值之一';
     }
 
     case 'invalid_literal': {
-      const expected_literal = (issue as any).expected;
-      return `必须是字面量值：${expected_literal}`;
+      const expected_literal = extra.expected;
+      return `必须是字面量值：${formatUnknown(expected_literal)}`;
     }
 
     case 'unrecognized_keys': {
-      const keys = (issue as any).keys;
-      return `包含未知的参数：${keys.join(', ')}`;
+      const keys = extra.keys;
+      if (Array.isArray(keys)) {
+        return `包含未知的参数：${keys.map((k) => formatUnknown(k)).join(', ')}`;
+      }
+      return '包含未知的参数';
     }
 
     case 'invalid_union':
@@ -121,7 +157,7 @@ export function formatZodError(error: ZodError): ToolValidationError {
   const issues = error.issues.map((issue) => {
     const field = issue.path.join('.');
     const message = translateZodIssue(issue);
-    const value = (issue as any).received;
+    const value = (issue as ZodIssueExtra).received;
 
     return {
       field: field || 'root',

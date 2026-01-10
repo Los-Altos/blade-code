@@ -1,11 +1,14 @@
 import OpenAI from 'openai';
 import type {
   ChatCompletionChunk,
+  ChatCompletionAssistantMessageParam,
   ChatCompletionMessageParam,
   ChatCompletionMessageToolCall,
   ChatCompletionTool,
 } from 'openai/resources/chat';
+import { isPlainObject } from 'lodash-es';
 import { createLogger, LogCategory } from '../logging/Logger.js';
+import { isStreamUsageUnsupportedError } from './utils/streamUtils.js';
 import type {
   ChatConfig,
   ChatResponse,
@@ -56,17 +59,6 @@ function extractReasoningFromMessage(
     }
   }
   return undefined;
-}
-
-function isStreamUsageUnsupportedError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const message = error.message.toLowerCase();
-  return (
-    message.includes('stream_options') ||
-    message.includes('include_usage') ||
-    message.includes('unknown parameter') ||
-    message.includes('unrecognized request argument')
-  );
 }
 
 /**
@@ -137,7 +129,7 @@ export class OpenAIChatService implements IChatService {
                 .map((p) => p.text)
                 .join('\n');
 
-        const baseMessage: any = {
+        const baseMessage: ChatCompletionAssistantMessageParam & Record<string, unknown> = {
           role: 'assistant',
           content: assistantContent || null,
           tool_calls: msg.tool_calls,
@@ -204,14 +196,16 @@ export class OpenAIChatService implements IChatService {
    * 将工具定义转换为 OpenAI API 格式
    */
   private convertToOpenAITools(
-    tools?: Array<{ name: string; description: string; parameters: any }>
+    tools?: Array<{ name: string; description: string; parameters: unknown }>
   ): ChatCompletionTool[] | undefined {
     return tools?.map((tool) => ({
       type: 'function' as const,
       function: {
         name: tool.name,
         description: tool.description,
-        parameters: tool.parameters,
+        parameters: isPlainObject(tool.parameters)
+          ? (tool.parameters as Record<string, unknown>)
+          : {},
       },
     }));
   }
@@ -273,7 +267,7 @@ export class OpenAIChatService implements IChatService {
     tools?: Array<{
       name: string;
       description: string;
-      parameters: any;
+      parameters: unknown;
     }>,
     signal?: AbortSignal
   ): Promise<ChatResponse> {
@@ -453,8 +447,7 @@ export class OpenAIChatService implements IChatService {
     tools?: Array<{
       name: string;
       description: string;
-      // biome-ignore lint/suspicious/noExplicitAny: 工具参数格式不确定
-      parameters: any;
+      parameters: unknown;
     }>,
     signal?: AbortSignal
   ): AsyncGenerator<StreamChunk, void, unknown> {

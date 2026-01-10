@@ -360,9 +360,9 @@ export class AcpSession {
           const metadata = result.metadata;
           if (
             metadata?.kind === 'edit' &&
-            metadata?.file_path &&
-            metadata?.oldContent !== undefined &&
-            metadata?.newContent !== undefined
+            metadata.file_path &&
+            metadata.oldContent !== undefined &&
+            metadata.newContent !== undefined
           ) {
             // 发送 diff 格式（IDE 会显示差异视图）
             content.push({

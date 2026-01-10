@@ -600,7 +600,7 @@ export class ExecutionStage implements PipelineStage {
     try {
       // 执行工具，传递完整的执行上下文
       const result = await invocation.execute(
-        execution.context.signal,
+        execution.context.signal ?? new AbortController().signal,
         execution.context.onProgress,
         execution.context // 传递完整 context（包含 confirmationHandler、permissionMode 等）
       );

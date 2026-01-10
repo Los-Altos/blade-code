@@ -4,7 +4,6 @@
 
 import { themes } from './presets.js';
 import type { BaseColors, Theme } from './types.js';
-import { validateTheme } from './utils.js';
 
 // 默认主题配置
 export const defaultColors: BaseColors = {
@@ -164,18 +163,6 @@ export class ThemeManager {
   }
 
   /**
-   * 添加新主题
-   * @param name 主题名称
-   * @param theme 主题配置
-   */
-  addTheme(name: string, theme: Theme): void {
-    if (!validateTheme(theme)) {
-      throw new Error(`Invalid theme configuration for '${name}'`);
-    }
-    this.themes.set(name, theme);
-  }
-
-  /**
    * 获取所有可用主题名称
    * @returns 主题名称数组
    */
@@ -201,34 +188,12 @@ export class ThemeManager {
   }
 
   /**
-   * 移除主题
-   * @param name 主题名称
-   */
-  removeTheme(name: string): void {
-    const isBuiltIn =
-      name === 'default' || name === 'dark' || themes.some((item) => item.id === name);
-    if (isBuiltIn) {
-      throw new Error(`Cannot remove built-in theme '${name}'`);
-    }
-    this.themes.delete(name);
-  }
-
-  /**
    * 检查主题是否存在
    * @param name 主题名称
    * @returns 是否存在
    */
   hasTheme(name: string): boolean {
     return this.themes.has(name);
-  }
-
-  /**
-   * 验证主题配置
-   * @param theme 主题配置
-   * @returns 是否有效
-   */
-  validateTheme(theme: any): boolean {
-    return validateTheme(theme);
   }
 }
 

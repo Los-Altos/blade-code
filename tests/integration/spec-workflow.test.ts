@@ -39,39 +39,19 @@ describe('Spec Workflow Integration', () => {
   });
 
   describe('Directory Structure', () => {
-    it('should create .blade directory structure on initialization', async () => {
+    it('should create only changes directory on initialization', async () => {
       const bladeDir = path.join(tempDir, '.blade');
 
       // 验证目录结构
-      const specsDir = path.join(bladeDir, SPEC_DIRS.SPECS);
       const changesDir = path.join(bladeDir, SPEC_DIRS.CHANGES);
-      const archiveDir = path.join(bladeDir, SPEC_DIRS.ARCHIVE);
-      const steeringDir = path.join(bladeDir, SPEC_DIRS.STEERING);
 
-      const [specsExists, changesExists, archiveExists, steeringExists] =
-        await Promise.all([
-          fs
-            .stat(specsDir)
-            .then(() => true)
-            .catch(() => false),
-          fs
-            .stat(changesDir)
-            .then(() => true)
-            .catch(() => false),
-          fs
-            .stat(archiveDir)
-            .then(() => true)
-            .catch(() => false),
-          fs
-            .stat(steeringDir)
-            .then(() => true)
-            .catch(() => false),
-        ]);
+      const changesExists = await fs
+        .stat(changesDir)
+        .then(() => true)
+        .catch(() => false);
 
-      expect(specsExists).toBe(true);
+      // 只创建 changes 目录（最常用），其他目录按需创建
       expect(changesExists).toBe(true);
-      expect(archiveExists).toBe(true);
-      expect(steeringExists).toBe(true);
     });
   });
 

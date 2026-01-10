@@ -3,23 +3,10 @@
  */
 
 // 主题预设和辅助函数
-export { getThemeById, getThemeIds, type ThemeItem, themes } from './presets.js';
+export { getThemeById, getThemeIds, themes, type ThemeItem } from './presets.js';
 
 // 核心管理器
-export {
-  darkTheme,
-  defaultTheme,
-  ThemeManager,
-  themeManager,
-} from './ThemeManager.js';
+export { themeManager } from './ThemeManager.js';
 
 // 类型定义
 export type { BaseColors, SyntaxColors, Theme } from './types.js';
-
-// 工具函数
-export {
-  blendColors,
-  getColorBrightness,
-  getContrastColor,
-  validateTheme,
-} from './utils.js';

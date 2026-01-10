@@ -156,7 +156,7 @@ export interface LoopResult {
       | 'aborted'
       | 'chat_disabled';
     message: string;
-    details?: any;
+    details?: unknown;
   };
   metadata?: {
     turnsCount: number;

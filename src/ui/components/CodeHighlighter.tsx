@@ -9,6 +9,7 @@
  */
 
 import { Box, Text } from 'ink';
+import { isPlainObject } from 'lodash-es';
 import { common, createLowlight } from 'lowlight';
 import React from 'react';
 import { useTheme } from '../../store/selectors/index.js';
@@ -27,15 +28,43 @@ interface CodeHighlighterProps {
   availableHeight?: number; // 可用的终端高度（用于智能截断）
 }
 
+type HastTextNode = { type: 'text'; value: string };
+type HastElementNode = {
+  type: 'element';
+  properties?: { className?: string[] };
+  children?: unknown[];
+};
+type HastRootNode = { type: 'root'; children: unknown[] };
+
+function isHastTextNode(node: unknown): node is HastTextNode {
+  return (
+    isPlainObject(node) &&
+    (node as HastTextNode).type === 'text' &&
+    typeof (node as HastTextNode).value === 'string'
+  );
+}
+
+function isHastElementNode(node: unknown): node is HastElementNode {
+  return isPlainObject(node) && (node as HastElementNode).type === 'element';
+}
+
+function isHastRootNode(node: unknown): node is HastRootNode {
+  return (
+    isPlainObject(node) &&
+    (node as HastRootNode).type === 'root' &&
+    Array.isArray((node as HastRootNode).children)
+  );
+}
+
 /**
  * 将 lowlight 的 HAST 节点转换为 React 组件
  */
 function renderHastNode(
-  node: any,
+  node: unknown,
   syntaxColors: SyntaxColors,
   key: number = 0
 ): React.ReactNode {
-  if (node.type === 'text') {
+  if (isHastTextNode(node)) {
     return (
       <Text key={key} wrap="wrap">
         {node.value}
@@ -43,7 +72,7 @@ function renderHastNode(
     );
   }
 
-  if (node.type === 'element') {
+  if (isHastElementNode(node)) {
     const className = node.properties?.className?.[0] || '';
     let color = syntaxColors.default;
 
@@ -59,7 +88,7 @@ function renderHastNode(
     else if (className.includes('tag')) color = syntaxColors.tag;
     else if (className.includes('attr')) color = syntaxColors.attr;
 
-    const children = node.children?.map((child: any, index: number) =>
+    const children = node.children?.map((child: unknown, index: number) =>
       renderHastNode(child, syntaxColors, index)
     );
 
@@ -71,10 +100,10 @@ function renderHastNode(
   }
 
   // Root 节点
-  if (node.type === 'root' && node.children) {
+  if (isHastRootNode(node)) {
     return (
       <React.Fragment key={key}>
-        {node.children.map((child: any, index: number) =>
+        {node.children.map((child: unknown, index: number) =>
           renderHastNode(child, syntaxColors, index)
         )}
       </React.Fragment>

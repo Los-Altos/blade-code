@@ -23,6 +23,7 @@ import { Logger } from './logging/Logger.js';
 import { initializeGracefulShutdown } from './services/GracefulShutdown.js';
 import { checkVersionOnStartup } from './services/VersionChecker.js';
 import { AppWrapper as BladeApp } from './ui/App.js';
+import type { AppProps } from './ui/App.js';
 
 // ⚠️ 关键：在创建任何 logger 之前，先解析 --debug 参数并设置全局配置
 // 这样可以确保所有 logger（包括 middleware、commands 中的）都能正确输出到终端
@@ -122,7 +123,7 @@ export async function main() {
           nonOptionArgs.length > 0 ? nonOptionArgs.join(' ') : undefined;
 
         // 启动 React UI - 传递所有选项
-        const appProps: any = {
+        const appProps = {
           ...argv,
           initialMessage,
           // 确保某些字段是正确的类型
@@ -130,7 +131,7 @@ export async function main() {
           print: Boolean(argv.print),
           // 传递版本检查 Promise（已在 main() 开头启动）
           versionCheckPromise,
-        };
+        } as unknown as AppProps & Record<string, unknown>;
 
         // 移除内部字段
         delete appProps._;

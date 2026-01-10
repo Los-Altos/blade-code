@@ -14,6 +14,13 @@ import type { AtMention, Attachment, CollectorOptions, LineRange } from './types
 
 const logger = createLogger(LogCategory.PROMPTS);
 
+type FileTreeEntry = FileTree | null;
+type FileTree = Map<string, FileTreeEntry>;
+
+function isFileTree(value: FileTreeEntry): value is FileTree {
+  return value instanceof Map;
+}
+
 /**
  * 附件收集器
  */
@@ -289,23 +296,26 @@ export class AttachmentCollector {
   /**
    * 构建文件树结构
    */
-  private buildFileTree(files: string[]): Map<string, any> {
-    const tree = new Map<string, any>();
+  private buildFileTree(files: string[]): FileTree {
+    const tree: FileTree = new Map<string, FileTreeEntry>();
 
     for (const file of files) {
       const parts = file.split('/');
-      let current = tree;
+      let current: FileTree = tree;
 
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i];
         const isFile = i === parts.length - 1;
 
         if (!current.has(part)) {
-          current.set(part, isFile ? null : new Map<string, any>());
+          current.set(part, isFile ? null : new Map<string, FileTreeEntry>());
         }
 
         if (!isFile) {
-          current = current.get(part);
+          const next = current.get(part);
+          if (next && isFileTree(next)) {
+            current = next;
+          }
         }
       }
     }
@@ -317,7 +327,7 @@ export class AttachmentCollector {
    * 打印树形结构为 ASCII 格式
    */
   private printTree(
-    tree: Map<string, any>,
+    tree: FileTree,
     rootPath: string,
     prefix: string = '',
     isLast: boolean = true
@@ -331,8 +341,8 @@ export class AttachmentCollector {
 
     // 按名称排序，目录优先
     const entries = Array.from(tree.entries()).sort((a, b) => {
-      const aIsDir = a[1] instanceof Map;
-      const bIsDir = b[1] instanceof Map;
+      const aIsDir = isFileTree(a[1]);
+      const bIsDir = isFileTree(b[1]);
       if (aIsDir !== bIsDir) return bIsDir ? 1 : -1;
       return a[0].localeCompare(b[0]);
     });
@@ -340,7 +350,7 @@ export class AttachmentCollector {
     entries.forEach(([name, value], index) => {
       const isLastEntry = index === entries.length - 1;
       const connector = isLastEntry ? '└── ' : '├── ';
-      const isDir = value instanceof Map;
+      const isDir = isFileTree(value);
 
       lines.push(`${prefix}${connector}${name}${isDir ? '/' : ''}`);
 

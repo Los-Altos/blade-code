@@ -42,6 +42,7 @@ export const killShellTool = createTool({
     }
 
     if (!result.success && !result.alreadyExited) {
+      const metadata: Record<string, unknown> = { ...result };
       return {
         success: false,
         llmContent: `Failed to terminate Shell: ${params.shell_id}`,
@@ -50,7 +51,7 @@ export const killShellTool = createTool({
           type: ToolErrorType.EXECUTION_ERROR,
           message: '发送终止信号失败',
         },
-        metadata: result,
+        metadata,
       };
     }
 
@@ -69,7 +70,7 @@ export const killShellTool = createTool({
         signal: result.signal,
       },
       displayContent: result.alreadyExited ? `ℹ️ ${statusText}` : `✂️ ${statusText}`,
-      metadata: result,
+      metadata: { ...result },
     };
   },
 

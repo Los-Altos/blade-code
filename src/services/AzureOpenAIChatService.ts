@@ -25,6 +25,7 @@ import type {
   Message,
   StreamChunk,
 } from './ChatServiceInterface.js';
+import { isStreamUsageUnsupportedError } from './utils/streamUtils.js';
 
 const _logger = createLogger(LogCategory.CHAT);
 
@@ -50,17 +51,6 @@ function filterOrphanToolMessages(messages: Message[]): Message[] {
     }
     return true;
   });
-}
-
-function isStreamUsageUnsupportedError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  const message = error.message.toLowerCase();
-  return (
-    message.includes('stream_options') ||
-    message.includes('include_usage') ||
-    message.includes('unknown parameter') ||
-    message.includes('unrecognized request argument')
-  );
 }
 
 export class AzureOpenAIChatService implements IChatService {

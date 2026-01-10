@@ -5,8 +5,13 @@
  */
 
 import { nanoid } from 'nanoid';
+import { PermissionMode } from '../config/types.js';
 import type { PipelineStage, ToolExecution } from '../tools/types/index.js';
 import { HookManager } from './HookManager.js';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 /**
  * PostToolUse Hook 阶段
@@ -58,7 +63,8 @@ export class PostToolUseHookStage implements PipelineStage {
         {
           projectDir,
           sessionId: execution.context.sessionId || 'unknown',
-          permissionMode: (execution.context.permissionMode as any) || 'default',
+          permissionMode: execution.context.permissionMode ?? PermissionMode.DEFAULT,
+          abortSignal: execution.context.signal,
         }
       );
 
@@ -73,8 +79,8 @@ export class PostToolUseHookStage implements PipelineStage {
       // 2. 修改工具输出（如果 hook 返回了 modifiedOutput）
       if (hookResult.modifiedOutput !== undefined) {
         // 使用 hook 修改后的输出替换原输出
-        const modifiedResult = hookResult.modifiedOutput as any;
-        if (typeof modifiedResult === 'object' && modifiedResult !== null) {
+        const modifiedResult = hookResult.modifiedOutput;
+        if (isRecord(modifiedResult)) {
           Object.assign(result, modifiedResult);
         }
       }

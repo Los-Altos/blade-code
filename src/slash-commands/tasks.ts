@@ -13,6 +13,16 @@ import {
   type SlashCommandResult,
 } from './types.js';
 
+// 列出 shells
+type ShellRow = {
+  id: string;
+  command: string;
+  status: string;
+  startTime: number;
+  endTime?: number;
+  pid?: number;
+};
+
 /**
  * 格式化时间差
  */
@@ -85,15 +95,10 @@ async function tasksHandler(
   // 默认：列出所有任务
   const output: string[] = ['📋 **后台任务列表**\n'];
 
-  // 列出 shells
-  const shells = Array.from((shellManager as any).processes?.values() || []) as Array<{
-    id: string;
-    command: string;
-    status: string;
-    startTime: number;
-    endTime?: number;
-    pid?: number;
-  }>;
+  const shellProcesses = (
+    shellManager as unknown as { processes?: Map<string, ShellRow> }
+  ).processes;
+  const shells = Array.from(shellProcesses?.values() || []);
 
   if (shells.length > 0) {
     output.push('### 🐚 Shells\n');

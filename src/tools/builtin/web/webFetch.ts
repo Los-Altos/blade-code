@@ -3,6 +3,23 @@ import { createTool } from '../../core/createTool.js';
 import type { ExecutionContext, ToolResult } from '../../types/index.js';
 import { ToolErrorType, ToolKind } from '../../types/index.js';
 import { ToolSchemas } from '../../validation/zodSchemas.js';
+import { isPlainObject } from 'lodash-es';
+
+function getErrorName(error: unknown): string | undefined {
+  if (!isPlainObject(error)) return undefined;
+  const obj = error as Record<string, unknown>;
+  return typeof obj.name === 'string' ? obj.name : undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (isPlainObject(error)) {
+    const obj = error as Record<string, unknown>;
+    if (typeof obj.message === 'string') return obj.message;
+  }
+  return String(error);
+}
 
 /**
  * Web response result shape
@@ -148,8 +165,8 @@ Usage notes:
         displayContent: formatDisplayMessage(response, metadata, false),
         metadata,
       };
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      if (getErrorName(error) === 'AbortError') {
         return {
           success: false,
           llmContent: 'Request aborted',
@@ -161,13 +178,14 @@ Usage notes:
         };
       }
 
+      const message = getErrorMessage(error);
       return {
         success: false,
-        llmContent: `Network request failed: ${error.message}`,
-        displayContent: `❌ 网络请求失败: ${error.message}`,
+        llmContent: `Network request failed: ${message}`,
+        displayContent: `❌ 网络请求失败: ${message}`,
         error: {
           type: ToolErrorType.EXECUTION_ERROR,
-          message: error.message,
+          message,
           details: error,
         },
       };
@@ -425,10 +443,15 @@ async function fetchWithTimeout(
 
   try {
     return await fetch(url, { ...options, signal: controller.signal });
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
-      error.message = '请求被中止或超时';
-      throw error;
+  } catch (error: unknown) {
+    if (getErrorName(error) === 'AbortError') {
+      if (error instanceof Error) {
+        error.message = '请求被中止或超时';
+        throw error;
+      }
+      const wrapped = new Error('请求被中止或超时');
+      wrapped.name = 'AbortError';
+      throw wrapped;
     }
     throw error;
   } finally {

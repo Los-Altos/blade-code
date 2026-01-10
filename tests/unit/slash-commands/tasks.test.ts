@@ -164,57 +164,15 @@ describe('/tasks Command', () => {
   });
 
   describe('kill subcommand', () => {
-    it('应终止指定的 shell', async () => {
-      mockShellManager.kill.mockReturnValue({ success: true });
-
+    it('kill 子命令已移除', async () => {
       const result = await tasksCommand.handler(['kill', 'bash_abc123'], mockContext);
-
       expect(result.success).toBe(true);
-      expect(mockShellManager.kill).toHaveBeenCalledWith('bash_abc123');
+
+      // 退化为默认列表行为
+      expect(mockShellManager.kill).not.toHaveBeenCalled();
+      expect(mockAgentManager.killAgent).not.toHaveBeenCalled();
       const message = mockSendMessage.mock.calls[0][0];
-      expect(message).toContain('已终止');
-    });
-
-    it('shell 已退出时应提示', async () => {
-      mockShellManager.kill.mockReturnValue({ success: false, alreadyExited: true });
-
-      const result = await tasksCommand.handler(['kill', 'bash_exited'], mockContext);
-
-      expect(result.success).toBe(true);
-      const message = mockSendMessage.mock.calls[0][0];
-      expect(message).toContain('已经退出');
-    });
-
-    it('应终止指定的 agent', async () => {
-      mockAgentManager.killAgent.mockReturnValue(true);
-
-      const result = await tasksCommand.handler(['kill', 'agent_xyz789'], mockContext);
-
-      expect(result.success).toBe(true);
-      expect(mockAgentManager.killAgent).toHaveBeenCalledWith('agent_xyz789');
-      const message = mockSendMessage.mock.calls[0][0];
-      expect(message).toContain('已终止');
-    });
-
-    it('agent 不存在时应提示', async () => {
-      mockAgentManager.killAgent.mockReturnValue(false);
-
-      const result = await tasksCommand.handler(
-        ['kill', 'agent_nonexistent'],
-        mockContext
-      );
-
-      expect(result.success).toBe(false);
-      const message = mockSendMessage.mock.calls[0][0];
-      expect(message).toContain('未在运行或不存在');
-    });
-
-    it('未知任务 ID 应报错', async () => {
-      const result = await tasksCommand.handler(['kill', 'unknown_123'], mockContext);
-
-      expect(result.success).toBe(false);
-      const message = mockSendMessage.mock.calls[0][0];
-      expect(message).toContain('未知任务 ID');
+      expect(message).toContain('后台任务列表');
     });
   });
 
@@ -309,7 +267,6 @@ describe('/tasks Command', () => {
 
       const message = mockSendMessage.mock.calls[0][0];
       expect(message).toContain('/tasks');
-      expect(message).toContain('/tasks kill');
       expect(message).toContain('/tasks clean');
     });
   });

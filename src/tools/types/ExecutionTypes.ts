@@ -1,5 +1,5 @@
 import { PermissionMode } from '../../config/types.js';
-import type { ToolResult } from './ToolTypes.js';
+import type { Tool, ToolInvocation, ToolResult } from './ToolTypes.js';
 import { ToolErrorType, ToolKind } from './ToolTypes.js';
 
 /**
@@ -89,11 +89,11 @@ export interface ExecutionContext {
  */
 export interface ToolExecutionInternalState {
   // DiscoveryStage 设置
-  tool?: any;
+  tool?: Tool;
 
   // PermissionStage 设置 (含 Zod 验证和默认值处理)
-  invocation?: any;
-  permissionCheckResult?: any;
+  invocation?: ToolInvocation<unknown>;
+  permissionCheckResult?: { reason?: string };
   needsConfirmation?: boolean;
   confirmationReason?: string;
   permissionSignature?: string;
@@ -162,7 +162,7 @@ export interface PipelineStage {
 export interface ExecutionHistoryEntry {
   executionId: string;
   toolName: string;
-  params: any;
+  params: Record<string, unknown>;
   result: ToolResult;
   startTime: number;
   endTime: number;

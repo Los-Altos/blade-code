@@ -750,9 +750,8 @@ Remember: Follow the above instructions carefully to complete the user's request
           ) => {
             // abort 检查已在 Agent 内部统一处理
             if (toolCall.type !== 'function') return;
-            if (!result?.metadata?.summary) {
-              return;
-            }
+            const summary = result.metadata?.summary;
+            if (!summary) return;
 
             // 决定是否显示详细内容，并生成详细内容
             let detail: string | undefined;
@@ -763,10 +762,10 @@ Remember: Follow the above instructions carefully to complete the user's request
                 result.displayContent;
             }
 
-            sessionActions.addToolMessage(result.metadata.summary, {
+            sessionActions.addToolMessage(summary, {
               toolName: toolCall.function.name,
               phase: 'complete',
-              summary: result.metadata.summary,
+              summary,
               detail,
             });
           },

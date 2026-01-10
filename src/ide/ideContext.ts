@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { BladeConfig } from '../config/types.js';
+import type { JsonValue } from '../store/types.js';
 
 export class IdeContext {
   private config: BladeConfig;
-  private contextData: Map<string, any> = new Map();
+  private contextData: Map<string, JsonValue> = new Map();
   private ideInfo: IdeInfo | null = null;
   private projectInfo: ProjectInfo | null = null;
   private fileWatcher: FileWatcher | null = null;
@@ -92,7 +93,12 @@ export class IdeContext {
     return this.projectInfo;
   }
 
-  public getContextData(): any {
+  public getContextData(): {
+    ideInfo: IdeInfo | null;
+    projectInfo: ProjectInfo | null;
+    timestamp: number;
+    contextData: Record<string, JsonValue>;
+  } {
     return {
       ideInfo: this.ideInfo,
       projectInfo: this.projectInfo,
@@ -101,11 +107,11 @@ export class IdeContext {
     };
   }
 
-  public setContextData(key: string, value: any): void {
+  public setContextData(key: string, value: JsonValue): void {
     this.contextData.set(key, value);
   }
 
-  public getContextValue(key: string): any {
+  public getContextValue(key: string): JsonValue | undefined {
     return this.contextData.get(key);
   }
 
@@ -380,7 +386,7 @@ export class IdeContext {
 
 // 文件监听器类
 class FileWatcher {
-  private watchers: Map<string, any> = new Map(); // 实际类型应该是fs.FSWatcher
+  private watchers: Map<string, fs.FSWatcher> = new Map();
 
   public watchFile(filePath: string, callback: () => void): void {
     try {

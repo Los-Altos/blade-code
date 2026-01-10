@@ -5,6 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Message } from '../../../src/services/ChatServiceInterface.js';
 
 // Mock 所有依赖
 vi.mock('../../../src/agent/subagents/AgentSessionStore.js');
@@ -111,7 +112,9 @@ describe('BackgroundAgentManager', () => {
     });
 
     it('应传递已有消息', () => {
-      const existingMessages = [{ role: 'user', content: 'Previous message' }];
+      const existingMessages: Message[] = [
+        { role: 'user', content: 'Previous message' },
+      ];
 
       manager.startBackgroundAgent({
         config: {

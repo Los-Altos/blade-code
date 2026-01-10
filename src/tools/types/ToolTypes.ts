@@ -1,4 +1,5 @@
 import type { JSONSchema7 } from 'json-schema';
+import type { PermissionMode } from '../../config/types.js';
 import type { ExecutionContext } from './ExecutionTypes.js';
 
 /**
@@ -15,6 +16,28 @@ export enum ToolKind {
 }
 
 /**
+ * ToolResult.metadata 的通用结构。
+ *
+ * 说明：
+ * - metadata 的键集合在不同工具/插件中可能不同，因此保留可扩展的 Record 形态。
+ * - 但对项目内已经形成约定的字段，提供显式类型，减少 unknown 扩散。
+ */
+export type ToolResultMetadata = Record<string, unknown> & {
+  /** 工具摘要（用于 UI/日志显示） */
+  summary?: string;
+
+  /** 用于 Agent 循环控制 */
+  shouldExitLoop?: boolean;
+  targetMode?: PermissionMode;
+
+  /** 文件写入/编辑类工具常用字段（用于 diff 展示等） */
+  kind?: string;
+  file_path?: string;
+  oldContent?: string;
+  newContent?: string;
+};
+
+/**
  * 工具执行结果
  */
 export interface ToolResult {
@@ -22,7 +45,7 @@ export interface ToolResult {
   llmContent: string | object; // 传递给LLM的内容
   displayContent: string; // 显示给用户的内容
   error?: ToolError;
-  metadata?: Record<string, any>;
+  metadata?: ToolResultMetadata;
 }
 
 /**
@@ -32,7 +55,7 @@ export interface ToolError {
   message: string;
   type: ToolErrorType;
   code?: string;
-  details?: any;
+  details?: unknown;
 }
 
 export enum ToolErrorType {
@@ -55,7 +78,7 @@ export interface FunctionDeclaration {
 /**
  * 工具调用抽象
  */
-export interface ToolInvocation<TParams = any, TResult = ToolResult> {
+export interface ToolInvocation<TParams = unknown, TResult = ToolResult> {
   readonly toolName: string;
   readonly params: TParams;
 
@@ -63,7 +86,8 @@ export interface ToolInvocation<TParams = any, TResult = ToolResult> {
   getAffectedPaths(): string[];
   execute(
     signal: AbortSignal,
-    updateOutput?: (output: string) => void
+    updateOutput?: (output: string) => void,
+    context?: Partial<ExecutionContext>
   ): Promise<TResult>;
 }
 

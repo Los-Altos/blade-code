@@ -5,11 +5,27 @@
 
 import os from 'os';
 import path from 'path';
-import type { CommandModule } from 'yargs';
+import type { ArgumentsCamelCase, CommandModule } from 'yargs';
 import type { McpServerConfig } from '../config/types.js';
 import { McpRegistry } from '../mcp/McpRegistry.js';
 import { McpConnectionStatus } from '../mcp/types.js';
 import { configActions, getMcpServers } from '../store/vanilla.js';
+
+type AnyArgs = ArgumentsCamelCase<Record<string, unknown>>;
+
+function asString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function asStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: string[] = [];
+  for (const v of value) {
+    if (typeof v === 'string') out.push(v);
+    else if (v != null) out.push(String(v));
+  }
+  return out;
+}
 
 /**
  * 显示 MCP 命令的帮助信息
@@ -125,21 +141,33 @@ const mcpAddCommand: CommandModule = {
         ],
       ]);
   },
-  handler: async (argv: any) => {
+  handler: async (argv: AnyArgs) => {
     try {
-      let { name, commandOrUrl, args, transport, env, header, timeout } = argv;
+      const { name, commandOrUrl, args, transport, env, header, timeout } = argv;
       const isGlobal = argv.global === true;
+
+      const nameStr = asString(name);
+      let commandOrUrlStr = asString(commandOrUrl);
+      let argsArr = asStringArray(args) || [];
+      const envArr = asStringArray(env);
+      const headerArr = asStringArray(header);
+      const timeoutNum = typeof timeout === 'number' ? timeout : undefined;
+      const transportStr =
+        transport === 'stdio' || transport === 'sse' || transport === 'http'
+          ? transport
+          : 'stdio';
 
       // 处理 -- 分隔符的情况
       // 当使用 `blade mcp add name -- command args` 时，yargs 会把 -- 后的内容放到 argv['--'] 中
-      if (argv['--'] && argv['--'].length > 0) {
+      const dashDash = (argv as Record<string, unknown>)['--'];
+      if (Array.isArray(dashDash) && dashDash.length > 0) {
         // argv['--'] = ['command', ...args]
-        commandOrUrl = argv['--'][0];
-        args = argv['--'].slice(1);
+        commandOrUrlStr = String(dashDash[0]);
+        argsArr = dashDash.slice(1).map((v) => String(v));
       }
 
       // 验证必需参数
-      if (!name || !commandOrUrl) {
+      if (!nameStr || !commandOrUrlStr) {
         console.error('❌ 缺少必需参数: name 和 commandOrUrl');
         console.log('\n💡 用法:');
         console.log('  blade mcp add <name> <command> [args...]');
@@ -154,34 +182,34 @@ const mcpAddCommand: CommandModule = {
         process.exit(1);
       }
 
-      const config: McpServerConfig = { type: transport };
+      const config: McpServerConfig = { type: transportStr };
 
-      if (transport === 'stdio') {
-        config.command = commandOrUrl;
-        config.args = args || [];
-        if (env && Array.isArray(env)) {
-          config.env = parseEnvArray(env as string[]);
+      if (transportStr === 'stdio') {
+        config.command = commandOrUrlStr;
+        config.args = argsArr;
+        if (envArr) {
+          config.env = parseEnvArray(envArr);
         }
       } else {
-        config.url = commandOrUrl;
-        if (header && Array.isArray(header)) {
-          config.headers = parseHeaderArray(header as string[]);
+        config.url = commandOrUrlStr;
+        if (headerArr) {
+          config.headers = parseHeaderArray(headerArr);
         }
       }
 
-      if (timeout) {
-        config.timeout = timeout;
+      if (timeoutNum !== undefined) {
+        config.timeout = timeoutNum;
       }
 
       // 根据 --global 选项决定存储位置
-      await configActions().addMcpServer(name, config, {
+      await configActions().addMcpServer(nameStr, config, {
         scope: isGlobal ? 'global' : 'project',
       });
 
       const configPath = isGlobal
         ? path.join(os.homedir(), '.blade', 'config.json')
         : path.join(process.cwd(), '.blade', 'config.json');
-      console.log(`✅ MCP 服务器 "${name}" 已添加`);
+      console.log(`✅ MCP 服务器 "${nameStr}" 已添加`);
       console.log(`   配置文件: ${configPath}`);
     } catch (error) {
       console.error(
@@ -212,20 +240,26 @@ const mcpRemoveCommand: CommandModule = {
       })
       .example([['$0 mcp remove github', 'Remove the specified MCP server']]);
   },
-  handler: async (argv: any) => {
+  handler: async (argv: AnyArgs) => {
     try {
       const servers = getMcpServers();
       const isGlobal = argv.global === true;
 
-      if (!servers[argv.name]) {
-        console.error(`❌ 服务器 "${argv.name}" 不存在`);
+      const nameStr = asString(argv.name);
+      if (!nameStr) {
+        console.error('❌ 缺少必需参数: name');
         process.exit(1);
       }
 
-      await configActions().removeMcpServer(argv.name, {
+      if (!servers[nameStr]) {
+        console.error(`❌ 服务器 "${nameStr}" 不存在`);
+        process.exit(1);
+      }
+
+      await configActions().removeMcpServer(nameStr, {
         scope: isGlobal ? 'global' : 'project',
       });
-      console.log(`✅ MCP 服务器 "${argv.name}" 已删除`);
+      console.log(`✅ MCP 服务器 "${nameStr}" 已删除`);
     } catch (error) {
       console.error(
         `❌ 删除失败: ${error instanceof Error ? error.message : '未知错误'}`
@@ -331,17 +365,22 @@ const mcpGetCommand: CommandModule = {
       })
       .example([['$0 mcp get github', 'Get details of the specified server']]);
   },
-  handler: async (argv: any) => {
+  handler: async (argv: AnyArgs) => {
     try {
       const servers = getMcpServers();
-      const config = servers[argv.name];
+      const nameStr = asString(argv.name);
+      if (!nameStr) {
+        console.error('❌ 缺少必需参数: name');
+        process.exit(1);
+      }
+      const config = servers[nameStr];
 
       if (!config) {
-        console.error(`❌ 服务器 "${argv.name}" 不存在`);
+        console.error(`❌ 服务器 "${nameStr}" 不存在`);
         process.exit(1);
       }
 
-      console.log(`\n服务器: ${argv.name}\n`);
+      console.log(`\n服务器: ${nameStr}\n`);
       console.log(JSON.stringify(config, null, 2));
     } catch (error) {
       console.error(
@@ -381,23 +420,28 @@ const mcpAddJsonCommand: CommandModule = {
         ],
       ]);
   },
-  handler: async (argv: any) => {
+  handler: async (argv: AnyArgs) => {
     try {
-      const serverConfig = JSON.parse(argv.json) as McpServerConfig;
+      const jsonStr = asString(argv.json);
+      const nameStr = asString(argv.name);
+      if (!jsonStr || !nameStr) {
+        throw new Error('缺少必需参数: name 或 json');
+      }
+      const serverConfig = JSON.parse(jsonStr) as McpServerConfig;
       const isGlobal = argv.global === true;
 
       if (!serverConfig.type) {
         throw new Error('配置必须包含 "type" 字段');
       }
 
-      await configActions().addMcpServer(argv.name, serverConfig, {
+      await configActions().addMcpServer(nameStr, serverConfig, {
         scope: isGlobal ? 'global' : 'project',
       });
 
       const configPath = isGlobal
         ? path.join(os.homedir(), '.blade', 'config.json')
         : path.join(process.cwd(), '.blade', 'config.json');
-      console.log(`✅ MCP 服务器 "${argv.name}" 已添加`);
+      console.log(`✅ MCP 服务器 "${nameStr}" 已添加`);
       console.log(`   配置文件: ${configPath}`);
     } catch (error) {
       console.error(
@@ -427,10 +471,13 @@ export const mcpCommands: CommandModule = {
         describe: '显示帮助信息',
       });
   },
-  handler: (argv: any) => {
+  handler: (argv: AnyArgs) => {
     // 检查是否有子命令
     const subcommands = ['add', 'remove', 'list', 'ls', 'get', 'add-json'];
-    const hasSubcommand = argv._.some((arg: string) => subcommands.includes(arg));
+    const positional = Array.isArray(argv._) ? argv._ : [];
+    const hasSubcommand = positional.some(
+      (arg) => typeof arg === 'string' && subcommands.includes(arg)
+    );
 
     // 如果没有子命令或者显式请求帮助，显示帮助信息
     if (!hasSubcommand || argv.help) {

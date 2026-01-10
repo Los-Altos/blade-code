@@ -3,6 +3,8 @@
  * 显示 MCP 服务器状态和可用工具
  */
 
+import type { McpServerConfig } from '../config/types.js';
+import type { McpServerInfo } from '../mcp/McpRegistry.js';
 import { McpRegistry } from '../mcp/McpRegistry.js';
 import { McpConnectionStatus } from '../mcp/types.js';
 import { getMcpServers } from '../store/vanilla.js';
@@ -88,7 +90,10 @@ async function showServersOverview(ui: SlashCommandUI): Promise<void> {
 /**
  * 从 Registry 显示服务器（已连接的状态）
  */
-function showServersFromRegistry(ui: SlashCommandUI, servers: Map<string, any>): void {
+function showServersFromRegistry(
+  ui: SlashCommandUI,
+  servers: Map<string, McpServerInfo>
+): void {
   let output = '🔌 **MCP 服务器状态**\n\n';
   let connectedCount = 0;
   let disconnectedCount = 0;
@@ -195,7 +200,7 @@ async function showServerDetails(
 function showServerDetailsFromRegistry(
   ui: SlashCommandUI,
   serverName: string,
-  serverInfo: any
+  serverInfo: McpServerInfo
 ): void {
   const { config, status, connectedAt, lastError, tools } = serverInfo;
   const statusSymbol = status === McpConnectionStatus.CONNECTED ? '✓' : '✗';
@@ -270,7 +275,7 @@ function showServerDetailsFromRegistry(
 function showServerDetailsFromConfig(
   ui: SlashCommandUI,
   serverName: string,
-  config: any
+  config: McpServerConfig
 ): void {
   let output = `📦 **${serverName}**\n\n`;
 

@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { isPlainObject, get } from 'lodash-es';
 import type { Agent } from '../agent/Agent.js';
 import type { BladeConfig } from '../config/types.js';
 
@@ -91,7 +92,19 @@ export class IdeClient {
 
   private handleIdeMessage(message: string): void {
     try {
-      const ideMessage: IdeMessage = JSON.parse(message);
+      const parsed = JSON.parse(message) as unknown;
+      if (!isPlainObject(parsed)) {
+        console.warn('收到非对象的 IDE 消息');
+        return;
+      }
+
+      const parsedObj = parsed as Record<string, unknown>;
+      if (typeof parsedObj.type !== 'string' || typeof parsedObj.timestamp !== 'number') {
+        console.warn('收到字段不完整的 IDE 消息');
+        return;
+      }
+
+      const ideMessage = parsed as unknown as IdeMessage;
 
       switch (ideMessage.type) {
         case 'request':
@@ -118,11 +131,16 @@ export class IdeClient {
     }
 
     try {
-      let result: any;
+      let result: unknown;
+
+      const getStr = (obj: unknown, key: string): string => {
+        const val = get(obj, key);
+        return typeof val === 'string' ? val : '';
+      };
 
       switch (message.method) {
         case 'chat':
-          result = await this.agent.chat(message.params?.message || '');
+          result = await this.agent.chat(getStr(message.params, 'message'));
           break;
 
         case 'generateCode':
@@ -171,7 +189,7 @@ export class IdeClient {
     console.log('收到IDE响应:', message.id, message.result);
   }
 
-  private sendSuccessResponse(id: string, result: any): void {
+  private sendSuccessResponse(id: string, result: unknown): void {
     if (!this.websocket || !this.isConnected) return;
 
     const response: IdeMessage = {
@@ -211,7 +229,10 @@ export class IdeClient {
     }, this.reconnectInterval);
   }
 
-  public async sendNotification(method: string, params?: any): Promise<void> {
+  public async sendNotification(
+    method: string,
+    params?: Record<string, unknown>
+  ): Promise<void> {
     if (!this.websocket || !this.isConnected) {
       console.warn('未连接到IDE，无法发送通知');
       return;
@@ -279,10 +300,10 @@ interface IdeMessage {
   type: 'init' | 'request' | 'response' | 'notification';
   id?: string;
   method?: string;
-  params?: any;
-  result?: any;
+  params?: Record<string, unknown>;
+  result?: unknown;
   error?: string;
-  payload?: any;
+  payload?: Record<string, unknown>;
   timestamp: number;
 }
 

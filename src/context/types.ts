@@ -2,21 +2,21 @@
  * 上下文管理模块的核心类型定义
  */
 
-import type { MessageRole } from '../store/types.js';
+import type { JsonObject, JsonValue, MessageRole } from '../store/types.js';
 
 export interface ContextMessage {
   id: string;
   role: MessageRole;
   content: string;
   timestamp: number;
-  metadata?: Record<string, any>;
+  metadata?: JsonObject;
 }
 
 export interface ToolCall {
   id: string;
   name: string;
-  input: any;
-  output?: any;
+  input: JsonValue;
+  output?: JsonValue;
   timestamp: number;
   status: 'pending' | 'success' | 'error';
   error?: string;
@@ -32,8 +32,8 @@ export interface SystemContext {
 export interface SessionContext {
   sessionId: string;
   userId?: string;
-  preferences: Record<string, any>;
-  configuration: Record<string, any>;
+  preferences: JsonObject;
+  configuration: JsonObject;
   startTime: number;
 }
 
@@ -46,7 +46,7 @@ export interface ConversationContext {
 
 export interface ToolContext {
   recentCalls: ToolCall[];
-  toolStates: Record<string, any>;
+  toolStates: JsonObject;
   dependencies: Record<string, string[]>;
 }
 
@@ -59,7 +59,7 @@ export interface WorkspaceContext {
     status: string;
     lastCommit?: string;
   };
-  environment: Record<string, any>;
+  environment: JsonObject;
 }
 
 export interface ContextLayer {
@@ -147,7 +147,7 @@ export interface BladeJSONLEntry {
   /** 消息内容 */
   message: {
     role: MessageRole;
-    content: string | any; // 可以是字符串或复杂内容块
+    content: string | JsonValue; // 可以是字符串或复杂内容块
     model?: string; // AI 模型名称（assistant 消息）
     usage?: {
       // Token 使用情况（assistant 消息）
@@ -159,12 +159,12 @@ export interface BladeJSONLEntry {
   tool?: {
     id: string;
     name: string;
-    input: any;
+    input: JsonValue;
   };
   /** 工具结果信息（tool_result 类型） */
   toolResult?: {
     id: string;
-    output: any;
+    output: JsonValue;
     error?: string;
   };
 

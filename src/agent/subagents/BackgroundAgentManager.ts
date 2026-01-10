@@ -10,6 +10,7 @@
 import { randomUUID } from 'crypto';
 import type { PermissionMode } from '../../config/types.js';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
+import type { Message } from '../../services/ChatServiceInterface.js';
 import { Agent } from '../Agent.js';
 import {
   type AgentSession,
@@ -60,7 +61,7 @@ export interface StartBackgroundAgentOptions {
   agentId?: string;
 
   /** 恢复时的初始消息（用于 resume） */
-  existingMessages?: any[];
+  existingMessages?: Message[];
 }
 
 /**
@@ -188,7 +189,7 @@ export class BackgroundAgentManager {
     parentSessionId: string | undefined,
     permissionMode: PermissionMode | undefined,
     signal: AbortSignal,
-    existingMessages?: any[]
+    existingMessages?: Message[]
   ): Promise<SubagentResult> {
     const startTime = Date.now();
 
@@ -439,6 +440,8 @@ export class BackgroundAgentManager {
 }
 
 /**
- * 导出单例获取函数
+ * 获取 BackgroundAgentManager 单例（避免模块加载时产生副作用）
  */
-export const backgroundAgentManager = BackgroundAgentManager.getInstance();
+export function getBackgroundAgentManager(): BackgroundAgentManager {
+  return BackgroundAgentManager.getInstance();
+}

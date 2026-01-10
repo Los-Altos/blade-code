@@ -430,7 +430,7 @@ export class McpClient extends EventEmitter {
    */
   async callTool(
     name: string,
-    arguments_: Record<string, any> = {}
+    arguments_: Record<string, unknown> = {}
   ): Promise<McpToolCallResponse> {
     if (!this.sdkClient) {
       throw new Error('客户端未连接到服务器');
@@ -586,7 +586,7 @@ export class McpClient extends EventEmitter {
     return this.disconnect();
   }
 
-  async listResources(serverId?: string): Promise<any[]> {
+  async listResources(serverId?: string): Promise<unknown[]> {
     if (!this.sdkClient) {
       return [];
     }
@@ -598,11 +598,11 @@ export class McpClient extends EventEmitter {
     }
   }
 
-  async listTools(serverId?: string): Promise<any[]> {
+  async listTools(serverId?: string): Promise<McpToolDefinition[]> {
     return this.availableTools;
   }
 
-  async readResource(uri: string, serverId?: string): Promise<any> {
+  async readResource(uri: string, serverId?: string): Promise<unknown> {
     if (!this.sdkClient) {
       throw new Error('客户端未连接');
     }

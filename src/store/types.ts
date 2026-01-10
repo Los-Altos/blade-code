@@ -21,6 +21,15 @@ import type { SpecSlice } from './slices/specSlice.js';
  */
 export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 
+// ==================== JSON Types ====================
+
+/**
+ * JSON 值类型（用于表示可安全序列化的数据）
+ */
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+export type JsonObject = { [key: string]: JsonValue };
+
 /**
  * 工具消息元数据
  */

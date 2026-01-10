@@ -1,5 +1,6 @@
 import * as crypto from 'crypto';
 import { nanoid } from 'nanoid';
+import type { JsonObject, JsonValue } from '../store/types.js';
 import { ContextCompressor } from './processors/ContextCompressor.js';
 import { ContextFilter } from './processors/ContextFilter.js';
 import { CacheStore } from './storage/CacheStore.js';
@@ -16,6 +17,8 @@ import {
   ToolCall,
   WorkspaceContext,
 } from './types.js';
+
+type SessionConfiguration = JsonObject & { sessionId?: string };
 
 /**
  * 上下文管理器 - 统一管理所有上下文相关操作
@@ -96,8 +99,8 @@ export class ContextManager {
    */
   async createSession(
     userId?: string,
-    preferences: Record<string, any> = {},
-    configuration: Record<string, any> = {}
+    preferences: JsonObject = {},
+    configuration: SessionConfiguration = {}
   ): Promise<string> {
     // 优先使用配置中的sessionId，否则生成新的
     const sessionId = configuration.sessionId || this.generateSessionId();
@@ -200,7 +203,7 @@ export class ContextManager {
   async addMessage(
     role: ContextMessage['role'],
     content: string,
-    metadata?: Record<string, any>
+    metadata?: JsonObject
   ): Promise<void> {
     if (!this.currentSessionId) {
       throw new Error('没有活动会话');
@@ -267,7 +270,7 @@ export class ContextManager {
   async saveToolUse(
     sessionId: string,
     toolName: string,
-    toolInput: any,
+    toolInput: JsonValue,
     parentUuid: string | null = null
   ): Promise<string> {
     return this.persistent.saveToolUse(sessionId, toolName, toolInput, parentUuid);
@@ -279,7 +282,7 @@ export class ContextManager {
   async saveToolResult(
     sessionId: string,
     toolId: string,
-    toolOutput: any,
+    toolOutput: JsonValue,
     parentUuid: string | null = null,
     error?: string
   ): Promise<string> {
@@ -312,7 +315,7 @@ export class ContextManager {
   /**
    * 更新工具状态
    */
-  updateToolState(toolName: string, state: any): void {
+  updateToolState(toolName: string, state: JsonValue): void {
     if (!this.currentSessionId) {
       throw new Error('没有活动会话');
     }
@@ -354,7 +357,7 @@ export class ContextManager {
     if (shouldCompress) {
       // 尝试从缓存获取压缩结果
       const contextHash = this.hashContext(filteredContext);
-      compressed = this.cache.getCompressedContext(contextHash);
+      compressed = this.cache.getCompressedContext(contextHash) ?? undefined;
 
       if (!compressed) {
         compressed = await this.compressor.compress(filteredContext);
@@ -414,7 +417,7 @@ export class ContextManager {
   /**
    * 获取缓存的工具调用结果
    */
-  getCachedToolResult(toolName: string, input: any): any {
+  getCachedToolResult(toolName: string, input: JsonValue): unknown | null {
     return this.cache.getToolResult(toolName, input);
   }
 
@@ -423,9 +426,9 @@ export class ContextManager {
    */
   async getStats(): Promise<{
     currentSession: string | null;
-    memory: any;
-    cache: any;
-    storage: any;
+    memory: ReturnType<MemoryStore['getMemoryInfo']>;
+    cache: ReturnType<CacheStore['getStats']>;
+    storage: Awaited<ReturnType<PersistentStore['getStorageStats']>>;
   }> {
     const [memoryInfo, cacheStats, storageStats] = await Promise.all([
       Promise.resolve(this.memory.getMemoryInfo()),

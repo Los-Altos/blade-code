@@ -1,4 +1,4 @@
-import { ContextMessage } from '../types.js';
+import type { ContextMessage, CompressedContext } from '../types.js';
 
 export interface CacheItem<T> {
   data: T;
@@ -12,7 +12,7 @@ export interface CacheItem<T> {
  * LRU缓存实现 - 用于热点数据的快速访问
  */
 export class CacheStore {
-  private readonly cache: Map<string, CacheItem<any>> = new Map();
+  private readonly cache: Map<string, CacheItem<unknown>> = new Map();
   private readonly maxSize: number;
   private readonly defaultTTL: number;
 
@@ -147,7 +147,7 @@ export class CacheStore {
   /**
    * 缓存工具调用结果
    */
-  cacheToolResult(toolName: string, input: any, result: any): void {
+  cacheToolResult(toolName: string, input: unknown, result: unknown): void {
     const inputHash = this.hashInput(input);
     const key = `tool:${toolName}:${inputHash}`;
     this.set(key, result, 30 * 60 * 1000); // 30分钟TTL
@@ -156,7 +156,7 @@ export class CacheStore {
   /**
    * 获取缓存的工具调用结果
    */
-  getToolResult(toolName: string, input: any): any {
+  getToolResult(toolName: string, input: unknown): unknown | null {
     const inputHash = this.hashInput(input);
     const key = `tool:${toolName}:${inputHash}`;
     return this.get(key);
@@ -165,7 +165,7 @@ export class CacheStore {
   /**
    * 缓存上下文压缩结果
    */
-  cacheCompressedContext(contextHash: string, compressed: any): void {
+  cacheCompressedContext(contextHash: string, compressed: CompressedContext): void {
     const key = `compressed:${contextHash}`;
     this.set(key, compressed, 15 * 60 * 1000); // 15分钟TTL
   }
@@ -173,7 +173,7 @@ export class CacheStore {
   /**
    * 获取缓存的压缩上下文
    */
-  getCompressedContext(contextHash: string): any {
+  getCompressedContext(contextHash: string): CompressedContext | null {
     const key = `compressed:${contextHash}`;
     return this.get(key);
   }
@@ -260,7 +260,7 @@ export class CacheStore {
   /**
    * 简单的输入哈希函数
    */
-  private hashInput(input: any): string {
+  private hashInput(input: unknown): string {
     const str = JSON.stringify(input);
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
@@ -274,7 +274,7 @@ export class CacheStore {
   /**
    * 估算缓存项大小
    */
-  private estimateItemSize(item: CacheItem<any>): number {
+  private estimateItemSize(item: CacheItem<unknown>): number {
     try {
       return JSON.stringify(item).length * 2; // 大概估算字节数
     } catch {
@@ -311,7 +311,7 @@ export class CacheStore {
   /**
    * 预热缓存（可用于启动时加载常用数据）
    */
-  warmup(data: { key: string; value: any; ttl?: number }[]): void {
+  warmup(data: { key: string; value: unknown; ttl?: number }[]): void {
     data.forEach(({ key, value, ttl }) => {
       this.set(key, value, ttl);
     });

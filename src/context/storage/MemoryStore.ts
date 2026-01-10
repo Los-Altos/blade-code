@@ -1,3 +1,4 @@
+import type { JsonValue } from '../../store/types.js';
 import { ContextData, ContextMessage, ToolCall, WorkspaceContext } from '../types.js';
 
 /**
@@ -84,7 +85,7 @@ export class MemoryStore {
   /**
    * 更新工具状态
    */
-  updateToolState(toolName: string, state: any): void {
+  updateToolState(toolName: string, state: JsonValue): void {
     if (!this.contextData) {
       throw new Error('上下文数据未初始化');
     }
@@ -97,7 +98,7 @@ export class MemoryStore {
   /**
    * 获取工具状态
    */
-  getToolState(toolName: string): any {
+  getToolState(toolName: string): JsonValue | null {
     if (!this.contextData) {
       return null;
     }

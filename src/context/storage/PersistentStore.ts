@@ -1,7 +1,7 @@
+import { nanoid } from 'nanoid';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { nanoid } from 'nanoid';
-import type { MessageRole } from '../../store/types.js';
+import type { JsonValue, MessageRole } from '../../store/types.js';
 import type {
   BladeJSONLEntry,
   ContextData,
@@ -102,7 +102,7 @@ export class PersistentStore {
   async saveToolUse(
     sessionId: string,
     toolName: string,
-    toolInput: any,
+    toolInput: JsonValue,
     parentUuid: string | null = null
   ): Promise<string> {
     try {
@@ -146,7 +146,7 @@ export class PersistentStore {
   async saveToolResult(
     sessionId: string,
     toolId: string,
-    toolOutput: any,
+    toolOutput: JsonValue,
     parentUuid: string | null = null,
     error?: string
   ): Promise<string> {

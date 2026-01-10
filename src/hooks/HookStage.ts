@@ -5,6 +5,7 @@
  */
 
 import { nanoid } from 'nanoid';
+import { PermissionMode } from '../config/types.js';
 import type { PipelineStage, ToolExecution } from '../tools/types/index.js';
 import { HookManager } from './HookManager.js';
 
@@ -50,7 +51,8 @@ export class HookStage implements PipelineStage {
         {
           projectDir,
           sessionId: execution.context.sessionId || 'unknown',
-          permissionMode: (execution.context.permissionMode as any) || 'default',
+          permissionMode: execution.context.permissionMode ?? PermissionMode.DEFAULT,
+          abortSignal: execution.context.signal,
         }
       );
 
@@ -81,7 +83,8 @@ export class HookStage implements PipelineStage {
           try {
             tool.build(newParams);
             // 验证通过,更新params (通过内部接口)
-            (execution as any).params = newParams;
+            (execution as unknown as { params: Record<string, unknown> }).params =
+              newParams;
           } catch (err) {
             execution.abort(
               `Hook modified parameters are invalid: ${err instanceof Error ? err.message : String(err)}`

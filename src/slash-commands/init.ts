@@ -141,8 +141,9 @@ const initCommand: SlashCommand = {
               result: ToolResult
             ) => {
               if (toolCall.type !== 'function') return;
-              if (result?.metadata?.summary) {
-                sendToolMessage(result.metadata.summary);
+              const summary = result.metadata?.summary;
+              if (summary) {
+                sendToolMessage(summary);
               }
             },
           }
@@ -256,7 +257,9 @@ const initCommand: SlashCommand = {
           ) => {
             if (toolCall.type !== 'function') return;
             if (result?.metadata?.summary) {
-              sendToolMessage(result.metadata.summary);
+              if (typeof result.metadata.summary === 'string') {
+                sendToolMessage(result.metadata.summary);
+              }
             }
           },
         }
