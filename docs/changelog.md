@@ -3,6 +3,32 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.1.1] - 2026-01-12
+
+### ✨ 新功能
+
+- **WebSearch 集成 Exa MCP**：使用 Exa 公开 MCP 端点进行网页搜索，无需 API key，支持多提供商自动故障转移（Exa → DuckDuckGo → SearXNG）(83cb4c5)
+- **WebFetch 集成 Jina Reader**：新增 `extract_content` 参数，使用 Jina Reader 提取网页内容为干净的 Markdown 格式，自动移除 HTML 杂乱内容 (83cb4c5)
+- 添加 Discord Webhook 通知功能，发布时自动推送 changelog (d6ce657)
+
+### ♻️ 代码重构
+
+- 清理未使用类型定义并优化代码结构 (ca8b506)
+- 重新设计 ToolResult.metadata 泛型类型系统 (83cb4c5)
+  - 添加泛型 `Metadata<T>` 类型，实现类型安全的元数据定义
+  - 为各工具创建专用元数据接口：ReadMetadata, WriteMetadata, EditMetadata, GlobMetadata, GrepMetadata, BashMetadata, WebSearchMetadata, WebFetchMetadata 等
+  - 添加类型守卫函数：isDiffMetadata, isFileMetadata, isBashMetadata, isGlobMetadata, isGrepMetadata 等
+
+### 📝 文档更新
+
+- 更新文档链接和 README 内容 (f2b267c)
+- 添加项目文档和代理配置文件 (203140b)
+
+### 🔧 其他更改
+
+- 更新 Node.js 最低版本要求至 20.0.0 (e6f1a70)
+
+
 ## [0.1.0] - 2026-01-11
 
 🎉 **首个开源版本发布！**

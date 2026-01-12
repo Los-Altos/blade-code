@@ -28,7 +28,7 @@ export default {
     // 是否生成 changelog
     generate: true,
     // 文件路径
-    file: 'docs/public/changelog.md',
+    file: 'docs/changelog.md',
     // 提交分类规则
     categories: {
       feat: '✨ 新功能',

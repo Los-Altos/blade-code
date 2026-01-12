@@ -328,10 +328,6 @@ function generateChangelog(newVersion) {
     writeFileSync(changelogPath, changelogLines.join('\n'));
     console.log(chalk.green('✅ Changelog 已更新'));
 
-    const docsChangelogPath = join(rootDir, 'docs/public/changelog.md');
-    writeFileSync(docsChangelogPath, changelogLines.join('\n'));
-    console.log(chalk.green('✅ Docs changelog 已同步'));
-
     const bladeDocPathEnv = process.env.BLADE_DOC_PATH;
     const defaultBladeDocPath = join(rootDir, '../blade-doc');
     const bladeDocDir = bladeDocPathEnv || defaultBladeDocPath;
