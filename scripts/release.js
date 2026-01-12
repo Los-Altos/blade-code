@@ -531,7 +531,7 @@ async function sendDiscordNotification(version, changelogContent, isSuccess = tr
         },
         {
           name: '📚 文档',
-          value: '[查看文档](https://blade-ai.dev)',
+          value: '[查看文档](https://echovic.github.io/blade-code/#/)',
           inline: true,
         },
       ],
