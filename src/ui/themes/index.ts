@@ -3,6 +3,3 @@
  */
 
 export { themes } from './presets.js';
-
-// 类型定义
-export type { BaseColors, SyntaxColors, Theme } from './types.js';

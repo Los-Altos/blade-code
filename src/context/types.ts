@@ -44,7 +44,7 @@ export interface ConversationContext {
   lastActivity: number;
 }
 
-export interface ToolContext {
+interface ToolContext {
   recentCalls: ToolCall[];
   toolStates: JsonObject;
   dependencies: Record<string, string[]>;

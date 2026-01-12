@@ -185,8 +185,6 @@ export const ANTIGRAVITY_MODELS = {
   },
 } as const;
 
-export type AntigravityModelId = keyof typeof ANTIGRAVITY_MODELS;
-
 /**
  * Gemini CLI OAuth 支持的模型
  * 免费用户可用，使用 Gemini 2.5 系列
@@ -216,8 +214,6 @@ export const GEMINI_CLI_MODELS = {
     description: '轻量级 Gemini 2.5 模型',
   },
 } as const;
-
-export type GeminiCliModelId = keyof typeof GEMINI_CLI_MODELS;
 
 // ================================
 // API 请求/响应类型
@@ -335,25 +331,4 @@ export interface AntigravityStreamChunk {
   usageMetadata?: AntigravityUsageMetadata;
 }
 
-// ================================
-// 错误类型
-// ================================
 
-/**
- * Antigravity API 错误
- */
-export interface AntigravityError {
-  code: number;
-  message: string;
-  status?: string;
-  details?: unknown[];
-}
-
-/**
- * 项目信息（来自 loadCodeAssist）
- */
-export interface AntigravityProjectInfo {
-  projectId: string;
-  projectNumber?: string;
-  name?: string;
-}

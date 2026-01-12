@@ -247,7 +247,7 @@ const WITTY_LOADING_PHRASES = [
 /**
  * 实用提示信息 - 快捷键和常用命令
  */
-export const INFORMATIVE_TIPS = [
+const INFORMATIVE_TIPS = [
   // 快捷键 (12条)
   'Esc - 停止任务 / 隐藏建议 / 双击清空输入',
   'Shift+Tab - 切换模式 (DEFAULT → AUTO_EDIT → PLAN → SPEC)',

@@ -14,7 +14,7 @@ import * as path from 'node:path';
  * escapeProjectPath('/Users/john/projects/my-app')
  * // 返回: '-Users-john-projects-my-app'
  */
-export function escapeProjectPath(absPath: string): string {
+function escapeProjectPath(absPath: string): string {
   // 确保路径是绝对路径
   const normalized = path.resolve(absPath);
   // 将所有 / 替换为 -

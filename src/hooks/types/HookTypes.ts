@@ -60,7 +60,7 @@ export enum HookEvent {
 /**
  * Hook 输入基础字段
  */
-export interface HookInputBase {
+interface HookInputBase {
   /** Hook 事件名称 */
   hook_event_name: HookEvent;
 
@@ -330,7 +330,7 @@ export enum PermissionDecision {
 /**
  * PreToolUse 特定输出
  */
-export interface PreToolUseOutput {
+interface PreToolUseOutput {
   hookEventName?: 'PreToolUse';
 
   /** 权限决策 */
@@ -346,7 +346,7 @@ export interface PreToolUseOutput {
 /**
  * PostToolUse 特定输出
  */
-export interface PostToolUseOutput {
+interface PostToolUseOutput {
   hookEventName?: 'PostToolUse';
 
   /** 添加给 LLM 的额外上下文 */
@@ -359,7 +359,7 @@ export interface PostToolUseOutput {
 /**
  * Stop 特定输出
  */
-export interface StopOutput {
+interface StopOutput {
   hookEventName?: 'Stop';
 
   /** 阻止停止，继续执行 */
@@ -372,7 +372,7 @@ export interface StopOutput {
 /**
  * SubagentStop 特定输出
  */
-export interface SubagentStopOutput {
+interface SubagentStopOutput {
   hookEventName?: 'SubagentStop';
 
   /** 阻止停止，继续执行 */
@@ -388,7 +388,7 @@ export interface SubagentStopOutput {
 /**
  * PermissionRequest 特定输出
  */
-export interface PermissionRequestOutput {
+interface PermissionRequestOutput {
   hookEventName?: 'PermissionRequest';
 
   /** 权限决策: approve (直接批准), deny (拒绝), ask (显示确认对话框) */
@@ -401,7 +401,7 @@ export interface PermissionRequestOutput {
 /**
  * UserPromptSubmit 特定输出
  */
-export interface UserPromptSubmitOutput {
+interface UserPromptSubmitOutput {
   hookEventName?: 'UserPromptSubmit';
 
   /** 修改后的用户提示词 */
@@ -414,7 +414,7 @@ export interface UserPromptSubmitOutput {
 /**
  * SessionStart 特定输出
  */
-export interface SessionStartOutput {
+interface SessionStartOutput {
   hookEventName?: 'SessionStart';
 
   /** 环境变量 (持久化到整个会话) */
@@ -424,7 +424,7 @@ export interface SessionStartOutput {
 /**
  * Compaction 特定输出
  */
-export interface CompactionOutput {
+interface CompactionOutput {
   hookEventName?: 'Compaction';
 
   /** 阻止压缩 */
@@ -497,7 +497,7 @@ export interface CommandHook {
 /**
  * 提示词 Hook (未来实现)
  */
-export interface PromptHook {
+interface PromptHook {
   type: HookType.Prompt;
 
   /** 提示词内容 */
@@ -863,5 +863,3 @@ export interface MatchContext {
   /** 命令 */
   command?: string;
 }
-
-

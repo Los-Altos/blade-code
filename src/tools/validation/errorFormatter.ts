@@ -150,7 +150,7 @@ function translateZodIssue(issue: ZodIssue): string {
 /**
  * 格式化 Zod 错误为友好的中文提示
  */
-export function formatZodError(error: ZodError): ToolValidationError {
+function formatZodError(error: ZodError): ToolValidationError {
   const issues = error.issues.map((issue) => {
     const field = issue.path.join('.');
     const message = translateZodIssue(issue);

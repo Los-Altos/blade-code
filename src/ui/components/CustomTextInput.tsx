@@ -35,7 +35,7 @@ function normalizeInputText(text: string): string {
 /**
  * 禁用的按键类型（Key 对象的布尔属性）
  */
-export type DisabledKey = keyof {
+type DisabledKey = keyof {
   [K in keyof Key as Key[K] extends boolean ? K : never]: true;
 };
 

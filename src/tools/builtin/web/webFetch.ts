@@ -57,6 +57,29 @@ export const webFetchTool = createTool({
       .enum(['GET', 'POST', 'PUT', 'DELETE', 'HEAD'])
       .default('GET')
       .describe('HTTP method'),
+    extract_content: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Use Jina Reader to extract clean content in Markdown format. Removes HTML clutter, scripts, and styling, returning only the main content.'
+      ),
+    jina_options: z
+      .object({
+        with_generated_alt: z
+          .boolean()
+          .default(false)
+          .describe('Generate alt text for images'),
+        with_links_summary: z
+          .boolean()
+          .default(false)
+          .describe('Include summary of all links'),
+        wait_for_selector: z
+          .string()
+          .optional()
+          .describe('Wait for specific CSS selector to load'),
+      })
+      .optional()
+      .describe('Jina Reader advanced options (only used when extract_content is true)'),
     headers: z.record(z.string()).optional().describe('Request headers (optional)'),
     body: z.string().optional().describe('Request body (optional)'),
     timeout: ToolSchemas.timeout(1000, 120000, 30000),
@@ -99,6 +122,8 @@ Usage notes:
     const {
       url,
       method = 'GET',
+      extract_content = false,
+      jina_options,
       headers = {},
       body,
       timeout = 30000,
@@ -110,6 +135,53 @@ Usage notes:
     const signal = context.signal ?? new AbortController().signal;
 
     try {
+      // 如果启用内容提取，使用 Jina Reader
+      if (extract_content) {
+        try {
+          const startTime = Date.now();
+          const response = await fetchWithJinaReader({
+            url,
+            jinaOptions: jina_options,
+            timeout,
+            signal,
+            updateOutput,
+          });
+
+          const responseTime = Date.now() - startTime;
+          response.response_time = responseTime;
+
+          // 如果不需要返回头部信息，删除它们
+          if (!return_headers) {
+            delete response.headers;
+          }
+
+          const metadata: WebFetchMetadata = {
+            url,
+            method: 'GET',
+            status: response.status,
+            response_time: responseTime,
+            content_length: Buffer.byteLength(response.body || '', 'utf8'),
+            redirected: response.redirected || false,
+            redirect_count: response.redirect_count ?? 0,
+            final_url: response.url,
+            content_type: response.content_type,
+            redirect_chain: response.redirect_chain,
+          };
+
+          return {
+            success: true,
+            llmContent: response,
+            displayContent: formatDisplayMessage(response, metadata, false),
+            metadata,
+          };
+        } catch {
+          // Jina Reader 失败，回退到直接获取
+          updateOutput?.(`⚠️ Jina Reader 失败，使用标准方式获取`);
+          // 继续执行下面的标准逻辑
+        }
+      }
+
+      // 标准获取逻辑
       updateOutput?.(`发送 ${method} 请求到: ${url}`);
 
       const startTime = Date.now();
@@ -483,4 +555,145 @@ function headersToObject(headers: Headers): Record<string, string> {
 function hasHeader(headers: Record<string, string>, name: string): boolean {
   const lowered = name.toLowerCase();
   return Object.keys(headers).some((key) => key.toLowerCase() === lowered);
+}
+
+// ============================================================================
+// Jina Reader Integration
+// ============================================================================
+
+/**
+ * Jina Reader 响应格式
+ */
+interface JinaReaderResponse {
+  title: string;
+  sourceUrl: string;
+  content: string;
+}
+
+/**
+ * 使用 Jina Reader 提取网页内容
+ */
+async function fetchWithJinaReader(options: {
+  url: string;
+  jinaOptions?: {
+    with_generated_alt?: boolean;
+    with_links_summary?: boolean;
+    wait_for_selector?: string;
+  };
+  timeout: number;
+  signal?: AbortSignal;
+  updateOutput?: (msg: string) => void;
+}): Promise<WebResponse> {
+  const { url, jinaOptions, timeout, signal, updateOutput } = options;
+
+  // 构建 Jina Reader URL
+  const jinaUrl = `https://r.jina.ai/${encodeURIComponent(url)}`;
+
+  updateOutput?.(`🔍 使用 Jina Reader 提取内容: ${url}`);
+
+  // 构建请求头
+  const headers: Record<string, string> = {
+    'User-Agent': 'Blade-AI/1.0',
+    Accept: 'text/markdown',
+  };
+
+  if (jinaOptions?.with_generated_alt) {
+    headers['X-With-Generated-Alt'] = 'true';
+  }
+  if (jinaOptions?.with_links_summary) {
+    headers['X-With-Links-Summary'] = 'true';
+  }
+  if (jinaOptions?.wait_for_selector) {
+    headers['X-Wait-For-Selector'] = jinaOptions.wait_for_selector;
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      jinaUrl,
+      {
+        method: 'GET',
+        headers,
+      },
+      timeout,
+      signal
+    );
+
+    if (!response.ok) {
+      throw new Error(`Jina Reader error: ${response.status} ${response.statusText}`);
+    }
+
+    const markdownContent = await response.text();
+
+    // 解析 Jina Reader 响应
+    const parsed = parseJinaResponse(markdownContent);
+
+    updateOutput?.(`✅ Jina Reader 成功提取内容 (${parsed.content.length} 字符)`);
+
+    // 返回标准 WebResponse 格式
+    return {
+      status: response.status,
+      status_text: response.statusText,
+      headers: headersToObject(response.headers),
+      body: formatJinaContent(parsed),
+      url: parsed.sourceUrl || url,
+      redirected: false,
+      redirect_count: 0,
+      content_type: 'text/markdown',
+      response_time: 0, // 将在外部设置
+    };
+  } catch (error) {
+    updateOutput?.(`⚠️ Jina Reader 失败，回退到直接获取`);
+    throw error; // 让外层处理回退
+  }
+}
+
+/**
+ * 解析 Jina Reader 响应
+ */
+function parseJinaResponse(text: string): JinaReaderResponse {
+  const lines = text.split('\n');
+  let title = '';
+  let sourceUrl = '';
+  let contentStartIndex = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (line.startsWith('Title: ')) {
+      title = line.substring(7).trim();
+    } else if (line.startsWith('URL Source: ')) {
+      sourceUrl = line.substring(12).trim();
+    } else if (line.startsWith('Markdown Content:')) {
+      contentStartIndex = i + 1;
+      break;
+    }
+  }
+
+  const content = lines.slice(contentStartIndex).join('\n').trim();
+
+  return {
+    title: title || 'Untitled',
+    sourceUrl: sourceUrl || '',
+    content: content || text, // 回退到全文
+  };
+}
+
+/**
+ * 格式化 Jina 提取的内容
+ */
+function formatJinaContent(parsed: JinaReaderResponse): string {
+  let formatted = '';
+
+  if (parsed.title) {
+    formatted += `# ${parsed.title}\n\n`;
+  }
+
+  if (parsed.sourceUrl) {
+    formatted += `**Source**: ${parsed.sourceUrl}\n\n`;
+  }
+
+  formatted += '---\n\n';
+  formatted += parsed.content;
+
+  return formatted;
 }

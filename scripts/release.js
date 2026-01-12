@@ -232,11 +232,12 @@ async function determineNewVersion() {
 
 /**
  * 生成 changelog
+ * @returns {string} 本次生成的 changelog 内容
  */
 function generateChangelog(newVersion) {
   if (!config.changelog?.generate) {
     console.log(chalk.gray('跳过 changelog 生成'));
-    return;
+    return '';
   }
   
   console.log(chalk.yellow('📝 生成 changelog...'));
@@ -250,12 +251,10 @@ function generateChangelog(newVersion) {
   };
   
   try {
-    // 获取自上次标签以来的提交，如果没有标签则获取所有提交
     let commitRange = `${latestTag}..HEAD`;
     const tagExists = exec(`git rev-parse --verify ${latestTag}`, { allowFailure: true, allowInDryRun: true });
     
     if (!tagExists) {
-      // 如果标签不存在，获取最近的几个提交
       commitRange = 'HEAD~10..HEAD';
       console.log(chalk.gray('未找到标签，使用最近的提交'));
     }
@@ -264,18 +263,16 @@ function generateChangelog(newVersion) {
     
     if (!commits) {
       console.log(chalk.gray('没有新的提交'));
-      return;
+      return '';
     }
     
     const commitLines = commits.split('\n');
     const changes = {};
     
-    // 初始化分类
     Object.keys(categories).forEach(key => {
       changes[key] = [];
     });
     
-    // 分类提交
     commitLines.forEach(line => {
       const [hash, ...messageParts] = line.split(' ');
       const message = messageParts.join(' ');
@@ -283,7 +280,6 @@ function generateChangelog(newVersion) {
       let categorized = false;
       for (const [key, label] of Object.entries(categories)) {
         if (key === 'other') continue;
-        // 支持 feat: 和 feat(scope): 两种格式
         if (message.match(new RegExp(`^${key}(\\(.+\\))?:`, 'i'))) {
           changes[key].push(`- ${message.replace(new RegExp(`^${key}(\\(.+\\))?:\\s*`, 'i'), '')} (${hash})`);
           categorized = true;
@@ -297,7 +293,6 @@ function generateChangelog(newVersion) {
       }
     });
     
-    // 生成 changelog 内容
     const date = new Date().toISOString().split('T')[0];
     let changelogContent = `## [${newVersion}] - ${date}\n\n`;
     
@@ -311,10 +306,9 @@ function generateChangelog(newVersion) {
     if (isDryRun) {
       console.log(chalk.cyan('📋 预览 changelog 内容:'));
       console.log(changelogContent);
-      return;
+      return changelogContent;
     }
     
-    // 读取现有 changelog
     let existingChangelog = '';
     if (existsSync(changelogPath)) {
       existingChangelog = readFileSync(changelogPath, 'utf8');
@@ -322,7 +316,6 @@ function generateChangelog(newVersion) {
       existingChangelog = '# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n';
     }
     
-    // 插入新的 changelog
     const changelogLines = existingChangelog.split('\n');
     const insertIndex = changelogLines.findIndex(line => line.startsWith('## ['));
     
@@ -335,13 +328,10 @@ function generateChangelog(newVersion) {
     writeFileSync(changelogPath, changelogLines.join('\n'));
     console.log(chalk.green('✅ Changelog 已更新'));
 
-    // 同步到 docs/public/changelog.md (用于 GitHub Pages)
     const docsChangelogPath = join(rootDir, 'docs/public/changelog.md');
     writeFileSync(docsChangelogPath, changelogLines.join('\n'));
     console.log(chalk.green('✅ Docs changelog 已同步'));
 
-    // 同步到外部 blade-doc 仓库
-    // 优先尝试环境变量 BLADE_DOC_PATH，否则尝试默认相对路径
     const bladeDocPathEnv = process.env.BLADE_DOC_PATH;
     const defaultBladeDocPath = join(rootDir, '../blade-doc');
     const bladeDocDir = bladeDocPathEnv || defaultBladeDocPath;
@@ -355,8 +345,11 @@ function generateChangelog(newVersion) {
       console.log(chalk.gray('💡 提示: 可通过 BLADE_DOC_PATH 环境变量指定路径'));
     }
 
+    return changelogContent;
+
   } catch (error) {
     console.log(chalk.yellow('⚠️  无法生成 changelog:', error.message));
+    return '';
   }
 }
 
@@ -502,9 +495,75 @@ function pushToRemote() {
 }
 
 /**
+ * 发送 Discord 通知
+ */
+async function sendDiscordNotification(version, changelogContent, isSuccess = true) {
+  const webhookUrl = config.notifications?.discord?.webhookUrl;
+  if (!webhookUrl) {
+    console.log(chalk.yellow('⚠️ 未配置 Discord Webhook URL'));
+    return;
+  }
+
+  const tagPrefix = config.version?.tagPrefix || 'v';
+  const color = isSuccess ? 0x00ff00 : 0xff0000;
+  const title = isSuccess 
+    ? `🚀 Blade ${tagPrefix}${version} 发布成功！` 
+    : `❌ Blade ${tagPrefix}${version} 发布失败`;
+
+  let cleanedChangelog = changelogContent
+    ?.replace(/^## \[.*?\] - \d{4}-\d{2}-\d{2}\n+/, '')
+    ?.trim() || '';
+  
+  const truncatedChangelog = cleanedChangelog.length > 4000 
+    ? cleanedChangelog.substring(0, 4000) + '\n...(内容已截断)'
+    : cleanedChangelog;
+
+  const payload = {
+    embeds: [{
+      title,
+      description: truncatedChangelog || '无更新内容',
+      color,
+      timestamp: new Date().toISOString(),
+      footer: {
+        text: `Blade AI - ${packageJson.name}`,
+      },
+      fields: [
+        {
+          name: '📦 NPM',
+          value: `[查看包](https://www.npmjs.com/package/${packageJson.name})`,
+          inline: true,
+        },
+        {
+          name: '📚 文档',
+          value: '[查看文档](https://blade-ai.dev)',
+          inline: true,
+        },
+      ],
+    }],
+  };
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      console.log(chalk.green('✅ Discord 通知已发送'));
+    } else {
+      const errorText = await response.text();
+      console.log(chalk.yellow(`⚠️ Discord 通知发送失败: ${response.status} ${errorText}`));
+    }
+  } catch (error) {
+    console.log(chalk.yellow('⚠️ Discord 通知发送失败:', error.message));
+  }
+}
+
+/**
  * 发送通知
  */
-function sendNotification(type, data) {
+async function sendNotification(type, data, changelogContent = '') {
   if (!config.notifications?.enabled) {
     return;
   }
@@ -518,7 +577,7 @@ function sendNotification(type, data) {
   });
   
   // 发送通知
-  config.notifications?.methods?.forEach(method => {
+  for (const method of (config.notifications?.methods || [])) {
     switch (method) {
       case 'console':
         if (type === 'success') {
@@ -527,9 +586,11 @@ function sendNotification(type, data) {
           console.log(chalk.red(message));
         }
         break;
-      // 这里可以扩展其他通知方式
+      case 'discord':
+        await sendDiscordNotification(data.version, changelogContent, type === 'success');
+        break;
     }
-  });
+  }
 }
 
 /**
@@ -678,32 +739,20 @@ function preReleaseCheck() {
  * 主函数
  */
 async function main() {
+  let changelogContent = '';
+  let newVersion = 'unknown';
+  
   try {
-    // 1. 预发布检查
     preReleaseCheck();
-    
-    // 2. 检查工作目录
     checkWorkingDirectory();
-
-    // 3. 同步远程 tags（确保 changelog 生成正确）
     fetchTags();
-
-    // 4. 检查代码质量
     checkCodeQuality();
 
-    // 5. 确定新版本号
-    const newVersion = await determineNewVersion();
+    newVersion = await determineNewVersion();
+    changelogContent = generateChangelog(newVersion);
 
-    // 6. 生成 changelog
-    generateChangelog(newVersion);
-
-    // 7. 更新 package.json
     updatePackageVersion(newVersion);
-
-    // 8. 构建项目
     buildProject();
-
-    // 9. 运行测试
     runTests();
     
     if (isDryRun) {
@@ -712,13 +761,8 @@ async function main() {
       return;
     }
     
-    // 10. 提交更改并创建标签
     commitAndTag(newVersion);
-
-    // 11. 发布到 npm
     publishToNpm();
-
-    // 12. 推送到远程仓库
     pushToRemote();
     
     const tagPrefix = config.version?.tagPrefix || 'v';
@@ -726,15 +770,11 @@ async function main() {
     console.log(chalk.blue(`📦 npm: https://www.npmjs.com/package/${packageJson.name}`));
     console.log(chalk.blue(`🏷️  标签: ${tagPrefix}${newVersion}`));
     
-    // 发送成功通知
-    sendNotification('success', { version: newVersion });
+    await sendNotification('success', { version: newVersion }, changelogContent);
     
   } catch (error) {
     console.log(chalk.red('\n❌ 发布失败:'), error.message);
-    
-    // 发送失败通知
-    sendNotification('failure', { version: 'unknown', error: error.message });
-    
+    await sendNotification('failure', { version: newVersion, error: error.message }, changelogContent);
     process.exit(1);
   }
 }

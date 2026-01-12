@@ -7,6 +7,7 @@ import type {
   WebSearchMetadata,
 } from '../../types/index.js';
 import { ToolErrorType, ToolKind } from '../../types/index.js';
+import { getSearchCache } from './SearchCache.js';
 import {
   getAllProviders,
   getProviderCount,
@@ -81,7 +82,7 @@ function getProxyAgent(): ProxyAgent | undefined {
  */
 async function fetchWithTimeout(
   url: string,
-  options: { headers: Record<string, string> },
+  options: { headers: Record<string, string>; method?: string; body?: string },
   timeout: number,
   externalSignal?: AbortSignal,
   dispatcher?: Dispatcher
@@ -115,7 +116,7 @@ async function fetchWithTimeout(
  */
 async function fetchWithRetry(
   url: string,
-  options: { headers: Record<string, string> },
+  options: { headers: Record<string, string>; method?: string; body?: string },
   timeout: number,
   signal?: AbortSignal,
   dispatcher?: Dispatcher,
@@ -166,11 +167,55 @@ async function searchWithProvider(
   dispatcher?: Dispatcher,
   updateOutput?: (msg: string) => void
 ): Promise<{ results: WebSearchResult[]; providerName: string }> {
+  // 检查缓存
+  const cache = getSearchCache();
+  const cachedResults = cache.get(provider.name, query);
+
+  if (cachedResults) {
+    updateOutput?.(`💾 使用缓存结果 (${provider.name})`);
+    return {
+      results: cachedResults,
+      providerName: `${provider.name} (cached)`,
+    };
+  }
+
+  // 如果提供商有 SDK 搜索函数，优先使用
+  if (provider.searchFn) {
+    try {
+      updateOutput?.(`🔍 搜索中 (${provider.name})...`);
+      const results = await provider.searchFn(query);
+
+      // 写入缓存
+      cache.set(provider.name, query, results);
+
+      return { results, providerName: provider.name };
+    } catch (error) {
+      const err = error as Error;
+      throw new Error(`SDK search failed: ${err.message}`);
+    }
+  }
+
+  // 否则使用 HTTP 请求（兼容旧提供商）
+  updateOutput?.(`🔍 搜索中 (${provider.name})...`);
+
   const url = provider.buildUrl(query);
+  const method = provider.method || 'GET';
+  const headers = provider.getHeaders();
+
+  // 构建请求选项
+  const options: { headers: Record<string, string>; method?: string; body?: string } = {
+    headers,
+    method,
+  };
+
+  // 如果是 POST 请求，添加请求体
+  if (method === 'POST' && provider.buildBody) {
+    options.body = JSON.stringify(provider.buildBody(query));
+  }
 
   const response = await fetchWithRetry(
     url,
-    { headers: provider.getHeaders() },
+    options,
     timeout,
     signal,
     dispatcher,
@@ -190,6 +235,10 @@ async function searchWithProvider(
   }
 
   const results = provider.parseResponse(data);
+
+  // 写入缓存
+  cache.set(provider.name, query, results);
+
   return { results, providerName: provider.name };
 }
 

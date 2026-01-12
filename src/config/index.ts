@@ -9,19 +9,5 @@ export { ConfigManager, mergeRuntimeConfig } from './ConfigManager.js';
 export { getConfigService, type SaveOptions } from './ConfigService.js';
 // 默认配置
 export { DEFAULT_CONFIG } from './defaults.js';
-// 权限检查器
-export {
-  PermissionChecker,
-  type PermissionCheckResult,
-  PermissionResult,
-  type ToolInvocationDescriptor,
-} from './PermissionChecker.js';
-export type {
-  BladeConfig,
-  HookConfig,
-  McpServerConfig,
-  PermissionConfig,
-  RuntimeConfig,
-} from './types.js';
-// 类型定义
 export { PermissionMode } from './types.js';
+export type { BladeConfig, PermissionConfig, RuntimeConfig } from './types.js'; // 类型定义

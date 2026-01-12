@@ -102,7 +102,7 @@ const ConfirmationContent = React.memo<ConfirmationContentProps>(
 /**
  * ConfirmationPrompt Props
  */
-export interface ConfirmationPromptProps {
+interface ConfirmationPromptProps {
   details: ConfirmationDetails;
   onResponse: (response: ConfirmationResponse) => void;
 }

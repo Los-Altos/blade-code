@@ -194,7 +194,7 @@ function isInvokePluginCommandAction(data: unknown): data is InvokePluginCommand
   );
 }
 
-export interface CommandResult {
+interface CommandResult {
   success: boolean;
   output?: string;
   error?: string;

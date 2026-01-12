@@ -13,6 +13,7 @@ import type {
 import { ToolErrorType, ToolKind } from '../../types/index.js';
 import { ToolSchemas } from '../../validation/zodSchemas.js';
 import { BackgroundShellManager } from './BackgroundShellManager.js';
+import { OutputTruncator } from './OutputTruncator.js';
 
 /**
  * Bash Tool - Shell command executor
@@ -415,13 +416,20 @@ async function executeWithAcpTerminal(
       signal: null,
     });
 
+    const truncated = OutputTruncator.truncateForLLM(
+      result.stdout.trim(),
+      result.stderr.trim(),
+      command
+    );
+
     return {
       success: result.success,
       llmContent: {
-        stdout: result.stdout.trim(),
-        stderr: result.stderr.trim(),
+        stdout: truncated.stdout,
+        stderr: truncated.stderr,
         execution_time: executionTime,
         exit_code: result.exitCode,
+        ...(truncated.truncationInfo && { truncation_info: truncated.truncationInfo }),
       },
       displayContent: displayMessage,
       metadata,
@@ -591,15 +599,23 @@ async function executeWithTimeout(
         signal: sig,
       });
 
-      // 即使退出码非零,也认为执行成功(因为命令确实执行了)
+      const truncated = OutputTruncator.truncateForLLM(
+        stdout.trim(),
+        stderr.trim(),
+        command
+      );
+
       resolve({
         success: true,
         llmContent: {
-          stdout: stdout.trim(),
-          stderr: stderr.trim(),
+          stdout: truncated.stdout,
+          stderr: truncated.stderr,
           execution_time: executionTime,
           exit_code: code,
           signal: sig,
+          ...(truncated.truncationInfo && {
+            truncation_info: truncated.truncationInfo,
+          }),
         },
         displayContent: displayMessage,
         metadata,

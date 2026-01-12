@@ -16,7 +16,7 @@ import { basename, isAbsolute } from 'node:path';
 /**
  * 基于二进制头检测图片类型（比 base64 前缀更可靠）
  */
-export function detectImageType(base64Data: string): string {
+function detectImageType(base64Data: string): string {
   try {
     const buffer = Buffer.from(base64Data, 'base64');
     if (buffer.length < 4) return 'image/png';

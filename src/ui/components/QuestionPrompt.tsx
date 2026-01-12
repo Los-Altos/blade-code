@@ -8,7 +8,7 @@ import { useCtrlCHandler } from '../hooks/useCtrlCHandler.js';
 /**
  * 问题选项类型
  */
-export interface QuestionOption {
+interface QuestionOption {
   label: string;
   description: string;
 }
@@ -16,7 +16,7 @@ export interface QuestionOption {
 /**
  * 问题类型
  */
-export interface Question {
+interface Question {
   question: string;
   header: string;
   multiSelect: boolean;
@@ -26,7 +26,7 @@ export interface Question {
 /**
  * QuestionPrompt Props
  */
-export interface QuestionPromptProps {
+interface QuestionPromptProps {
   questions: Question[];
   onComplete: (answers: Record<string, string | string[]>) => void;
   onCancel: () => void;

@@ -25,7 +25,7 @@ export enum ToolKind {
 /**
  * Metadata 基础字段 - 所有工具共享
  */
-export interface BaseMetadataFields {
+interface BaseMetadataFields {
   summary?: string;
   shouldExitLoop?: boolean;
   targetMode?: PermissionMode;
@@ -34,7 +34,7 @@ export interface BaseMetadataFields {
 /**
  * 文件操作类工具的基础字段
  */
-export interface FileMetadataFields extends BaseMetadataFields {
+interface FileMetadataFields extends BaseMetadataFields {
   file_path: string;
   file_size?: number;
   last_modified?: string;
@@ -43,7 +43,7 @@ export interface FileMetadataFields extends BaseMetadataFields {
 /**
  * Diff 相关字段（Write/Edit 工具）
  */
-export interface DiffMetadataFields extends FileMetadataFields {
+interface DiffMetadataFields extends FileMetadataFields {
   kind: 'edit';
   oldContent: string;
   newContent?: string;
@@ -55,7 +55,7 @@ export interface DiffMetadataFields extends FileMetadataFields {
 /**
  * Read 工具的字段
  */
-export interface ReadMetadataFields extends FileMetadataFields {
+interface ReadMetadataFields extends FileMetadataFields {
   file_type: string;
   encoding: string;
   acp_mode?: boolean;
@@ -70,7 +70,7 @@ export interface ReadMetadataFields extends FileMetadataFields {
 /**
  * Write 工具的字段
  */
-export interface WriteMetadataFields extends DiffMetadataFields {
+interface WriteMetadataFields extends DiffMetadataFields {
   content_size: number;
   encoding: string;
   created_directories?: boolean;
@@ -80,7 +80,7 @@ export interface WriteMetadataFields extends DiffMetadataFields {
 /**
  * Edit 工具的字段
  */
-export interface EditMetadataFields extends DiffMetadataFields {
+interface EditMetadataFields extends DiffMetadataFields {
   matches_found: number;
   replacements_made: number;
   replace_all: boolean;
@@ -95,7 +95,7 @@ export interface EditMetadataFields extends DiffMetadataFields {
 /**
  * Edit 工具错误诊断的字段
  */
-export interface EditErrorMetadataFields extends BaseMetadataFields {
+interface EditErrorMetadataFields extends BaseMetadataFields {
   searchStringLength: number;
   fuzzyMatches: Array<{
     line: number;
@@ -109,7 +109,7 @@ export interface EditErrorMetadataFields extends BaseMetadataFields {
 /**
  * Glob 工具的字段
  */
-export interface GlobMetadataFields extends BaseMetadataFields {
+interface GlobMetadataFields extends BaseMetadataFields {
   search_path: string;
   pattern: string;
   total_matches: number;
@@ -129,7 +129,7 @@ export interface GlobMetadataFields extends BaseMetadataFields {
 /**
  * Grep 工具的字段
  */
-export interface GrepMetadataFields extends BaseMetadataFields {
+interface GrepMetadataFields extends BaseMetadataFields {
   search_pattern: string;
   search_path: string;
   output_mode: string;
@@ -145,7 +145,7 @@ export interface GrepMetadataFields extends BaseMetadataFields {
 /**
  * Bash 工具的字段（后台执行）
  */
-export interface BashBackgroundMetadataFields extends BaseMetadataFields {
+interface BashBackgroundMetadataFields extends BaseMetadataFields {
   command: string;
   background: true;
   pid: number;
@@ -157,7 +157,7 @@ export interface BashBackgroundMetadataFields extends BaseMetadataFields {
 /**
  * Bash 工具的字段（前台执行）
  */
-export interface BashForegroundMetadataFields extends BaseMetadataFields {
+interface BashForegroundMetadataFields extends BaseMetadataFields {
   command: string;
   background?: false;
   execution_time: number;
@@ -172,7 +172,7 @@ export interface BashForegroundMetadataFields extends BaseMetadataFields {
 /**
  * WebSearch 工具的字段
  */
-export interface WebSearchMetadataFields extends BaseMetadataFields {
+interface WebSearchMetadataFields extends BaseMetadataFields {
   query: string;
   provider: string;
   fetched_at: string;
@@ -185,7 +185,7 @@ export interface WebSearchMetadataFields extends BaseMetadataFields {
 /**
  * WebFetch 工具的字段
  */
-export interface WebFetchMetadataFields extends BaseMetadataFields {
+interface WebFetchMetadataFields extends BaseMetadataFields {
   url: string;
   method: string;
   status: number;
@@ -210,16 +210,15 @@ export interface WebFetchMetadataFields extends BaseMetadataFields {
  * // 返回时自动兼容 ToolResultMetadata
  * return { success: true, metadata };
  */
-export type Metadata<T extends BaseMetadataFields = BaseMetadataFields> = T & {
+type Metadata<T extends BaseMetadataFields = BaseMetadataFields> = T & {
   [key: string]: unknown;
 };
 
 /**
  * 预定义的 Metadata 类型别名（方便使用）
  */
-export type BaseMetadata = Metadata<BaseMetadataFields>;
-export type FileMetadata = Metadata<FileMetadataFields>;
-export type DiffMetadata = Metadata<DiffMetadataFields>;
+type FileMetadata = Metadata<FileMetadataFields>;
+type DiffMetadata = Metadata<DiffMetadataFields>;
 export type ReadMetadata = Metadata<ReadMetadataFields>;
 export type WriteMetadata = Metadata<WriteMetadataFields>;
 export type EditMetadata = Metadata<EditMetadataFields>;
@@ -228,7 +227,7 @@ export type GlobMetadata = Metadata<GlobMetadataFields>;
 export type GrepMetadata = Metadata<GrepMetadataFields>;
 export type BashBackgroundMetadata = Metadata<BashBackgroundMetadataFields>;
 export type BashForegroundMetadata = Metadata<BashForegroundMetadataFields>;
-export type BashMetadata = BashBackgroundMetadata | BashForegroundMetadata;
+type BashMetadata = BashBackgroundMetadata | BashForegroundMetadata;
 export type WebSearchMetadata = Metadata<WebSearchMetadataFields>;
 export type WebFetchMetadata = Metadata<WebFetchMetadataFields>;
 
@@ -242,7 +241,7 @@ export type ToolResultMetadata = Metadata<BaseMetadataFields>;
 /**
  * 类型守卫：检查 metadata 是否为 diff 类型（Write/Edit）
  */
-export function isDiffMetadata(
+function _isDiffMetadata(
   metadata: ToolResultMetadata | undefined
 ): metadata is DiffMetadata {
   return (
@@ -256,7 +255,7 @@ export function isDiffMetadata(
 /**
  * 类型守卫：检查 metadata 是否为文件类型
  */
-export function isFileMetadata(
+function _isFileMetadata(
   metadata: ToolResultMetadata | undefined
 ): metadata is FileMetadata {
   return metadata !== undefined && typeof metadata.file_path === 'string';
@@ -265,7 +264,7 @@ export function isFileMetadata(
 /**
  * 类型守卫：检查 metadata 是否为命令执行类型
  */
-export function isBashMetadata(
+function _isBashMetadata(
   metadata: ToolResultMetadata | undefined
 ): metadata is BashMetadata {
   return metadata !== undefined && typeof metadata.command === 'string';
@@ -287,7 +286,7 @@ export function isGlobMetadata(
 /**
  * 类型守卫：检查 metadata 是否为 Grep 类型
  */
-export function isGrepMetadata(
+function _isGrepMetadata(
   metadata: ToolResultMetadata | undefined
 ): metadata is GrepMetadata {
   return (
@@ -300,7 +299,7 @@ export function isGrepMetadata(
 /**
  * 类型守卫：检查 metadata 是否为 Read 类型
  */
-export function isReadMetadata(
+function _isReadMetadata(
   metadata: ToolResultMetadata | undefined
 ): metadata is ReadMetadata {
   return (
@@ -339,9 +338,7 @@ export function isEditMetadata(
  *   };
  * }
  */
-export interface TypedToolResult<
-  TMetadata extends ToolResultMetadata = ToolResultMetadata,
-> {
+interface TypedToolResult<TMetadata extends ToolResultMetadata = ToolResultMetadata> {
   success: boolean;
   llmContent: string | object;
   displayContent: string;
@@ -357,7 +354,7 @@ export type ToolResult = TypedToolResult<ToolResultMetadata>;
 /**
  * 工具错误类型
  */
-export interface ToolError {
+interface ToolError {
   message: string;
   type: ToolErrorType;
   code?: string;

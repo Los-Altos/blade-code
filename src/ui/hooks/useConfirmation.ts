@@ -9,7 +9,7 @@ import type {
 /**
  * 确认状态
  */
-export interface ConfirmationState {
+interface ConfirmationState {
   isVisible: boolean;
   details: ConfirmationDetails | null;
   resolver: ((response: ConfirmationResponse) => void) | null;

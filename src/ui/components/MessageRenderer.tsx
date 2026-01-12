@@ -26,7 +26,7 @@ import { InlineRenderer } from './InlineRenderer.js';
 import { ListItem } from './ListItem.js';
 import { TableRenderer } from './TableRenderer.js';
 
-export interface MessageRendererProps {
+interface MessageRendererProps {
   content: string;
   role: MessageRole;
   terminalWidth: number;

@@ -105,24 +105,6 @@ export interface SteeringContext {
 }
 
 /**
- * Spec Runtime State
- *
- * Stored in Zustand Store
- */
-export interface SpecState {
-  /** Current active Spec */
-  currentSpec: SpecMetadata | null;
-  /** Spec file path */
-  specPath: string | null;
-  /** Whether in Spec mode */
-  isActive: boolean;
-  /** Steering context (cached) */
-  steeringContext: SteeringContext | null;
-  /** Recently used Spec list (for quick switching) */
-  recentSpecs: string[];
-}
-
-/**
  * Spec File Type
  */
 export type SpecFileType =

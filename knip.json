@@ -2,7 +2,6 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "entry": [
     "src/blade.tsx",
-    "src/cli/index.ts",
     "src/acp/index.ts",
     "vscode-extension/src/extension.ts"
   ],
@@ -15,6 +14,10 @@
   "ignoreDependencies": [
     "@azure/identity",
     "pino-pretty",
-    "react-dom"
-  ]
+    "vscode"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "rules": {
+    "enumMembers": "off"
+  }
 }

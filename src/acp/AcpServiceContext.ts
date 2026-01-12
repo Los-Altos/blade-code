@@ -64,7 +64,7 @@ interface TerminalExecuteResult {
 /**
  * 本地终端服务（使用 child_process）
  */
-export class LocalTerminalService implements TerminalService {
+class LocalTerminalService implements TerminalService {
   async execute(
     command: string,
     options?: TerminalExecuteOptions
@@ -159,7 +159,7 @@ export class LocalTerminalService implements TerminalService {
  * ACP 终端服务
  * 通过 ACP 协议在 IDE 中执行命令
  */
-export class AcpTerminalService implements TerminalService {
+class AcpTerminalService implements TerminalService {
   constructor(
     private readonly connection: AgentSideConnection,
     private readonly sessionId: string,

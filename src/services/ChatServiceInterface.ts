@@ -3,7 +3,10 @@
  * 定义统一的聊天服务接口，支持多种 API 提供商
  */
 
-import type { ChatCompletionChunk, ChatCompletionMessageToolCall } from 'openai/resources/chat';
+import type {
+  ChatCompletionChunk,
+  ChatCompletionMessageToolCall,
+} from 'openai/resources/chat';
 import { isBuiltinApiKey } from '../config/builtinModels.js';
 import type { ProviderType } from '../config/types.js';
 import { createLogger, LogCategory } from '../logging/Logger.js';
@@ -21,7 +24,7 @@ const logger = createLogger(LogCategory.SERVICE);
 /**
  * 多模态内容部分 - 文本
  */
-export interface TextContentPart {
+interface TextContentPart {
   type: 'text';
   text: string;
 }
@@ -29,7 +32,7 @@ export interface TextContentPart {
 /**
  * 多模态内容部分 - 图片 (OpenAI Vision API 格式)
  */
-export interface ImageContentPart {
+interface ImageContentPart {
   type: 'image_url';
   image_url: {
     url: string; // data:image/png;base64,... 或 https://...
@@ -169,7 +172,9 @@ export interface IChatService {
  * @param config ChatConfig + provider 字段
  * @returns Promise<IChatService> 实例
  */
-export async function createChatServiceAsync(config: ChatConfig): Promise<IChatService> {
+export async function createChatServiceAsync(
+  config: ChatConfig
+): Promise<IChatService> {
   let resolvedConfig = config;
 
   if (isBuiltinApiKey(config.apiKey)) {

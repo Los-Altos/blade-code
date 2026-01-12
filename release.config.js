@@ -81,9 +81,13 @@ export default {
   // 通知配置
   notifications: {
     // 是否启用通知
-    enabled: false,
-    // 通知方式: console, slack, email
-    methods: ['console'],
+    enabled: true,
+    // 通知方式: console, discord
+    methods: ['console', 'discord'],
+    // Discord 配置
+    discord: {
+      webhookUrl: process.env.DISCORD_WEBHOOK_URL || 'https://discord.com/api/webhooks/1460226980938125387/5fWgMuGmkGtb6j3eoDaz4JtSFfH8LtFtHK9F2srIHGoXp71zm4sHFPCc729PujDbHJ2F',
+    },
     // 通知模板
     templates: {
       success: '🎉 版本 {{version}} 发布成功！',

@@ -58,7 +58,7 @@ const logger = createLogger(LogCategory.UI);
  * BladeInterface 组件的 props 类型
  * 直接继承 AppProps，保持所有字段类型不变（包括 debug 的过滤器功能）
  */
-export interface BladeInterfaceProps extends AppProps {}
+interface BladeInterfaceProps extends AppProps {}
 
 /**
  * Blade Code 主界面组件
@@ -66,6 +66,7 @@ export interface BladeInterfaceProps extends AppProps {}
  */
 export const BladeInterface: React.FC<BladeInterfaceProps> = ({
   debug,
+  continue: continueSession, // continue 是 js 保留字
   ...otherProps
 }) => {
   if (debug) {
@@ -73,6 +74,7 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
       permissionMode: otherProps.permissionMode,
       yolo: otherProps.yolo,
       maxTurns: otherProps.maxTurns,
+      continue: continueSession,
     });
   }
 
@@ -251,29 +253,52 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
     }
   }, [inputBuffer.value, activeModal, appActions]);
 
-  const handleResume = useMemoizedFn(async () => {
+  const handleContinue = useMemoizedFn(async () => {
+    readyAnnouncementSent.current = true;
     try {
-      // 情况 1: 直接提供了 sessionId (--resume <sessionId>)
+      const sessions = await SessionService.listSessions();
+
+      if (sessions.length === 0) {
+        sessionActions.addAssistantMessage('没有找到历史会话，开始新对话。');
+        return;
+      }
+
+      const mostRecentSession = sessions[0];
+      const messages = await SessionService.loadSession(mostRecentSession.sessionId);
+
+      const sessionMessages = messages.map((msg, index) => ({
+        id: `restored-${Date.now()}-${index}`,
+        role: msg.role,
+        content:
+          typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+        timestamp: Date.now() - (messages.length - index) * 1000,
+      }));
+
+      sessionActions.restoreSession(mostRecentSession.sessionId, sessionMessages);
+    } catch (error) {
+      logger.error('[BladeInterface] 继续会话失败:', error);
+      sessionActions.addAssistantMessage('继续会话失败，开始新对话。');
+    }
+  });
+
+  const handleResume = useMemoizedFn(async () => {
+    readyAnnouncementSent.current = true;
+    try {
       if (typeof otherProps.resume === 'string' && otherProps.resume !== 'true') {
         const messages = await SessionService.loadSession(otherProps.resume);
 
-        const sessionMessages = messages
-          // 不再过滤 tool 消息，让工具输出也能被渲染
-          .map((msg, index) => ({
-            id: `restored-${Date.now()}-${index}`,
-            role: msg.role,
-            content:
-              typeof msg.content === 'string'
-                ? msg.content
-                : JSON.stringify(msg.content),
-            timestamp: Date.now() - (messages.length - index) * 1000,
-          }));
+        const sessionMessages = messages.map((msg, index) => ({
+          id: `restored-${Date.now()}-${index}`,
+          role: msg.role,
+          content:
+            typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
+          timestamp: Date.now() - (messages.length - index) * 1000,
+        }));
 
         sessionActions.restoreSession(otherProps.resume, sessionMessages);
         return;
       }
 
-      // 情况 2: 交互式选择 (--resume 无参数)
       const sessions = await SessionService.listSessions();
 
       if (sessions.length === 0) {
@@ -281,7 +306,6 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
         safeExit(1);
       }
 
-      // 显示会话选择器
       appActions.showSessionSelector(sessions);
     } catch (error) {
       logger.error('[BladeInterface] 加载会话失败:', error);
@@ -291,11 +315,18 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
 
   useEffect(() => {
     if (hasProcessedResumeRef.current) return;
-    if (!otherProps.resume) return;
 
-    hasProcessedResumeRef.current = true;
-    handleResume();
-  }, [otherProps.resume, handleResume]);
+    if (continueSession) {
+      hasProcessedResumeRef.current = true;
+      handleContinue();
+      return;
+    }
+
+    if (otherProps.resume) {
+      hasProcessedResumeRef.current = true;
+      handleResume();
+    }
+  }, [continueSession, otherProps.resume, handleContinue, handleResume]);
 
   // ==================== Memoized Methods ====================
   const handleResponse = useMemoizedFn(async (response: ConfirmationResponse) => {

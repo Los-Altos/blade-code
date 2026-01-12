@@ -45,7 +45,7 @@ function containsPasteMarker(text: string): boolean {
 /**
  * 文本粘贴内容
  */
-export interface TextPasteContent {
+interface TextPasteContent {
   type: 'text';
   data: string; // 原始文本
 }
@@ -53,7 +53,7 @@ export interface TextPasteContent {
 /**
  * 图片粘贴内容
  */
-export interface ImagePasteContent {
+interface ImagePasteContent {
   type: 'image';
   data: string; // base64 编码
   mimeType: string; // 'image/png', 'image/jpeg' 等

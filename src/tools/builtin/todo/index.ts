@@ -4,4 +4,3 @@
  */
 
 export { createTodoWriteTool } from './todoWrite.js';
-export type { TodoItem } from './types.js';

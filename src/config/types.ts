@@ -231,8 +231,6 @@ export interface McpServerConfig {
   };
 }
 
-
-
 /**
  * SetupWizard 保存的配置字段
  * （API 连接相关的核心配置）

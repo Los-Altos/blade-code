@@ -211,8 +211,6 @@ export const COPILOT_MODELS = {
   },
 } as const;
 
-export type CopilotModelId = keyof typeof COPILOT_MODELS;
-
 // ================================
 // API 请求/响应类型 (OpenAI 兼容)
 // ================================
@@ -307,19 +305,4 @@ export interface CopilotStreamChunk {
     };
     finish_reason: 'stop' | 'length' | 'tool_calls' | null;
   }>;
-}
-
-// ================================
-// 错误类型
-// ================================
-
-/**
- * Copilot API 错误
- */
-export interface CopilotError {
-  error: {
-    message: string;
-    type: string;
-    code?: string;
-  };
 }

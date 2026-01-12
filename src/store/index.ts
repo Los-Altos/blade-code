@@ -34,5 +34,3 @@ export function useBladeStore<T>(selector: (state: BladeStore) => T): T {
 
 // 导出选择器
 export * from './selectors/index.js';
-// 导出类型
-export type { BladeStore } from './types.js';

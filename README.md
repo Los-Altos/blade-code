@@ -111,6 +111,18 @@ cd blade-code && pnpm install && pnpm dev
 
 ---
 
+## ⭐ Star History
+
+<a href="https://star-history.com/#echoVic/blade-code&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=echoVic/blade-code&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=echoVic/blade-code&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=echoVic/blade-code&type=Date" />
+ </picture>
+</a>
+
+---
+
 ## 📄 许可证
 
 [MIT](LICENSE) - Made with ❤️ by [echoVic](https://github.com/echoVic)
