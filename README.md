@@ -15,6 +15,14 @@
 
 ---
 
+## 📸 启动界面
+
+<div align="center">
+  <img src="./assets/screenshots/startup.png" alt="Blade Code 启动界面" width="800" />
+</div>
+
+---
+
 ## ✨ 核心特性
 
 - 🤖 **智能对话** - 上下文理解、多轮协作、可继续会话
