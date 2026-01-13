@@ -26,7 +26,7 @@ const BUILTIN_MODELS: BuiltinModelDefinition[] = [
   {
     name: '✨ GLM-4.7 (内置免费)',
     provider: 'openai-compatible',
-    baseUrl: 'https://blade-api-proxy.137844255.workers.dev/v1',
+    baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
     model: 'glm-4.7',
     apiKey: BUILTIN_API_KEY,
     description: '智谱 GLM-4.7 Thinking - 由 Blade 提供免费额度',
