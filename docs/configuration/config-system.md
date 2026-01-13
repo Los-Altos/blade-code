@@ -21,7 +21,7 @@ Blade 使用双文件配置体系：`config.json`（基础配置）和 `settings
 
 ## 内置免费模型
 
-Blade Code v0.1.0 内置了免费的 GLM-4.7 模型，无需任何配置即可使用：
+Blade Code 内置了免费的 GLM-4.7 模型，无需任何配置即可使用：
 
 - **模型**: GLM-4.7 Thinking（智谱）
 - **特性**: 支持思维链推理

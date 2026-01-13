@@ -18,11 +18,12 @@ English | [简体中文](README.md)
 ## ✨ Key Features
 
 - 🤖 **Smart Chat** - Context-aware, multi-turn collaboration with session continuity
-- 🆓 **Out of the Box** - Built-in free GLM-4.7 model, plus custom models
+- 🆓 **Out of the Box** - Built-in free GLM-4.7 model (with chain-of-thought), plus custom models
 - 🛠️ **Rich Tooling** - 20+ built-in tools: file/search/shell/git/web and more
+- 🌐 **Smart Search** - WebSearch with multi-provider fallback (Exa → DuckDuckGo → SearXNG)
 - 🔗 **Extensible** - MCP, plugins, and Skills system
 - 📋 **Structured Workflows** - Spec / Plan / Subagents
-- 🔒 **Secure Control** - Permission modes: default/autoEdit/plan/yolo + allow/deny lists
+- 🔒 **Secure Control** - Permission modes: default/autoEdit/plan/yolo/spec + allow/deny lists
 - 🎨 **Modern UI** - React + Ink TUI with Markdown and syntax highlighting
 
 ---

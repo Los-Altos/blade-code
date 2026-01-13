@@ -124,7 +124,7 @@
 
 ### WebFetch
 
-获取网页或 API 内容。
+获取网页或 API 内容，支持 Jina Reader 内容提取。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -133,12 +133,14 @@
 | `headers` | object | | 请求头 |
 | `body` | string | | 请求体 |
 | `trim` | boolean | | 是否裁剪响应 |
+| `extract_content` | boolean | | 使用 Jina Reader 提取干净内容 |
 
-**类型**: ReadOnly
+**类型**: ReadOnly  
+**特性**: 支持 Jina Reader 提取网页内容为干净的 Markdown 格式
 
 ### WebSearch
 
-网络搜索（基于 DuckDuckGo）。
+网络搜索，支持多提供商自动故障转移（Exa → DuckDuckGo → SearXNG）。
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -148,7 +150,8 @@
 | `region` | string | | 地区偏好 |
 
 **类型**: ReadOnly  
-**返回**: 搜索结果摘要
+**返回**: 搜索结果摘要  
+**特性**: 使用 Exa MCP 公开端点，无需 API key，自动故障转移
 
 ## 任务管理
 
@@ -345,8 +348,8 @@ blade mcp list
 | 搜索 | Grep | ReadOnly | 基于 ripgrep 的内容搜索 |
 | Shell | Bash | Execute | 执行 Shell 命令 |
 | Shell | KillShell | Execute | 终止后台命令 |
-| 网络 | WebFetch | ReadOnly | 获取网页/API 内容 |
-| 网络 | WebSearch | ReadOnly | 网络搜索（DuckDuckGo） |
+| 网络 | WebFetch | ReadOnly | 获取网页/API 内容（支持 Jina Reader） |
+| 网络 | WebSearch | ReadOnly | 网络搜索（Exa/DuckDuckGo/SearXNG） |
 | 任务 | Task | ReadOnly | 启动子代理执行任务 |
 | 任务 | TaskOutput | ReadOnly | 获取后台任务输出 |
 | 任务 | TodoWrite | ReadOnly | 管理会话内 TODO 列表 |

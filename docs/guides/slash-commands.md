@@ -18,6 +18,9 @@ Slash 命令是 Blade 的快捷操作入口，输入 `/` 触发建议，`Tab` �
 | `/permissions` | - | 管理权限规则 |
 | `/mcp` | - | 显示 MCP 状态 |
 | `/agents` | - | 管理子代理 |
+| `/skills` | - | 管理 Skills |
+| `/plugins` | - | 管理插件 |
+| `/hooks` | - | 管理 Hooks |
 | `/resume` | - | 恢复历史会话 |
 | `/compact` | - | 手动压缩上下文 |
 | `/git` | `/g` | Git 操作 |
@@ -100,6 +103,34 @@ Git 仓库查询和 AI 辅助：
 
 ```bash
 /mcp
+```
+
+### /skills
+
+管理 Skills 系统：
+
+```bash
+/skills         # 列出所有可用 Skills
+/skills list    # 列出所有 Skills
+/skills info <name>  # 查看 Skill 详情
+```
+
+### /plugins
+
+管理插件系统：
+
+```bash
+/plugins        # 列出已安装插件
+/plugins list   # 列出所有插件
+```
+
+### /hooks
+
+管理 Hooks 系统：
+
+```bash
+/hooks          # 显示当前 Hooks 配置
+/hooks list     # 列出所有 Hooks
 ```
 
 ### /theme
@@ -263,9 +294,16 @@ argumentHint: <file_path>
 /permissions
 /theme
 
+# 扩展管理
+/skills
+/plugins
+/hooks
+/agents
+
 # 状态查看
 /status
 /context
+/mcp
 ```
 
 ## 相关资源

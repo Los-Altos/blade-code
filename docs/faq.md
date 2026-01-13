@@ -13,7 +13,7 @@ export PATH="$(npm config get prefix)/bin:$PATH"
 ```
 
 **Q: 支持哪些 Node.js 版本？**  
-A: 最低 Node.js 18，推荐 20+。使用 `nvm` 或 `n` 升级。
+A: 最低 Node.js 20.0.0。使用 `nvm` 或 `n` 升级。
 
 ## 配置与模型
 
@@ -130,6 +130,14 @@ blade --debug "!chat,!loop"
 **Q: 如何运行环境检查？**  
 A: 运行 `blade doctor` 检查配置、Node 版本、目录权限等。
 
+## 网络工具
+
+**Q: WebSearch 支持哪些搜索引擎？**  
+A: 支持多提供商自动故障转移：Exa（默认，使用 MCP 公开端点）→ DuckDuckGo → SearXNG。无需配置 API key。
+
+**Q: WebFetch 如何提取网页内容？**  
+A: 使用 `extract_content` 参数启用 Jina Reader，可将网页内容提取为干净的 Markdown 格式，自动移除 HTML 杂乱内容。
+
 ## 其他
 
 **Q: 如何更新到最新版本？**  
@@ -143,3 +151,8 @@ A: 在 [GitHub Issues](https://github.com/echoVic/blade-code/issues) 提交问�
 
 **Q: 如何贡献代码？**  
 A: Fork 仓库，创建分支，提交 PR。详见项目 README。
+
+**Q: 如何加入社区？**  
+A: 
+- [Discord 社区](https://discord.gg/utXDVcv6) - 加入我们的 Discord 服务器
+- 微信群：添加小助手微信 **VIc-Forever**，备注「Blade」拉你进群

@@ -8,17 +8,19 @@ import * as path from 'node:path';
 
 /**
  * 转义项目路径为目录名
- * 规则：将 / 替换为 -
+ * 规则：将 / 和 \ 替换为 -，将 : 替换为 _ (Windows 驱动器符号)
  *
  * @example
  * escapeProjectPath('/Users/john/projects/my-app')
  * // 返回: '-Users-john-projects-my-app'
+ * escapeProjectPath('C:\\Users\\HP\\project')
+ * // 返回: 'C_-Users-HP-project'
  */
 function escapeProjectPath(absPath: string): string {
   // 确保路径是绝对路径
   const normalized = path.resolve(absPath);
-  // 将所有 / 替换为 -
-  return normalized.replace(/\//g, '-');
+  // 将所有 / 和 \ 替换为 -，将 : 替换为 _ (Windows 驱动器符号)
+  return normalized.replace(/[/\\]/g, '-').replace(/:/g, '_');
 }
 
 /**
@@ -27,13 +29,20 @@ function escapeProjectPath(absPath: string): string {
  * @example
  * unescapeProjectPath('-Users-john-projects-my-app')
  * // 返回: '/Users/john/projects/my-app'
+ * unescapeProjectPath('C_-Users-HP-project')
+ * // 返回: 'C:/Users/HP/project' (使用正斜杠，Node.js 在 Windows 上也支持)
  */
 export function unescapeProjectPath(escapedPath: string): string {
-  // 移除开头的 - 并替换所有 - 为 /
-  if (escapedPath.startsWith('-')) {
-    return '/' + escapedPath.slice(1).replace(/-/g, '/');
+  // 先将 _ 还原为 : (Windows 驱动器符号)
+  let result = escapedPath.replace(/_/g, ':');
+
+  // 如果以 - 开头（Unix 绝对路径），移除开头的 - 并添加 /
+  if (result.startsWith('-')) {
+    result = '/' + result.slice(1);
   }
-  return escapedPath.replace(/-/g, '/');
+
+  // 将所有 - 替换为 / (Node.js 在 Windows 上也支持正斜杠)
+  return result.replace(/-/g, '/');
 }
 
 /**
