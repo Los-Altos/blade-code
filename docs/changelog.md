@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.1.5] - 2026-01-14
+
+### ✨ 新功能
+
+- 添加 Blade Claude 服务支持 (e65ce52)
+
+### 📝 文档更新
+
+- 在 README 中添加启动界面截图 (340ad08)
+- 添加启动界面截图 (bb56bee)
+
+### 🔧 其他更改
+
+- 更新启动页截图 (1c6261a)
+
+
 ## [0.1.4] - 2026-01-13
 
 ### 🐛 问题修复
