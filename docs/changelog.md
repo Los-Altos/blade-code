@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.1.7] - 2026-01-15
+
+### ✨ 新功能
+
+- 为useConfirmation添加确认对话框队列功能 (91627d2)
+
+
 ## [0.1.6] - 2026-01-15
 
 ### 🐛 问题修复
