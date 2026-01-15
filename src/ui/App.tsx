@@ -2,7 +2,7 @@ import { useMemoizedFn } from 'ahooks';
 import React, { useEffect, useState } from 'react';
 import { subagentRegistry } from '../agent/subagents/SubagentRegistry.js';
 import type { GlobalOptions } from '../cli/types.js';
-import { getBuiltinModelId, getBuiltinClaudeModelId, getAllBuiltinModels } from '../config/builtinModels.js';
+import { getAllBuiltinModels, getBuiltinModelId } from '../config/builtinModels.js';
 import {
   DEFAULT_CONFIG,
   mergeRuntimeConfig,

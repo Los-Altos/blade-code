@@ -84,6 +84,7 @@ interface ProviderInfo {
   name: string;
   description: string;
   isOAuth: boolean;
+  hidden?: boolean;
 }
 
 /**
@@ -129,8 +130,9 @@ const PROVIDER_CONFIG: Record<ProviderType, ProviderInfo> = {
   'blade-claude': {
     icon: '🗡️',
     name: 'Blade Claude (内置)',
-    description: 'Blade 内置 Claude 服务 (免费额度)',
+    description: 'Blade 内置 Claude 服务 (暂不可用)',
     isOAuth: false,
+    hidden: true,
   },
 };
 
@@ -177,14 +179,15 @@ const ProviderStep: React.FC<ProviderStepProps> = ({
     { isActive: isFocused }
   );
 
-  // 从 PROVIDER_CONFIG 生成 items（类型安全）
-  const items = (Object.keys(PROVIDER_CONFIG) as ProviderType[]).map((provider) => {
-    const info = PROVIDER_CONFIG[provider];
-    return {
-      label: `${info.icon} ${info.name} - ${info.description}`,
-      value: provider,
-    };
-  });
+  const items = (Object.keys(PROVIDER_CONFIG) as ProviderType[])
+    .filter((provider) => !PROVIDER_CONFIG[provider].hidden)
+    .map((provider) => {
+      const info = PROVIDER_CONFIG[provider];
+      return {
+        label: `${info.icon} ${info.name} - ${info.description}`,
+        value: provider,
+      };
+    });
 
   const initialIndex = initialProvider
     ? Math.max(
