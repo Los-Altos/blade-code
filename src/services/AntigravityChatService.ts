@@ -668,7 +668,8 @@ export class AntigravityChatService implements IChatService {
         contents,
         systemInstruction,
         generationConfig: {
-          maxOutputTokens: this.config.maxOutputTokens ?? 8192,
+          // 只有显式配置了 maxOutputTokens 才传，否则让 API 使用默认值
+          ...(this.config.maxOutputTokens && { maxOutputTokens: this.config.maxOutputTokens }),
           temperature: this.config.temperature ?? 0.7,
         },
         tools: antigravityTools,
@@ -781,7 +782,8 @@ export class AntigravityChatService implements IChatService {
         contents,
         systemInstruction,
         generationConfig: {
-          maxOutputTokens: this.config.maxOutputTokens ?? 8192,
+          // 只有显式配置了 maxOutputTokens 才传，否则让 API 使用默认值
+          ...(this.config.maxOutputTokens && { maxOutputTokens: this.config.maxOutputTokens }),
           temperature: this.config.temperature ?? 0.7,
         },
         tools: antigravityTools,

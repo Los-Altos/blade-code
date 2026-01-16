@@ -354,7 +354,8 @@ export class GeminiChatService implements IChatService {
         contents,
         config: {
           systemInstruction: systemInstruction || undefined,
-          maxOutputTokens: this.config.maxOutputTokens ?? 4096,
+          // 只有显式配置了 maxOutputTokens 才传，否则让 API 使用默认值
+          ...(this.config.maxOutputTokens && { maxOutputTokens: this.config.maxOutputTokens }),
           temperature: this.config.temperature ?? 0.0,
           tools: geminiTools,
         },
@@ -466,7 +467,8 @@ export class GeminiChatService implements IChatService {
         contents,
         config: {
           systemInstruction: systemInstruction || undefined,
-          maxOutputTokens: this.config.maxOutputTokens ?? 4096,
+          // 只有显式配置了 maxOutputTokens 才传，否则让 API 使用默认值
+          ...(this.config.maxOutputTokens && { maxOutputTokens: this.config.maxOutputTokens }),
           temperature: this.config.temperature ?? 0.0,
           tools: geminiTools,
         },

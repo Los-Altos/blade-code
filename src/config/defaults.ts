@@ -16,7 +16,7 @@ export const DEFAULT_CONFIG: BladeConfig = {
   // 全局默认参数
   temperature: 0.0,
   maxContextTokens: 128000, // 128K - 主流大模型的标准上下文窗口
-  maxOutputTokens: 32768, // 32K - 主流大模型的输出 token 限制
+  maxOutputTokens: undefined, // 不设置默认值，让各 API 使用自己的默认限制
   stream: true,
   topP: 0.9,
   topK: 50,

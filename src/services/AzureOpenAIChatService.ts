@@ -208,7 +208,8 @@ export class AzureOpenAIChatService implements IChatService {
       tools: openaiTools,
       tool_choice:
         openaiTools && openaiTools.length > 0 ? ('auto' as const) : undefined,
-      max_tokens: this.config.maxOutputTokens ?? 32768,
+      // 只有显式配置了 maxOutputTokens 才传 max_tokens，否则让 API 使用默认值
+      ...(this.config.maxOutputTokens && { max_tokens: this.config.maxOutputTokens }),
       temperature: this.config.temperature ?? 0.0,
     };
 
@@ -309,7 +310,8 @@ export class AzureOpenAIChatService implements IChatService {
       tools: openaiTools,
       tool_choice:
         openaiTools && openaiTools.length > 0 ? ('auto' as const) : undefined,
-      max_tokens: this.config.maxOutputTokens ?? 32768,
+      // 只有显式配置了 maxOutputTokens 才传 max_tokens，否则让 API 使用默认值
+      ...(this.config.maxOutputTokens && { max_tokens: this.config.maxOutputTokens }),
       temperature: this.config.temperature ?? 0.0,
       stream: true as const,
       stream_options: { include_usage: true },

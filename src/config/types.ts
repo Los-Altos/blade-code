@@ -13,7 +13,6 @@
  * - azure-openai: Azure OpenAI Service
  * - antigravity: Google Antigravity（OAuth 认证，统一网关访问 Claude/Gemini/GPT-OSS）
  * - copilot: GitHub Copilot（OAuth 认证，访问 GPT-4o/Claude/Gemini 等模型）
- * - blade-claude: Blade 内置 Claude（通过私有包访问）
  */
 export type ProviderType =
   | 'openai-compatible'
@@ -21,8 +20,7 @@ export type ProviderType =
   | 'gemini'
   | 'azure-openai'
   | 'antigravity'
-  | 'copilot'
-  | 'blade-claude';
+  | 'copilot';
 
 /**
  * 权限模式枚举
@@ -111,7 +109,7 @@ export interface BladeConfig {
   // 全局默认参数
   temperature: number;
   maxContextTokens: number; // 上下文窗口大小（用于压缩判断）
-  maxOutputTokens: number; // 输出 token 限制（传给 API 的 max_tokens）
+  maxOutputTokens?: number; // 输出 token 限制（传给 API 的 max_tokens），undefined 表示让 API 使用默认值
   stream: boolean;
   topP: number;
   topK: number;

@@ -1877,7 +1877,8 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
     const modelName = chatConfig.model;
     const maxContextTokens =
       chatConfig.maxContextTokens ?? this.config.maxContextTokens;
-    const maxOutputTokens = chatConfig.maxOutputTokens ?? this.config.maxOutputTokens;
+    // 用于计算压缩阈值的 maxOutputTokens，如果未配置则使用保守的默认值 8192
+    const maxOutputTokens = chatConfig.maxOutputTokens ?? this.config.maxOutputTokens ?? 8192;
 
     // 计算可用于输入的空间：上下文窗口 - 预留给输出的空间
     const availableForInput = maxContextTokens - maxOutputTokens;
