@@ -1,80 +1,132 @@
-# 🗡️ Blade Code 用户文档
+# Blade
 
-欢迎使用 Blade Code！这是一款基于 React + Ink 构建的新一代 AI 编程助手命令行工具，支持智能对话、工具调用、多模型切换、权限管理等功能。
+**Blade** 是一个强大的终端 AI 编程助手，帮助你在命令行中高效完成编码任务。
 
-## ✨ 核心特性
+## 核心特性
 
-- 🤖 **智能对话** - 基于大语言模型，支持上下文理解和多轮对话
-- 🆓 **开箱即用** - 内置免费 GLM-4.7 模型（支持思维链推理），无需配置即可体验
-- 🛠️ **丰富工具** - 内置 20+ 工具：文件读写、代码搜索、Shell 执行、Git 操作、网络请求等
-- 🔗 **MCP 协议** - 支持 Model Context Protocol，轻松扩展外部工具
-- 🌐 **智能搜索** - WebSearch 支持多提供商（Exa → DuckDuckGo → SearXNG）自动故障转移
-- 🎨 **现代 UI** - 基于 React + Ink，支持 Markdown 渲染和语法高亮
-- 💾 **会话管理** - 多会话、继续对话、会话恢复、会话 Fork
-- 🔒 **安全可控** - 五级权限模式（default/autoEdit/plan/yolo/spec）、工具白名单、操作确认
-- 📋 **Spec 模式** - 规格驱动开发，结构化工作流
-- 🧠 **Subagents** - 可定制的子代理系统，支持任务分发
-- ⚡ **Skills 系统** - 动态 Prompt 扩展机制
+### 🚀 零配置启动
 
-## 🚀 快速开始
+内置免费 GLM-4.7 模型，安装即用，无需任何配置。
+
+### 📡 80+ Provider 支持
+
+集成 [models.dev](https://models.dev) API，支持 80+ LLM Provider：
+
+| 分类 | Provider |
+|------|----------|
+| **热门** | Anthropic, OpenAI, DeepSeek, Google, Groq, OpenRouter |
+| **云服务** | Azure, AWS Bedrock, Google Vertex, Cloudflare |
+| **开源友好** | Together AI, Fireworks, Cerebras, Novita AI |
+| **本地部署** | Ollama, LM Studio |
+
+3 步配置向导：选择 Provider → 输入 API Key → 选择模型
+
+### 🛡️ 安全权限控制
+
+- 敏感操作前请求确认
+- 支持 glob 模式的权限规则
+- 多级权限模式（default、autoEdit、plan、yolo）
+
+### 🔧 强大的工具集
+
+- **文件操作**: 读取、写入、编辑、搜索
+- **代码分析**: 语法检查、类型检查、测试运行
+- **终端执行**: 安全的命令执行环境
+- **Git 集成**: 版本控制操作
+
+### 📝 灵活的工作模式
+
+- **Plan 模式**: 先规划后执行
+- **Spec 模式**: 结构化开发工作流
+- **Subagents**: 并行任务处理
+
+### 🔌 MCP 扩展
+
+支持 Model Context Protocol，可连接外部工具和服务。
+
+## 快速开始
 
 ```bash
-# 零安装试用（内置免费模型，无需配置）
-npx blade-code
-
-# 全局安装
+# 安装
 npm install -g blade-code
 
-# 启动交互式界面
+# 启动（内置免费模型，无需配置）
 blade
 
-# 带首条消息启动
-blade "帮我分析这个项目"
+# 添加自定义模型（80+ Provider 可选）
+# 在 Blade 中输入: /model add
 ```
 
-> 首次运行会自动使用内置免费模型 GLM-4.7，也可通过模型配置向导添加自己的 API 密钥。
-
-## 📚 文档导航
+## 文档目录
 
 ### 入门指南
 
-- **[安装指南](getting-started/installation.md)** - 详细的安装步骤和环境要求
-- **[快速开始](getting-started/quick-start.md)** - 5 分钟快速上手
+- [安装说明](getting-started/installation.md)
+- [快速开始](getting-started/quick-start.md)
 
 ### 配置
 
-- **[配置系统](configuration/config-system.md)** - 双文件配置体系完整指南
-- **[权限控制](configuration/permissions.md)** - 四级权限模式详解
-- **[主题配置](configuration/themes.md)** - 主题配置和自定义
+- [配置系统](configuration/config-system.md) - 80+ Provider 配置
+- [权限控制](configuration/permissions.md)
+- [主题配置](configuration/themes.md)
 
 ### 使用指南
 
-- **[Slash 命令](guides/slash-commands.md)** - 内置和自定义命令
-- **[Subagents 系统](guides/subagents.md)** - 子代理配置与使用
-- **[Plan 模式](guides/plan-mode.md)** - 只读调研与方案规划
-- **[Spec 模式](guides/spec-mode.md)** - 规格驱动开发工作流
-- **[@ 文件提及](guides/at-file-mentions.md)** - 快速引用项目文件
-- **[Skills 系统](guides/skills.md)** - 动态 Prompt 扩展
-- **[Hooks 系统](guides/hooks.md)** - 工具执行钩子
+- [@ 文件引用](guides/at-file-mentions.md)
+- [Slash 命令](guides/slash-commands.md)
+- [Plan 模式](guides/plan-mode.md)
+- [Spec 模式](guides/spec-mode.md)
+- [Subagents](guides/subagents.md)
+- [Hooks](guides/hooks.md)
+- [Skills](guides/skills.md)
+- [Markdown 支持](guides/markdown-support.md)
 
 ### 参考
 
-- **[CLI 命令](reference/cli-commands.md)** - 命令行参数参考
-- **[工具列表](reference/tool-list.md)** - 所有可用工具
+- [CLI 命令](reference/cli-commands.md)
+- [工具列表](reference/tool-list.md)
 
 ### 其他
 
-- **[常见问题](faq.md)** - FAQ
-- **[更新日志](changelog.md)** - 版本历史
+- [更新日志](changelog.md)
+- [常见问题](faq.md)
 
-## 💬 交流群
+## 支持的 Provider
 
-- [Discord 社区](https://discord.gg/utXDVcv6) - 加入我们的 Discord 服务器
-- 微信群：添加小助手微信 **VIc-Forever**，备注「Blade」拉你进群
+Blade 通过 [models.dev](https://models.dev) 集成支持 80+ LLM Provider：
 
-## 🔗 相关资源
+**热门 Provider**:
+- Anthropic (Claude)
+- OpenAI (GPT-4, o1)
+- DeepSeek (R1, V3)
+- Google (Gemini)
+- Groq (超快推理)
+- OpenRouter (多模型聚合)
 
-- [官网](https://echovic.github.io/blade-code/#/)
-- [GitHub 仓库](https://github.com/echoVic/blade-code)
-- [NPM 包](https://www.npmjs.com/package/blade-code)
-- [问题反馈](https://github.com/echoVic/blade-doc/issues)
+**云服务**:
+- Azure OpenAI
+- AWS Bedrock
+- Google Vertex AI
+- Cloudflare Workers AI
+
+**开源友好**:
+- Together AI
+- Fireworks AI
+- Cerebras
+- Novita AI
+- NVIDIA NIM
+
+**本地部署**:
+- Ollama
+- LM Studio
+
+**其他**:
+- Mistral AI
+- Cohere
+- Perplexity
+- xAI (Grok)
+- 更多...
+
+## 许可证
+
+MIT License

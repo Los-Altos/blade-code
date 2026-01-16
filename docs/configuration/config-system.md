@@ -30,6 +30,55 @@ Blade Code 内置了免费的 GLM-4.7 模型，无需任何配置即可使用：
 
 首次启动时会自动使用内置模型。如需使用自己的 API 密钥，可通过 `/model add` 向导或手动编辑配置文件。
 
+## 模型配置向导
+
+### 80+ Provider 支持
+
+Blade 集成了 [models.dev](https://models.dev) API，支持 **80+ LLM Provider**，包括：
+
+| 分类 | Provider |
+|------|----------|
+| **热门** | Anthropic, OpenAI, DeepSeek, Google, Groq, OpenRouter |
+| **云服务** | Azure, AWS Bedrock, Google Vertex, Cloudflare |
+| **开源友好** | Together AI, Fireworks, Cerebras, Novita AI |
+| **本地部署** | Ollama, LM Studio |
+| **其他** | Mistral, Cohere, Perplexity, xAI, NVIDIA 等 |
+
+### 向导配置流程
+
+输入 `/model add` 启动配置向导：
+
+```
+Step 1: 选择 Provider（支持搜索 80+ 选项）
+        ┌─────────────────────────────────────┐
+        │  📡 选择 Provider          [搜索]   │
+        │  ▶ Anthropic (🤖)                   │
+        │    OpenAI (⚡)                       │
+        │    DeepSeek (🌊)                    │
+        │    Google (✨)                      │
+        │    Groq (🚀)                        │
+        │    OpenRouter (🔀)                  │
+        │    ... 更多                         │
+        └─────────────────────────────────────┘
+
+Step 2: 输入 API Key
+        ┌─────────────────────────────────────┐
+        │  🔑 输入 Anthropic API Key          │
+        │  ▶ sk-ant-___________________________│
+        │  💡 环境变量: ANTHROPIC_API_KEY     │
+        │  📖 获取密钥: docs.anthropic.com    │
+        └─────────────────────────────────────┘
+
+Step 3: 选择模型（从内置列表选择）
+        ┌─────────────────────────────────────┐
+        │  🤖 选择模型              [搜索]    │
+        │  ▶ claude-sonnet-4-0 (推荐)         │
+        │    claude-opus-4-0                  │
+        │    claude-3-5-sonnet-latest         │
+        │    ... 更多                         │
+        └─────────────────────────────────────┘
+```
+
 ## config.json（基础配置）
 
 ### 多模型配置
@@ -44,7 +93,7 @@ Blade 支持配置多个模型，通过 `currentModelId` 指定当前使用的�
       "id": "qwen-main",
       "name": "Qwen Max",
       "provider": "openai-compatible",
-      "apiKey": "${QWEN_API_KEY}",
+      "apiKey": "sk-xxxxx",
       "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
       "model": "qwen-max",
       "temperature": 0,
@@ -54,7 +103,7 @@ Blade 支持配置多个模型，通过 `currentModelId` 指定当前使用的�
       "id": "deepseek-r1",
       "name": "DeepSeek R1",
       "provider": "openai-compatible",
-      "apiKey": "${DEEPSEEK_API_KEY}",
+      "apiKey": "sk-xxxxx",
       "baseUrl": "https://api.deepseek.com",
       "model": "deepseek-reasoner",
       "supportsThinking": true,
@@ -62,33 +111,63 @@ Blade 支持配置多个模型，通过 `currentModelId` 指定当前使用的�
     },
     {
       "id": "claude-sonnet",
-      "name": "Claude 3.5 Sonnet",
+      "name": "Claude Sonnet 4",
       "provider": "anthropic",
-      "apiKey": "${ANTHROPIC_API_KEY}",
-      "model": "claude-3-5-sonnet-20241022"
+      "apiKey": "sk-ant-api03-xxxxx",
+      "model": "claude-sonnet-4-0"
     },
     {
       "id": "gemini-pro",
-      "name": "Gemini 1.5 Pro",
+      "name": "Gemini 2.0 Flash",
       "provider": "gemini",
-      "apiKey": "${GEMINI_API_KEY}",
-      "model": "gemini-1.5-pro-latest",
+      "apiKey": "AIzaSy-xxxxx",
+      "model": "gemini-2.0-flash",
       "maxContextTokens": 1000000
     }
   ]
 }
 ```
 
-### 支持的 Provider
+> **注意**: API Key 直接写在配置文件中。推荐使用 `/model add` 向导配置。
+
+### 支持的 Provider 类型
 
 | Provider | 说明 | 必填字段 |
 |----------|------|----------|
-| `openai-compatible` | OpenAI 兼容接口（Qwen、DeepSeek、Ollama 等） | baseUrl, apiKey, model |
+| `openai-compatible` | OpenAI 兼容接口（60+ Provider 通用） | baseUrl, apiKey, model |
 | `anthropic` | Anthropic Claude | apiKey, model |
 | `gemini` | Google Gemini | apiKey, model |
 | `azure-openai` | Azure OpenAI Service | baseUrl, apiKey, model, apiVersion |
 | `copilot` | GitHub Copilot（OAuth 认证） | - |
 | `antigravity` | Google Antigravity（OAuth 认证） | projectId |
+
+### Provider 与 Service 映射
+
+大多数 Provider 使用 **OpenAI 兼容 API**，只需配置不同的 `baseUrl`：
+
+| models.dev Provider | Blade Service | 说明 |
+|---------------------|---------------|------|
+| `anthropic` | `anthropic` | Claude 专有 API |
+| `google`, `google-vertex` | `gemini` | Gemini 专有 API |
+| `azure` | `azure-openai` | Azure 特殊认证 |
+| 其他 60+ Provider | `openai-compatible` | OpenAI 兼容 API |
+
+### 常用 Provider Base URL
+
+| Provider | Base URL |
+|----------|----------|
+| OpenAI | `https://api.openai.com/v1` |
+| Anthropic | `https://api.anthropic.com` |
+| DeepSeek | `https://api.deepseek.com/v1` |
+| Groq | `https://api.groq.com/openai/v1` |
+| OpenRouter | `https://openrouter.ai/api/v1` |
+| Together AI | `https://api.together.xyz/v1` |
+| Fireworks | `https://api.fireworks.ai/inference/v1` |
+| Mistral | `https://api.mistral.ai/v1` |
+| Perplexity | `https://api.perplexity.ai` |
+| xAI | `https://api.x.ai/v1` |
+| Cerebras | `https://api.cerebras.ai/v1` |
+| NVIDIA | `https://integrate.api.nvidia.com/v1` |
 
 ### 模型字段说明
 
@@ -108,6 +187,19 @@ Blade 支持配置多个模型，通过 `currentModelId` 指定当前使用的�
 | `supportsThinking` | boolean | 是否支持思维链（DeepSeek R1 等） |
 | `thinkingBudget` | number | 思维链 token 预算 |
 | `apiVersion` | string | API 版本（Azure OpenAI 必填） |
+| `providerId` | string | models.dev Provider ID（用于自动注入特定 headers） |
+
+### Provider 特定 Headers
+
+某些 Provider 需要特殊的 HTTP Headers，Blade 会自动注入：
+
+| Provider | Headers | 用途 |
+|----------|---------|------|
+| `anthropic` | `anthropic-beta` | 启用 Claude Code、Interleaved Thinking 等 beta 功能 |
+| `openrouter` | `HTTP-Referer`, `X-Title` | 标识来源应用 |
+| `cerebras` | `X-Cerebras-3rd-Party-Integration` | 第三方集成标识 |
+
+当通过向导配置时，`providerId` 会自动设置，无需手动配置。
 
 ### 通用参数
 
@@ -218,12 +310,12 @@ Blade 支持配置多个模型，通过 `currentModelId` 指定当前使用的�
 
 ## 环境变量插值
 
-所有字符串字段支持环境变量插值：
+**顶层字符串字段**支持环境变量插值：
 
 ```json
 {
-  "apiKey": "${QWEN_API_KEY}",
-  "baseUrl": "${BLADE_BASE_URL:-https://api.example.com/v1}"
+  "theme": "${BLADE_THEME:-GitHub}",
+  "language": "${BLADE_LANG:-zh-CN}"
 }
 ```
 
@@ -232,6 +324,8 @@ Blade 支持配置多个模型，通过 `currentModelId` 指定当前使用的�
 - `$VAR` - 简单引用
 - `${VAR}` - 花括号引用
 - `${VAR:-default}` - 带默认值
+
+> **限制**: 环境变量插值仅适用于顶层字符串字段。`models` 数组中的 `apiKey` 等嵌套字段**不支持**环境变量插值，需要直接填写实际值。
 
 ## MCP 服务器配置
 
@@ -281,15 +375,34 @@ Blade 支持配置多个模型，通过 `currentModelId` 指定当前使用的�
 
 ```json
 {
-  "currentModelId": "qwen",
+  "currentModelId": "claude",
   "models": [
     {
-      "id": "qwen",
-      "name": "Qwen Max",
+      "id": "claude",
+      "name": "Claude Sonnet 4",
+      "provider": "anthropic",
+      "providerId": "anthropic",
+      "apiKey": "sk-ant-api03-xxxxx",
+      "model": "claude-sonnet-4-0"
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek R1",
       "provider": "openai-compatible",
-      "apiKey": "${QWEN_API_KEY}",
-      "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      "model": "qwen-max"
+      "providerId": "deepseek",
+      "apiKey": "sk-xxxxx",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "model": "deepseek-reasoner",
+      "supportsThinking": true
+    },
+    {
+      "id": "groq",
+      "name": "Groq Llama 3.3",
+      "provider": "openai-compatible",
+      "providerId": "groq",
+      "apiKey": "gsk_xxxxx",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "model": "llama-3.3-70b-versatile"
     }
   ],
   "theme": "GitHub",
@@ -340,7 +453,7 @@ Blade 支持配置多个模型，通过 `currentModelId` 指定当前使用的�
 ## 配置入口
 
 - **首次启动**：若未检测到模型，自动使用内置免费模型 GLM-4.7
-- **UI 内配置**：输入 `/model add` 打开向导添加自定义模型
+- **UI 内配置**：输入 `/model add` 打开向导添加自定义模型（支持 80+ Provider）
 - **手工编辑**：直接修改配置文件，保存后下次启动生效
 - **自动写入**：在权限确认弹窗中选择"会话内记住"会写入 `settings.local.json`
 
