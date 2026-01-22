@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.1.10] - 2026-01-22
+
+### ♻️ 代码重构
+
+- 使用运行时验证替代静态枚举检查 (ae3c033)
+
+
 ## [0.1.9] - 2026-01-22
 
 ### ✨ 新功能
