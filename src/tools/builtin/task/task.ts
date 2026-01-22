@@ -63,14 +63,17 @@ function extractUserFriendlyError(error: Error): string {
 }
 
 /**
- * 获取可用的 subagent 类型（用于 Zod 枚举）
+ * 验证 subagent 类型是否有效（运行时验证）
+ * 不能使用 z.enum() 因为它在模块加载时调用，此时 registry 还未初始化
  */
-function getAvailableSubagentTypes(): [string, ...string[]] {
+function isValidSubagentType(type: string): boolean {
   const types = subagentRegistry.getAllNames();
-  if (types.length === 0) {
-    return ['Explore']; // 默认值，避免 Zod 空数组报错
-  }
-  return types as [string, ...string[]];
+  return types.includes(type);
+}
+
+function getAvailableSubagentTypesMessage(): string {
+  const types = subagentRegistry.getAllNames();
+  return types.length > 0 ? types.join(', ') : 'none (registry not initialized)';
 }
 
 /**
@@ -127,9 +130,14 @@ export const taskTool = createTool({
   isReadOnly: true,
 
   // Zod Schema 定义
+  // 注意：使用 z.string() + refine 而非 z.enum()，因为 enum 在模块加载时求值，
+  // 此时 subagentRegistry 还未初始化，会导致只接受默认值
   schema: z.object({
     subagent_type: z
-      .enum(getAvailableSubagentTypes())
+      .string()
+      .refine(isValidSubagentType, (val) => ({
+        message: `Invalid subagent type: "${val}". Available: ${getAvailableSubagentTypesMessage()}`,
+      }))
       .describe('Subagent type to use (e.g., "Explore", "Plan")'),
     description: z
       .string()
