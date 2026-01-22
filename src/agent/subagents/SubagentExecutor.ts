@@ -34,14 +34,26 @@ export class SubagentExecutor {
       let toolCallCount = 0;
       let tokensUsed = 0;
 
-      const loopResult = await agent.runAgenticLoop(context.prompt, {
-        messages: [],
-        userId: 'subagent',
-        sessionId: context.parentSessionId || `subagent_${Date.now()}`,
-        workspaceRoot: process.cwd(),
-        permissionMode: context.permissionMode, // 继承父 Agent 的权限模式
-        systemPrompt, // 🆕 无状态设计：通过 context 传入 systemPrompt
-      });
+      const loopResult = await agent.runAgenticLoop(
+        context.prompt,
+        {
+          messages: [],
+          userId: 'subagent',
+          sessionId: context.parentSessionId || `subagent_${Date.now()}`,
+          workspaceRoot: process.cwd(),
+          permissionMode: context.permissionMode, // 继承父 Agent 的权限模式
+          systemPrompt, // 🆕 无状态设计：通过 context 传入 systemPrompt
+        },
+        {
+          onToolStart: context.onToolStart
+            ? (toolCall) => {
+                const name =
+                  'function' in toolCall ? toolCall.function.name : 'unknown';
+                context.onToolStart!(name);
+              }
+            : undefined,
+        }
+      );
 
       if (loopResult.success) {
         finalMessage = loopResult.finalMessage || '';

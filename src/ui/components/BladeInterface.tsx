@@ -2,25 +2,25 @@ import { useMemoizedFn } from 'ahooks';
 import { Box, useApp } from 'ink';
 import React, { useEffect, useRef } from 'react';
 import {
-  type ModelConfig,
-  PermissionMode,
-  type SetupConfig,
+    type ModelConfig,
+    PermissionMode,
+    type SetupConfig,
 } from '../../config/types.js';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
 import { safeExit } from '../../services/GracefulShutdown.js';
 import { SessionService } from '../../services/SessionService.js';
 import { SpecManager } from '../../spec/SpecManager.js';
 import {
-  useActiveModal,
-  useAppActions,
-  useFocusActions,
-  useInitializationError,
-  useInitializationStatus,
-  useIsProcessing,
-  useModelEditorTarget,
-  usePermissionMode,
-  useSessionActions,
-  useSessionSelectorData,
+    useActiveModal,
+    useAppActions,
+    useFocusActions,
+    useInitializationError,
+    useInitializationStatus,
+    useIsProcessing,
+    useModelEditorTarget,
+    usePermissionMode,
+    useSessionActions,
+    useSessionSelectorData,
 } from '../../store/selectors/index.js';
 import { FocusId } from '../../store/types.js';
 import { configActions, getMessages } from '../../store/vanilla.js';
@@ -49,6 +49,7 @@ import { QuestionPrompt } from './QuestionPrompt.js';
 import { SessionSelector } from './SessionSelector.js';
 import { SkillsManager } from './SkillsManager.js';
 import { SpecStatusPanel } from './SpecStatusPanel.js';
+import { SubagentProgress } from './SubagentProgress.js';
 import { ThemeSelector } from './ThemeSelector.js';
 
 // 创建 BladeInterface 专用 Logger
@@ -639,6 +640,9 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
 
         {/* MessageArea 内部直接获取状态，不需要 props */}
         <MessageArea />
+
+        {/* Subagent 进度指示器 - 显示在加载指示器上方 */}
+        <SubagentProgress />
 
         {/* 加载指示器 - 当有阻塞弹窗时暂停动画，避免无意义的重渲染 */}
         <LoadingIndicator paused={hasBlockingModal} />

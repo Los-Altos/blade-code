@@ -188,6 +188,18 @@ export type ActiveModal =
   | 'pluginsManager';
 
 /**
+ * Subagent 进度状态
+ */
+export interface SubagentProgress {
+  id: string;
+  type: string;
+  description: string;
+  status: 'running' | 'completed' | 'failed';
+  currentTool?: string;
+  startTime: number;
+}
+
+/**
  * 应用状态（纯 UI 状态）
  */
 export interface AppState {
@@ -199,6 +211,7 @@ export interface AppState {
   todos: TodoItem[];
   awaitingSecondCtrlC: boolean; // 是否等待第二次 Ctrl+C 退出
   thinkingModeEnabled: boolean; // Thinking 模式是否启用（Tab 切换）
+  subagentProgress: SubagentProgress | null; // 当前 subagent 执行进度
 }
 
 /**
@@ -217,6 +230,10 @@ export interface AppActions {
   // Thinking 模式相关
   setThinkingModeEnabled: (enabled: boolean) => void;
   toggleThinkingMode: () => void;
+  // Subagent 进度相关
+  startSubagentProgress: (id: string, type: string, description: string) => void;
+  updateSubagentTool: (toolName: string) => void;
+  completeSubagentProgress: (success: boolean) => void;
 }
 
 /**

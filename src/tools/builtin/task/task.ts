@@ -9,6 +9,7 @@
  * 6. 会话恢复 - 支持 resume 参数
  */
 
+import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { BackgroundAgentManager } from '../../../agent/subagents/BackgroundAgentManager.js';
 import { SubagentExecutor } from '../../../agent/subagents/SubagentExecutor.js';
@@ -19,9 +20,47 @@ import type {
 } from '../../../agent/subagents/types.js';
 import { PermissionMode } from '../../../config/types.js';
 import { HookManager } from '../../../hooks/HookManager.js';
+import { vanillaStore } from '../../../store/vanilla.js';
 import { createTool } from '../../core/createTool.js';
 import type { ExecutionContext, ToolResult } from '../../types/index.js';
 import { ToolErrorType, ToolKind } from '../../types/index.js';
+
+/**
+ * 从错误中提取用户友好的错误信息
+ */
+function extractUserFriendlyError(error: Error): string {
+  const message = error.message || 'Unknown error';
+
+  // 检查是否是 API 限流错误
+  if (message.includes('Too Many Requests') || message.includes('429')) {
+    // 尝试从错误链中提取更详细的信息
+    const cause = (error as { cause?: { responseBody?: string } }).cause;
+    if (cause?.responseBody) {
+      try {
+        const body = JSON.parse(cause.responseBody);
+        if (body.message) {
+          return body.message;
+        }
+      } catch {
+        // 忽略解析错误
+      }
+    }
+    return 'API 请求过于频繁，请稍后重试';
+  }
+
+  // 检查是否是网络错误
+  if (message.includes('ECONNREFUSED') || message.includes('ETIMEDOUT')) {
+    return '网络连接失败，请检查网络设置';
+  }
+
+  // 检查是否是认证错误
+  if (message.includes('401') || message.includes('Unauthorized')) {
+    return 'API 认证失败，请检查 API Key 配置';
+  }
+
+  // 返回简化的错误信息（不包含堆栈）
+  return message.split('\n')[0];
+}
 
 /**
  * 获取可用的 subagent 类型（用于 Zod 枚举）
@@ -191,11 +230,20 @@ export const taskTool = createTool({
       // 创建执行器
       const executor = new SubagentExecutor(subagentConfig);
 
+      // 生成唯一 ID 并启动进度显示
+      const subagentId = nanoid(8);
+      vanillaStore
+        .getState()
+        .app.actions.startSubagentProgress(subagentId, subagent_type, description);
+
       // 构建执行上下文
       const subagentContext: SubagentContext = {
         prompt,
         parentSessionId: context.sessionId,
         permissionMode: context.permissionMode, // 继承父 Agent 的权限模式
+        onToolStart: (toolName) => {
+          vanillaStore.getState().app.actions.updateSubagentTool(toolName);
+        },
       };
 
       updateOutput?.(`⚙️  执行任务中...`);
@@ -247,7 +295,10 @@ export const taskTool = createTool({
         console.warn('[Task] SubagentStop hook execution failed:', hookError);
       }
 
-      // 6. 返回结果
+      // 6. 完成进度显示
+      vanillaStore.getState().app.actions.completeSubagentProgress(result.success);
+
+      // 7. 返回结果
       if (result.success) {
         const outputPreview =
           result.message.length > 1000
@@ -289,11 +340,16 @@ export const taskTool = createTool({
         };
       }
     } catch (error) {
+      // 异常时也要完成进度显示
+      vanillaStore.getState().app.actions.completeSubagentProgress(false);
+
       const err = error as Error;
+      const errorMessage = extractUserFriendlyError(err);
+
       return {
         success: false,
         llmContent: `Subagent execution error: ${err.message}`,
-        displayContent: `❌ Subagent 执行异常\n\n${err.message}\n\n${err.stack || ''}`,
+        displayContent: `❌ Subagent 执行异常\n\n${errorMessage}`,
         error: {
           type: ToolErrorType.EXECUTION_ERROR,
           message: err.message,

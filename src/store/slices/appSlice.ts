@@ -33,6 +33,7 @@ const initialAppState: AppState = {
   todos: [],
   awaitingSecondCtrlC: false,
   thinkingModeEnabled: false, // Thinking 模式默认关闭
+  subagentProgress: null, // 当前无 subagent 执行
 };
 
 /**
@@ -157,6 +158,68 @@ export const createAppSlice: StateCreator<BladeStore, [], [], AppSlice> = (set) 
       set((state) => ({
         app: { ...state.app, thinkingModeEnabled: !state.app.thinkingModeEnabled },
       }));
+    },
+
+    // ==================== Subagent 进度相关 actions ====================
+
+    /**
+     * 开始 subagent 执行进度
+     */
+    startSubagentProgress: (id: string, type: string, description: string) => {
+      set((state) => ({
+        app: {
+          ...state.app,
+          subagentProgress: {
+            id,
+            type,
+            description,
+            status: 'running',
+            startTime: Date.now(),
+          },
+        },
+      }));
+    },
+
+    /**
+     * 更新当前执行的工具名称
+     */
+    updateSubagentTool: (toolName: string) => {
+      set((state) => {
+        if (!state.app.subagentProgress) return state;
+        return {
+          app: {
+            ...state.app,
+            subagentProgress: {
+              ...state.app.subagentProgress,
+              currentTool: toolName,
+            },
+          },
+        };
+      });
+    },
+
+    /**
+     * 完成 subagent 执行
+     */
+    completeSubagentProgress: (success: boolean) => {
+      set((state) => {
+        if (!state.app.subagentProgress) return state;
+        return {
+          app: {
+            ...state.app,
+            subagentProgress: {
+              ...state.app.subagentProgress,
+              status: success ? 'completed' : 'failed',
+              currentTool: undefined,
+            },
+          },
+        };
+      });
+      setTimeout(() => {
+        set((state) => ({
+          app: { ...state.app, subagentProgress: null },
+        }));
+      }, 1500);
     },
   },
 });
