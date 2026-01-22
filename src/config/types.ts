@@ -3,17 +3,6 @@
  * 合并了 config.json 和 settings.json 的所有配置项
  */
 
-/**
- * LLM API 提供商类型
- *
- * 支持的 Provider：
- * - openai-compatible: OpenAI 兼容 API（DeepSeek、Ollama 等）
- * - anthropic: Anthropic Claude API
- * - gemini: Google Gemini API
- * - azure-openai: Azure OpenAI Service
- * - antigravity: Google Antigravity（OAuth 认证，统一网关访问 Claude/Gemini/GPT-OSS）
- * - copilot: GitHub Copilot（OAuth 认证，访问 GPT-4o/Claude/Gemini 等模型）
- */
 export type ProviderType =
   | 'openai-compatible'
   | 'anthropic'
@@ -68,33 +57,23 @@ export enum PermissionMode {
 import type { HookConfig as HookConfigType } from '../hooks/types/HookTypes.js';
 export type HookConfig = HookConfigType;
 
-/**
- * 单个模型配置
- */
 export interface ModelConfig {
-  id: string; // nanoid 自动生成
-  name: string; // 显示名称
+  id: string;
+  name: string;
   provider: ProviderType;
   apiKey: string;
   baseUrl: string;
   model: string;
-
-  // 可选：模型特定参数
   temperature?: number;
-  maxContextTokens?: number; // 上下文窗口大小
-  maxOutputTokens?: number; // 输出 token 限制
+  maxContextTokens?: number;
+  maxOutputTokens?: number;
   topP?: number;
   topK?: number;
-
-  // Thinking 模型配置（如 DeepSeek R1）
-  supportsThinking?: boolean; // 手动覆盖自动检测结果
-  thinkingBudget?: number; // 思考 token 预算（可选）
-
-  // GPT OpenAI Platform 特有配置
-  apiVersion?: string; // API 版本（如 '2024-03-01-preview'）
-
-  // Antigravity 特有配置
-  projectId?: string; // Antigravity 项目 ID（可通过 API 自动获取）
+  supportsThinking?: boolean;
+  thinkingBudget?: number;
+  apiVersion?: string;
+  projectId?: string;
+  providerId?: string;
 }
 
 export interface BladeConfig {
@@ -237,9 +216,12 @@ export interface McpServerConfig {
  * 注意：这是用于创建第一个模型配置的数据
  */
 export interface SetupConfig {
-  name: string; // 模型配置名称
+  name: string;
   provider: ProviderType;
   baseUrl: string;
   apiKey: string;
   model: string;
+  maxContextTokens?: number;
+  maxOutputTokens?: number;
+  providerId?: string;
 }

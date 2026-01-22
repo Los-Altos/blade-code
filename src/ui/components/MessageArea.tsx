@@ -364,8 +364,8 @@ export const MessageArea: React.FC = React.memo(() => {
   ]);
 
   return (
-    <Box flexDirection="column" flexGrow={1} paddingX={2}>
-      <Box flexDirection="column" flexGrow={1}>
+    <Box flexDirection="column" paddingX={2}>
+      <Box flexDirection="column">
         <Static key={clearCount} items={staticItems}>
           {(item) => item}
         </Static>

@@ -4,23 +4,37 @@
  */
 
 import type {
-  ChatCompletionChunk,
-  ChatCompletionMessageToolCall,
+    ChatCompletionChunk,
+    ChatCompletionMessageToolCall,
 } from 'openai/resources/chat';
 import { isBuiltinApiKey } from '../config/builtinModels.js';
 import type { ProviderType } from '../config/types.js';
 import { createLogger, LogCategory } from '../logging/Logger.js';
 import type { MessageRole } from '../store/types.js';
 import { getProviderHeaders } from '../ui/components/model-config/types.js';
-import { AnthropicChatService } from './AnthropicChatService.js';
 import { AntigravityChatService } from './AntigravityChatService.js';
-import { AzureOpenAIChatService } from './AzureOpenAIChatService.js';
 import { resolveBuiltinApiKey } from './BuiltinKeyService.js';
 import { CopilotChatService } from './CopilotChatService.js';
-import { GeminiChatService } from './GeminiChatService.js';
-import { OpenAIChatService } from './OpenAIChatService.js';
+import { VercelAIChatService } from './VercelAIChatService.js';
 
 const logger = createLogger(LogCategory.SERVICE);
+
+/**
+ * Anthropic Prompt Caching 配置
+ * 用于标记可缓存的内容，减少 token 消耗（成本降低 90%，延迟降低 85%）
+ */
+export interface AnthropicCacheControl {
+  type: 'ephemeral';
+}
+
+/**
+ * Provider 特定选项
+ */
+export interface ProviderOptions {
+  anthropic?: {
+    cacheControl?: AnthropicCacheControl;
+  };
+}
 
 /**
  * 多模态内容部分 - 文本
@@ -28,6 +42,7 @@ const logger = createLogger(LogCategory.SERVICE);
 interface TextContentPart {
   type: 'text';
   text: string;
+  providerOptions?: ProviderOptions;
 }
 
 /**
@@ -97,6 +112,8 @@ export interface UsageInfo {
   completionTokens: number;
   totalTokens: number;
   reasoningTokens?: number; // Thinking 模型消耗的推理 tokens
+  cacheCreationInputTokens?: number; // Anthropic: 缓存创建消耗的 tokens
+  cacheReadInputTokens?: number; // Anthropic: 缓存读取的 tokens（节省的部分）
 }
 
 export interface ChatResponse {
@@ -206,18 +223,6 @@ export async function createChatServiceAsync(
 
 function createChatServiceInternal(config: ChatConfig): IChatService {
   switch (config.provider) {
-    case 'openai-compatible':
-      return new OpenAIChatService(config);
-
-    case 'anthropic':
-      return new AnthropicChatService(config);
-
-    case 'gemini':
-      return new GeminiChatService(config);
-
-    case 'azure-openai':
-      return new AzureOpenAIChatService(config);
-
     case 'antigravity':
       return new AntigravityChatService(config);
 
@@ -225,7 +230,6 @@ function createChatServiceInternal(config: ChatConfig): IChatService {
       return new CopilotChatService(config);
 
     default:
-      logger.warn(`⚠️  未知的 provider: ${config.provider}, 回退到 openai-compatible`);
-      return new OpenAIChatService(config);
+      return new VercelAIChatService(config);
   }
 }

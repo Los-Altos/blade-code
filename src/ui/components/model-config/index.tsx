@@ -99,7 +99,8 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
     setError(undefined);
 
     const defaultUrl = provider ? getDefaultBaseUrl(provider) : '';
-    if (!defaultUrl && !baseUrl) {
+    const isCustomProvider = provider?.isCustom;
+    if (isCustomProvider || (!defaultUrl && !baseUrl)) {
       setStep('baseUrl');
     } else {
       setStep('model');
@@ -137,6 +138,9 @@ export const ModelConfigWizard: React.FC<ModelConfigWizardProps> = ({
         baseUrl: finalBaseUrl,
         apiKey: provider?.isOAuth ? 'oauth' : apiKey,
         model: selected.id,
+        ...(selected.contextWindow && { maxContextTokens: selected.contextWindow }),
+        ...(selected.maxOutput && { maxOutputTokens: selected.maxOutput }),
+        ...(provider?.id && { providerId: provider.id }),
       };
 
       if (mode === 'setup') {

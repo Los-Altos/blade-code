@@ -1,4 +1,3 @@
-import type { Message } from '../../services/ChatServiceInterface.js';
 import { Agent } from '../Agent.js';
 import type { SubagentConfig, SubagentContext, SubagentResult } from './types.js';
 
@@ -15,6 +14,7 @@ export class SubagentExecutor {
 
   /**
    * 执行 subagent 任务
+   * 无状态设计：systemPrompt 通过 ChatContext 传入
    */
   async execute(context: SubagentContext): Promise<SubagentResult> {
     const startTime = Date.now();
@@ -23,32 +23,24 @@ export class SubagentExecutor {
       // 1. 构建系统提示
       const systemPrompt = this.buildSystemPrompt(context);
 
-      // 2. 创建子 Agent（使用 systemPrompt 和 toolWhitelist）
+      // 2. 创建子 Agent（无状态设计：不再传递 systemPrompt 到 AgentOptions）
       const agent = await Agent.create({
-        systemPrompt,
         toolWhitelist: this.config.tools, // 应用工具白名单
       });
 
-      // 3. 构建初始消息
-      const _messages: Message[] = [
-        {
-          role: 'user',
-          content: context.prompt,
-        },
-      ];
-
-      // 4. 执行对话循环（让 Agent 自主完成任务）
+      // 3. 执行对话循环（让 Agent 自主完成任务）
+      // 无状态设计：systemPrompt 通过 ChatContext 传入
       let finalMessage = '';
       let toolCallCount = 0;
       let tokensUsed = 0;
 
-      // 使用 runAgenticLoop 让 subagent 自主执行
       const loopResult = await agent.runAgenticLoop(context.prompt, {
         messages: [],
         userId: 'subagent',
         sessionId: context.parentSessionId || `subagent_${Date.now()}`,
         workspaceRoot: process.cwd(),
         permissionMode: context.permissionMode, // 继承父 Agent 的权限模式
+        systemPrompt, // 🆕 无状态设计：通过 context 传入 systemPrompt
       });
 
       if (loopResult.success) {
@@ -59,7 +51,7 @@ export class SubagentExecutor {
         throw new Error(loopResult.error?.message || 'Subagent execution failed');
       }
 
-      // 5. 返回结果
+      // 4. 返回结果
       const duration = Date.now() - startTime;
 
       return {

@@ -33,6 +33,7 @@ export interface ProviderOption {
   docUrl?: string;
   defaultBaseUrl?: string;
   bladeProvider: ProviderType;
+  isCustom?: boolean;
 }
 
 export interface ModelOption {

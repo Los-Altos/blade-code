@@ -16,6 +16,17 @@ interface UseProvidersResult {
   error: string | null;
 }
 
+const CUSTOM_PROVIDER: ProviderOption = {
+  id: 'custom-openai-compatible',
+  name: '自定义 OpenAI Compatible',
+  icon: '🔧',
+  description: '使用自定义 Base URL 和 API Key',
+  isOAuth: false,
+  envVars: [],
+  bladeProvider: 'openai-compatible',
+  isCustom: true,
+};
+
 export const useProviders = (): UseProvidersResult => {
   const [providers, setProviders] = useState<ProviderOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,7 +49,7 @@ export const useProviders = (): UseProvidersResult => {
           })
         );
 
-        setProviders([...oauthProviders, ...apiProviders]);
+        setProviders([...oauthProviders, CUSTOM_PROVIDER, ...apiProviders]);
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载 Provider 列表失败');
       } finally {

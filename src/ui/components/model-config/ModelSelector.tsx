@@ -64,12 +64,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   initialModel,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [isCustomMode, setIsCustomMode] = useState(false);
+  const isCustomProvider = provider.isCustom || models.length === 0;
+  const [isCustomMode, setIsCustomMode] = useState(isCustomProvider);
   const [customModel, setCustomModel] = useState(initialModel || '');
 
   useInput((input, key) => {
     if (key.escape) {
-      if (isCustomMode) {
+      if (isCustomMode && !isCustomProvider) {
         setIsCustomMode(false);
         setCustomModel(initialModel || '');
       } else if (searchQuery) {
@@ -142,7 +143,11 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       {isCustomMode ? (
         <Box flexDirection="column">
           <Box marginBottom={1}>
-            <Text dimColor>输入自定义模型名称（按 Esc 返回列表）：</Text>
+            <Text dimColor>
+              {isCustomProvider
+                ? '输入模型名称：'
+                : '输入自定义模型名称（按 Esc 返回列表）：'}
+            </Text>
           </Box>
           <Box>
             <Text bold color="cyan">▶ </Text>

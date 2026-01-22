@@ -33,6 +33,7 @@ export interface ChatContext {
   signal?: AbortSignal;
   confirmationHandler?: ConfirmationHandler; // 会话级别的确认处理器
   permissionMode?: PermissionMode; // 当前权限模式（用于 Plan 模式判断）
+  systemPrompt?: string; // 动态传入的系统提示词（无状态设计）
 }
 
 /**

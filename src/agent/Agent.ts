@@ -13,10 +13,10 @@
 import * as os from 'os';
 import * as path from 'path';
 import {
-  type BladeConfig,
-  ConfigManager,
-  type PermissionConfig,
-  PermissionMode,
+    type BladeConfig,
+    ConfigManager,
+    type PermissionConfig,
+    PermissionMode,
 } from '../config/index.js';
 import { CompactionService } from '../context/CompactionService.js';
 import { ContextManager } from '../context/ContextManager.js';
@@ -30,12 +30,12 @@ import { AttachmentCollector } from '../prompts/processors/AttachmentCollector.j
 import type { Attachment } from '../prompts/processors/types.js';
 import { buildSpecModePrompt, createSpecModeReminder } from '../prompts/spec.js';
 import {
-  type ChatResponse,
-  type ContentPart,
-  createChatServiceAsync,
-  type IChatService,
-  type Message,
-  type StreamToolCall,
+    type ChatResponse,
+    type ContentPart,
+    createChatServiceAsync,
+    type IChatService,
+    type Message,
+    type StreamToolCall,
 } from '../services/ChatServiceInterface.js';
 import type { JsonValue } from '../store/types.js';
 
@@ -47,17 +47,18 @@ function toJsonValue(value: string | object): JsonValue {
     return String(value);
   }
 }
+
 import { discoverSkills, injectSkillsMetadata } from '../skills/index.js';
 import { SpecManager } from '../spec/SpecManager.js';
 import {
-  appActions,
-  configActions,
-  ensureStoreInitialized,
-  getAllModels,
-  getConfig,
-  getCurrentModel,
-  getMcpServers,
-  getThinkingModeEnabled,
+    appActions,
+    configActions,
+    ensureStoreInitialized,
+    getAllModels,
+    getConfig,
+    getCurrentModel,
+    getMcpServers,
+    getThinkingModeEnabled,
 } from '../store/vanilla.js';
 import { getBuiltinTools } from '../tools/builtin/index.js';
 import { ExecutionPipeline } from '../tools/execution/ExecutionPipeline.js';
@@ -68,13 +69,13 @@ import { isThinkingModel } from '../utils/modelDetection.js';
 import { ExecutionEngine } from './ExecutionEngine.js';
 import { subagentRegistry } from './subagents/SubagentRegistry.js';
 import type {
-  AgentOptions,
-  AgentResponse,
-  AgentTask,
-  ChatContext,
-  LoopOptions,
-  LoopResult,
-  UserMessageContent,
+    AgentOptions,
+    AgentResponse,
+    AgentTask,
+    ChatContext,
+    LoopOptions,
+    LoopResult,
+    UserMessageContent,
 } from './types.js';
 
 // 创建 Agent 专用 Logger
@@ -96,7 +97,7 @@ export class Agent {
   private isInitialized = false;
   private activeTask?: AgentTask;
   private executionPipeline: ExecutionPipeline;
-  private systemPrompt?: string;
+  // systemPrompt 已移除 - 改为从 context 参数传入（无状态设计）
   // sessionId 已移除 - 改为从 context 参数传入（无状态设计）
 
   // 核心组件
@@ -522,6 +523,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
 
   /**
    * 普通模式入口 - 准备普通模式配置后调用通用循环
+   * 无状态设计：systemPrompt 从 context 传入，或按需动态构建
    */
   private async runLoop(
     message: UserMessageContent,
@@ -530,15 +532,33 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
   ): Promise<LoopResult> {
     logger.debug('💬 Processing enhanced chat message...');
 
-    // 普通模式：环境上下文 + 已初始化的系统提示词
-    // 注意：this.systemPrompt 在 initializeSystemPrompt 中已构建（不含环境上下文）
+    // 无状态设计：优先使用 context.systemPrompt，否则按需构建
+    const basePrompt =
+      context.systemPrompt ?? (await this.buildSystemPromptOnDemand());
     const envContext = getEnvironmentContext();
-    const systemPrompt = this.systemPrompt
-      ? `${envContext}\n\n---\n\n${this.systemPrompt}`
+    const systemPrompt = basePrompt
+      ? `${envContext}\n\n---\n\n${basePrompt}`
       : envContext;
 
     // 调用通用循环
     return this.executeLoop(message, context, options, systemPrompt);
+  }
+
+  /**
+   * 按需构建系统提示词（用于未传入 context.systemPrompt 的场景）
+   */
+  private async buildSystemPromptOnDemand(): Promise<string> {
+    const replacePrompt = this.runtimeOptions.systemPrompt;
+    const appendPrompt = this.runtimeOptions.appendSystemPrompt;
+
+    const result = await buildSystemPrompt({
+      projectPath: process.cwd(),
+      replaceDefault: replacePrompt,
+      append: appendPrompt,
+      includeEnvironment: false,
+    });
+
+    return result.prompt;
   }
 
   /**
@@ -589,8 +609,20 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
       const messages: Message[] = [];
 
       // 注入系统提示词（由调用方决定使用哪个提示词）
+      // 🆕 为 Anthropic 模型启用 Prompt Caching（成本降低 90%，延迟降低 85%）
       if (needsSystemPrompt && systemPrompt) {
-        messages.push({ role: 'system', content: systemPrompt });
+        messages.push({
+          role: 'system',
+          content: [
+            {
+              type: 'text',
+              text: systemPrompt,
+              providerOptions: {
+                anthropic: { cacheControl: { type: 'ephemeral' } },
+              },
+            },
+          ],
+        });
       }
 
       // 添加历史消息和当前用户消息
@@ -1655,6 +1687,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
     }
 
     // 规范化上下文为 ChatContext
+    // 🔧 修复：确保复制 systemPrompt 和 permissionMode，避免子代理行为回归
     const chatContext: ChatContext = {
       messages: context.messages as Message[],
       userId: (context.userId as string) || 'subagent',
@@ -1662,6 +1695,8 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
       workspaceRoot: (context.workspaceRoot as string) || process.cwd(),
       signal: context.signal,
       confirmationHandler: context.confirmationHandler,
+      permissionMode: context.permissionMode, // 继承权限模式
+      systemPrompt: context.systemPrompt, // 🆕 继承系统提示词（无状态设计关键）
     };
 
     // 调用重构后的 runLoop
@@ -1809,46 +1844,43 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
   }
 
   /**
-   * 初始化系统提示
-   * 使用 buildSystemPrompt 统一入口构建（不含环境上下文，环境上下文在 executeLoop 中根据模式添加）
+   * 初始化系统提示（无状态设计：仅验证配置，不存储状态）
+   * 实际的 systemPrompt 在每次请求时通过 context.systemPrompt 传入或按需构建
    */
   private async initializeSystemPrompt(): Promise<void> {
     try {
-      // 从运行时选项中获取系统提示配置
-      const replacePrompt = this.runtimeOptions.systemPrompt; // 完全替换模式
-      const appendPrompt = this.runtimeOptions.appendSystemPrompt; // 追加模式
+      // 验证系统提示配置是否有效（预热构建，但不存储结果）
+      const replacePrompt = this.runtimeOptions.systemPrompt;
+      const appendPrompt = this.runtimeOptions.appendSystemPrompt;
 
-      // 使用新的统一入口构建系统提示
-      // 注意：不包含环境上下文，因为 executeLoop 会根据模式（Plan/Normal）单独添加
       const result = await buildSystemPrompt({
         projectPath: process.cwd(),
         replaceDefault: replacePrompt,
         append: appendPrompt,
-        includeEnvironment: false, // 环境上下文在 executeLoop 中添加
+        includeEnvironment: false,
       });
 
-      this.systemPrompt = result.prompt;
-
-      if (this.systemPrompt) {
-        this.log('系统提示已加载');
+      if (result.prompt) {
+        this.log('系统提示配置验证成功');
         logger.debug(
-          `[SystemPrompt] 加载来源: ${result.sources
+          `[SystemPrompt] 可用来源: ${result.sources
             .filter((s) => s.loaded)
             .map((s) => s.name)
             .join(', ')}`
         );
       }
     } catch (error) {
-      this.error('初始化系统提示失败', error);
+      this.error('系统提示配置验证失败', error);
       // 系统提示失败不应该阻止 Agent 初始化
     }
   }
 
   /**
-   * 获取系统提示
+   * 获取系统提示（按需构建，无状态设计）
+   * @deprecated 建议通过 context.systemPrompt 传入，或使用 buildSystemPromptOnDemand
    */
-  public getSystemPrompt(): string | undefined {
-    return this.systemPrompt;
+  public async getSystemPrompt(): Promise<string | undefined> {
+    return this.buildSystemPromptOnDemand();
   }
 
   /**
