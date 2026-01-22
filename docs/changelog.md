@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.1.9] - 2026-01-22
+
+### ✨ 新功能
+
+- 添加子任务执行进度显示功能 (a3254c3)
+- 重构聊天服务以支持无状态设计和AI SDK集成 (60fce5a)
+
+### 📝 文档更新
+
+- 更新文档内容，添加自定义Provider和OAuth命令说明 (f99a563)
+
+
 ## [0.1.8] - 2026-01-16
 
 ### ✨ 新功能
