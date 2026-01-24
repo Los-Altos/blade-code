@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useAppStore } from "@/store/app-store"
-import { useTheme } from "@/components/theme-provider"
+import { useAppStore } from "@/store/AppStore"
+import { useTheme } from "@/components/ThemeProvider"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 

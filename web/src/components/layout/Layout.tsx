@@ -1,5 +1,5 @@
 import { Sidebar } from './Sidebar'
-import { useAppStore } from '@/store/app-store'
+import { useAppStore } from '@/store/AppStore'
 import { cn } from '@/lib/utils'
 import { FileCode } from 'lucide-react'
 import { Button } from '@/components/ui/button'

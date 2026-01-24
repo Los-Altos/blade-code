@@ -1,7 +1,7 @@
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useAppStore } from '@/store/app-store'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { useAppStore } from '@/store/AppStore'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 
 export function FilePreview() {
   const { toggleFilePreview } = useAppStore()

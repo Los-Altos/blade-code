@@ -1,5 +1,5 @@
 import { Layout } from '@/components/layout/Layout'
-import { ThemeProvider } from '@/components/theme-provider'
+import { ThemeProvider } from '@/components/ThemeProvider'
 import { ChatView } from '@/components/chat/ChatView'
 
 function App() {

@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Send, Paperclip } from 'lucide-react'
+import { Send, Square, Paperclip } from 'lucide-react'
 
 interface ChatInputProps {
   onSend: (message: string) => void
+  onAbort?: () => void
   disabled?: boolean
+  isStreaming?: boolean
 }
 
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, onAbort, disabled, isStreaming }: ChatInputProps) {
   const [input, setInput] = useState("")
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -42,7 +44,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
           onKeyDown={handleKeyDown}
           placeholder="Type @ for files, / for commands..."
           className="flex-1 w-full resize-none border-0 bg-transparent py-4 px-4 focus-visible:ring-0 text-zinc-300 placeholder:text-zinc-600"
-          disabled={disabled}
+          disabled={disabled || isStreaming}
         />
         
         <div className="flex items-center justify-between p-3 mt-auto">
@@ -50,19 +52,28 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
                  <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50">
                     <Paperclip className="h-4 w-4" />
                  </Button>
-                 {/* Model Selector */}
                  <div className="text-xs text-zinc-500 px-2 py-1 rounded hover:bg-zinc-800/50 cursor-pointer transition-colors">
                     Claude 3.5 Sonnet
                  </div>
              </div>
-             <Button 
-                size="icon" 
-                onClick={handleSend} 
-                disabled={!input.trim() || disabled}
-                className="h-8 w-8 bg-zinc-100 text-zinc-900 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600"
-             >
-                <Send className="h-4 w-4" />
-             </Button>
+             {isStreaming ? (
+               <Button 
+                  size="icon" 
+                  onClick={onAbort}
+                  className="h-8 w-8 bg-red-500 text-white hover:bg-red-600"
+               >
+                  <Square className="h-3 w-3" />
+               </Button>
+             ) : (
+               <Button 
+                  size="icon" 
+                  onClick={handleSend} 
+                  disabled={!input.trim() || disabled}
+                  className="h-8 w-8 bg-zinc-100 text-zinc-900 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600"
+               >
+                  <Send className="h-4 w-4" />
+               </Button>
+             )}
         </div>
       </div>
       <div className="text-center text-xs text-zinc-600 mt-3 font-mono">

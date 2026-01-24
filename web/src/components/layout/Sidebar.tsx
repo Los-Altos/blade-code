@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 import { cn } from '@/lib/utils'
-import { useAppStore } from '@/store/app-store'
+import { useAppStore } from '@/store/AppStore'
 import { ChevronLeft, Hash, Plus, Settings, Terminal } from 'lucide-react'
 
 interface SidebarProps {
