@@ -1,8 +1,11 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { streamSSE } from 'hono/streaming';
+import { existsSync, readFileSync } from 'node:fs';
 import { createServer, type Server as NodeServer } from 'node:http';
 import { networkInterfaces } from 'node:os';
+import { dirname, extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Bus, type BusEventPayload } from '../bus/index.js';
 import { createLogger, LogCategory } from '../logging/Logger.js';
 import { getVersion } from '../utils/packageInfo.js';
@@ -29,6 +32,24 @@ type Variables = {
   directory: string;
 };
 
+function getWebDistPath(): string | null {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  
+  const possiblePaths = [
+    join(currentDir, 'web'),
+    join(process.cwd(), 'dist/web'),
+  ];
+
+  for (const p of possiblePaths) {
+    if (existsSync(join(p, 'index.html'))) {
+      logger.debug(`[Server] Found web dist at: ${p}`);
+      return p;
+    }
+  }
+
+  return null;
+}
+
 function createApp(): Hono<{ Variables: Variables }> {
   const app = new Hono<{ Variables: Variables }>();
 
@@ -52,6 +73,11 @@ function createApp(): Hono<{ Variables: Variables }> {
       return next();
     }
 
+    const path = c.req.path;
+    if (path === '/' || path.startsWith('/assets/') || path.endsWith('.html') || path.endsWith('.js') || path.endsWith('.css')) {
+      return next();
+    }
+
     const auth = c.req.header('Authorization');
     if (!auth?.startsWith('Basic ')) {
       c.header('WWW-Authenticate', 'Basic realm="Blade Server"');
@@ -70,7 +96,7 @@ function createApp(): Hono<{ Variables: Variables }> {
   });
 
   app.use(async (c, next) => {
-    const skipLogging = c.req.path === '/health' || c.req.path === '/global/health';
+    const skipLogging = c.req.path === '/health' || c.req.path === '/global/health' || c.req.path.startsWith('/assets/');
     if (!skipLogging) {
       logger.debug(`[Server] ${c.req.method} ${c.req.path}`);
     }
@@ -158,12 +184,95 @@ function createApp(): Hono<{ Variables: Variables }> {
     });
   });
 
-  app.all('*', (c) => {
-    return c.json(
-      { error: { code: 'NOT_FOUND', message: `Route not found: ${c.req.path}` } },
-      404
-    );
-  });
+  const webDistPath = getWebDistPath();
+  
+  if (webDistPath) {
+    logger.info(`[Server] Serving static files from ${webDistPath}`);
+    
+    app.get('/assets/*', (c) => {
+      const filePath = join(webDistPath, c.req.path);
+      
+      if (!existsSync(filePath)) {
+        return c.json({ error: { code: 'NOT_FOUND', message: `File not found: ${c.req.path}` } }, 404);
+      }
+      
+      const content = readFileSync(filePath);
+      const ext = extname(filePath).toLowerCase();
+      
+      const mimeTypes: Record<string, string> = {
+        '.js': 'application/javascript',
+        '.css': 'text/css',
+        '.html': 'text/html',
+        '.json': 'application/json',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon',
+        '.woff': 'font/woff',
+        '.woff2': 'font/woff2',
+        '.ttf': 'font/ttf',
+        '.eot': 'application/vnd.ms-fontobject',
+      };
+      
+      const contentType = mimeTypes[ext] || 'application/octet-stream';
+      
+      return new Response(content, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+      });
+    });
+    
+    app.get('/', (c) => {
+      const indexPath = join(webDistPath, 'index.html');
+      const html = readFileSync(indexPath, 'utf-8');
+      return c.html(html);
+    });
+
+    app.get('*', (c) => {
+      const path = c.req.path;
+      
+      if (path.includes('.')) {
+        return c.json(
+          { error: { code: 'NOT_FOUND', message: `File not found: ${path}` } },
+          404
+        );
+      }
+      
+      const indexPath = join(webDistPath, 'index.html');
+      const html = readFileSync(indexPath, 'utf-8');
+      return c.html(html);
+    });
+  } else {
+    logger.warn('[Server] Web UI not found. Run "cd web && pnpm build" to enable web interface.');
+    
+    app.get('/', (c) => {
+      return c.json({
+        message: 'Blade API Server',
+        version: getVersion(),
+        webUI: false,
+        hint: 'Web UI not built. Run "cd web && pnpm build" to enable.',
+        endpoints: {
+          health: '/health',
+          event: '/event',
+          session: '/session',
+          config: '/config',
+          permission: '/permission',
+          provider: '/provider',
+        },
+      });
+    });
+
+    app.all('*', (c) => {
+      return c.json(
+        { error: { code: 'NOT_FOUND', message: `Route not found: ${c.req.path}` } },
+        404
+      );
+    });
+  }
 
   return app;
 }
