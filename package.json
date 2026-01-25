@@ -15,6 +15,7 @@
   ],
   "scripts": {
     "dev": "bun --watch src/blade.tsx",
+    "dev:serve": "bun --watch src/blade.tsx serve --port 4097",
     "build": "rm -rf dist && bun run scripts/build.ts",
     "start": "bun run dist/blade.js",
     "test": "node scripts/test.js",
@@ -128,6 +129,7 @@
     "fast-glob": "^3.3.3",
     "fuse.js": "^7.1.0",
     "gray-matter": "^4.0.3",
+    "hono": "^4.7.10",
     "ink": "npm:@jrichman/ink@6.4.6",
     "ink-big-text": "^2.0.0",
     "ink-gradient": "^3.0.0",
@@ -139,6 +141,7 @@
     "lowlight": "^3.3.0",
     "lru-cache": "^11.2.4",
     "nanoid": "^5.1.6",
+    "open": "^10.1.2",
     "openai": "^6.2.0",
     "picomatch": "^4.0.3",
     "pino": "^10.1.0",
@@ -152,8 +155,6 @@
     "ws": "^8.18.0",
     "yaml": "^2.8.1",
     "yargs": "^18.0.0",
-    "hono": "^4.7.10",
-    "open": "^10.1.2",
     "zod": "^3.24.2",
     "zod-to-json-schema": "^3.24.6",
     "zustand": "^5.0.9"

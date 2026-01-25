@@ -3,20 +3,30 @@ import { useSessionStore } from '@/store/SessionStore'
 import { useEffect } from 'react'
 import { ChatInput } from './ChatInput'
 import { ChatList } from './ChatList'
+import { StatusBar } from './StatusBar'
+import { ThinkingBlock } from './ThinkingBlock'
+import { TodoList } from './TodoList'
 
 export function ChatView() {
   const {
+    sessions,
     messages,
     currentSessionId,
     isStreaming,
     isLoading,
     error,
+    loadSessions,
     sendMessage,
     abortSession,
     createSession,
+    selectSession,
     handleEvent,
     clearError,
   } = useSessionStore()
+
+  useEffect(() => {
+    loadSessions()
+  }, [loadSessions])
 
   useEffect(() => {
     const unsubscribe = api.subscribeEvents(handleEvent)
@@ -24,14 +34,14 @@ export function ChatView() {
   }, [handleEvent])
 
   useEffect(() => {
-    if (!currentSessionId) {
-      createSession(window.location.pathname || '/')
+    if (sessions.length > 0 && !currentSessionId) {
+      selectSession(sessions[0].sessionId)
     }
-  }, [currentSessionId, createSession])
+  }, [sessions, currentSessionId, selectSession])
 
   const handleSend = async (content: string) => {
     if (!currentSessionId) {
-      await createSession(window.location.pathname || '/')
+      await createSession()
     }
     await sendMessage(content)
   }
@@ -51,12 +61,15 @@ export function ChatView() {
         </div>
       )}
       <ChatList messages={messages} isLoading={isLoading} />
+      <ThinkingBlock />
+      <TodoList />
       <ChatInput
         onSend={handleSend}
         onAbort={handleAbort}
         disabled={isLoading}
         isStreaming={isStreaming}
       />
+      <StatusBar />
     </div>
   )
 }

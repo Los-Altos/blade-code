@@ -2,6 +2,8 @@ import react from "@vitejs/plugin-react"
 import path from "path"
 import { defineConfig } from "vite"
 
+const API_TARGET = 'http://localhost:4097'
+
 export default defineConfig({
   plugins: [react()],
   build: {
@@ -16,37 +18,36 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': {
-        target: 'http://localhost:4096',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
       '/health': {
-        target: 'http://localhost:4096',
+        target: API_TARGET,
         changeOrigin: true,
       },
       '/event': {
-        target: 'http://localhost:4096',
+        target: API_TARGET,
         changeOrigin: true,
       },
-      '/session': {
-        target: 'http://localhost:4096',
+      '/sessions': {
+        target: API_TARGET,
         changeOrigin: true,
       },
-      '/config': {
-        target: 'http://localhost:4096',
+      '/configs': {
+        target: API_TARGET,
         changeOrigin: true,
       },
-      '/permission': {
-        target: 'http://localhost:4096',
+      '/permissions': {
+        target: API_TARGET,
         changeOrigin: true,
       },
-      '/provider': {
-        target: 'http://localhost:4096',
+      '/providers': {
+        target: API_TARGET,
+        changeOrigin: true,
+      },
+      '/models': {
+        target: API_TARGET,
         changeOrigin: true,
       },
       '/global': {
-        target: 'http://localhost:4096',
+        target: API_TARGET,
         changeOrigin: true,
       },
     },

@@ -32,8 +32,8 @@ export function ChatList({ messages, isLoading }: ChatListProps) {
   return (
     <ScrollArea className="flex-1 h-full">
       <div className="flex flex-col pb-4 px-[160px]">
-        {messages.map((message) => (
-          <ChatMessage key={message.id} message={message} />
+        {messages.map((message, index) => (
+          <ChatMessage key={message.id || `msg-${index}`} message={message} />
         ))}
         {isLoading && (
           <div className="flex w-full gap-4 p-4 justify-start">

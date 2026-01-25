@@ -3,6 +3,7 @@ import open from 'open';
 import type { ArgumentsCamelCase, CommandModule } from 'yargs';
 import { networkOptions, resolveNetworkOptions } from '../cli/network.js';
 import { BladeServer, getNetworkIPs } from '../server/index.js';
+import { ensureStoreInitialized } from '../store/vanilla.js';
 import { getVersion } from '../utils/packageInfo.js';
 
 const BLADE_LOGO = `
@@ -25,6 +26,8 @@ export const webCommand: CommandModule<object, WebArgs> = {
   builder: networkOptions,
   handler: async (args: ArgumentsCamelCase<WebArgs>) => {
     const opts = resolveNetworkOptions(args);
+
+    await ensureStoreInitialized();
 
     if (!process.env.BLADE_SERVER_PASSWORD) {
       console.log(chalk.yellow('⚠️  BLADE_SERVER_PASSWORD is not set; server is unsecured.'));

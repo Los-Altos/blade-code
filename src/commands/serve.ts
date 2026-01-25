@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import type { ArgumentsCamelCase, CommandModule } from 'yargs';
 import { networkOptions, resolveNetworkOptions } from '../cli/network.js';
 import { BladeServer, getNetworkIPs } from '../server/index.js';
+import { ensureStoreInitialized } from '../store/vanilla.js';
 
 interface ServeArgs {
   port?: number;
@@ -15,6 +16,8 @@ export const serveCommand: CommandModule<object, ServeArgs> = {
   builder: networkOptions,
   handler: async (args: ArgumentsCamelCase<ServeArgs>) => {
     const opts = resolveNetworkOptions(args);
+
+    await ensureStoreInitialized();
 
     if (!process.env.BLADE_SERVER_PASSWORD) {
       console.log(chalk.yellow('Warning: BLADE_SERVER_PASSWORD is not set; server is unsecured.'));

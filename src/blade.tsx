@@ -9,9 +9,9 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { cliConfig, globalOptions } from './cli/config.js';
 import {
-    loadConfiguration,
-    validateOutput,
-    validatePermissions,
+  loadConfiguration,
+  validateOutput,
+  validatePermissions,
 } from './cli/middleware.js';
 // 导入命令处理器
 import { doctorCommands } from './commands/doctor.js';

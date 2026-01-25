@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
-import { getAllBuiltinModels } from '../../config/builtinModels.js';
-import { getAllModels, getCurrentModel } from '../../store/vanilla.js';
+import { getModelsForProvider, getProviders } from '../../services/ModelsDevService.js';
+import { OAUTH_PROVIDERS } from '../../ui/components/model-config/types.js';
 
 const logger = createLogger(LogCategory.SERVICE);
 
@@ -10,52 +10,19 @@ export const ProviderRoutes = () => {
 
   app.get('/', async (c) => {
     try {
-      const providers = [
-        {
-          id: 'anthropic',
-          name: 'Anthropic',
-          description: 'Claude models from Anthropic',
-          requiresApiKey: true,
-        },
-        {
-          id: 'openai',
-          name: 'OpenAI',
-          description: 'GPT models from OpenAI',
-          requiresApiKey: true,
-        },
-        {
-          id: 'google',
-          name: 'Google',
-          description: 'Gemini models from Google',
-          requiresApiKey: true,
-        },
-        {
-          id: 'deepseek',
-          name: 'DeepSeek',
-          description: 'DeepSeek models',
-          requiresApiKey: true,
-        },
-        {
-          id: 'azure',
-          name: 'Azure OpenAI',
-          description: 'OpenAI models via Azure',
-          requiresApiKey: true,
-        },
-        {
-          id: 'openai-compatible',
-          name: 'OpenAI Compatible',
-          description: 'Any OpenAI-compatible API',
-          requiresApiKey: true,
-        },
-        {
-          id: 'copilot',
-          name: 'GitHub Copilot',
-          description: 'GitHub Copilot (requires authentication)',
-          requiresApiKey: false,
-        },
-      ];
+      const apiProviders = await getProviders();
 
-      return c.json(providers);
+      const oauthProviders = Object.entries(OAUTH_PROVIDERS).map(([id, config]) => ({
+        id,
+        name: id.charAt(0).toUpperCase() + id.slice(1),
+        icon: config.icon,
+        description: config.description,
+        isOAuth: true,
+        envVars: [],
+        bladeProvider: config.bladeProvider,
+      }));
+
+      return c.json([...apiProviders, ...oauthProviders]);
     } catch (error) {
       logger.error('[ProviderRoutes] Failed to list providers:', error);
       return c.json([]);
@@ -66,42 +33,11 @@ export const ProviderRoutes = () => {
     const providerId = c.req.param('providerId');
 
     try {
-      const builtinModels = getAllBuiltinModels();
-      const models = builtinModels.filter((m) => m.provider === providerId);
-      
-      return c.json(models.map((m) => ({
-        id: m.id,
-        name: m.name,
-        provider: m.provider,
-        maxContextTokens: m.maxContextTokens,
-        maxOutputTokens: m.maxOutputTokens,
-      })));
+      const models = await getModelsForProvider(providerId);
+      return c.json(models);
     } catch (error) {
       logger.error('[ProviderRoutes] Failed to list models:', error);
       return c.json([]);
-    }
-  });
-
-  app.get('/models', async (c) => {
-    try {
-      const configuredModels = getAllModels();
-      const currentModel = getCurrentModel();
-      const builtinModels = getAllBuiltinModels();
-
-      return c.json({
-        configured: configuredModels,
-        current: currentModel,
-        available: builtinModels.map((m) => ({
-          id: m.id,
-          name: m.name,
-          provider: m.provider,
-          maxContextTokens: m.maxContextTokens,
-          maxOutputTokens: m.maxOutputTokens,
-        })),
-      });
-    } catch (error) {
-      logger.error('[ProviderRoutes] Failed to get models:', error);
-      return c.json({ configured: [], current: null, available: [] });
     }
   });
 

@@ -1,43 +1,14 @@
+import type { BusEvent, SessionMessage, SessionMetadata } from './types'
+
 const API_BASE = ''
 
-export interface Session {
-  id: string
-  directory: string
-  status: 'idle' | 'running' | 'error'
-  createdAt: number
-  updatedAt: number
+export type Session = SessionMetadata & {
+  isActive?: boolean
 }
 
-export interface Message {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  timestamp: number
-  toolCalls?: ToolCall[]
-}
+export type Message = SessionMessage
 
-export interface ToolCall {
-  id: string
-  name: string
-  args: Record<string, unknown>
-  result?: string
-  status: 'pending' | 'running' | 'completed' | 'error'
-}
-
-export interface PermissionRequest {
-  id: string
-  sessionId: string
-  toolName: string
-  description: string
-  metadata?: Record<string, unknown>
-  createdAt: number
-}
-
-export interface Provider {
-  id: string
-  name: string
-  models: string[]
-}
+export type { BusEvent }
 
 class ApiClient {
   private baseUrl: string
@@ -67,76 +38,46 @@ class ApiClient {
     return response.json()
   }
 
-  async health(): Promise<{ healthy: boolean; version: string }> {
-    return this.request('/health')
+  async listSessions(): Promise<Session[]> {
+    return this.request<Session[]>('/sessions')
   }
 
-  async listSessions(directory?: string): Promise<Session[]> {
-    const params = directory ? `?directory=${encodeURIComponent(directory)}` : ''
-    const result = await this.request<{ sessions: Session[] }>(`/session${params}`)
-    return result.sessions
-  }
-
-  async createSession(directory: string): Promise<Session> {
-    const result = await this.request<{ session: Session }>('/session', {
+  async createSession(projectPath?: string): Promise<Session> {
+    return this.request<Session>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ directory }),
+      body: JSON.stringify({ projectPath }),
     })
-    return result.session
-  }
-
-  async getSession(sessionId: string): Promise<Session> {
-    const result = await this.request<{ session: Session }>(`/session/${sessionId}`)
-    return result.session
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    await this.request(`/session/${sessionId}`, { method: 'DELETE' })
+    await this.request(`/sessions/${sessionId}`, { method: 'DELETE' })
   }
 
   async listMessages(sessionId: string): Promise<Message[]> {
-    const result = await this.request<{ messages: Message[] }>(`/session/${sessionId}/message`)
-    return result.messages
+    const result = await this.request<Array<{ id: string; role: string; content: string }>>(`/sessions/${sessionId}/message`)
+    return result.map((m) => ({
+      id: m.id,
+      role: m.role as Message['role'],
+      content: m.content || '',
+      timestamp: Date.now(),
+    }))
   }
 
-  async sendMessage(sessionId: string, content: string): Promise<void> {
-    await this.request(`/session/${sessionId}/message`, {
+  async sendMessage(sessionId: string, content: string): Promise<Message> {
+    const result = await this.request<{ messageId: string; role: string; content: string; timestamp: string }>(`/sessions/${sessionId}/message`, {
       method: 'POST',
       body: JSON.stringify({ content }),
     })
+    return {
+      id: result.messageId,
+      role: result.role as Message['role'],
+      content: result.content,
+      timestamp: new Date(result.timestamp).getTime(),
+    }
   }
 
   async abortSession(sessionId: string): Promise<void> {
-    await this.request(`/session/${sessionId}/abort`, { method: 'POST' })
-  }
-
-  async getConfig(): Promise<Record<string, unknown>> {
-    const result = await this.request<{ config: Record<string, unknown> }>('/config')
-    return result.config
-  }
-
-  async updateConfig(updates: Record<string, unknown>): Promise<void> {
-    await this.request('/config', {
-      method: 'PUT',
-      body: JSON.stringify({ updates }),
-    })
-  }
-
-  async listPermissions(): Promise<PermissionRequest[]> {
-    const result = await this.request<{ permissions: PermissionRequest[] }>('/permission')
-    return result.permissions
-  }
-
-  async respondPermission(permissionId: string, approved: boolean): Promise<void> {
-    await this.request(`/permission/${permissionId}`, {
-      method: 'POST',
-      body: JSON.stringify({ approved }),
-    })
-  }
-
-  async listProviders(): Promise<Provider[]> {
-    const result = await this.request<{ providers: Provider[] }>('/provider')
-    return result.providers
+    await this.request(`/sessions/${sessionId}/abort`, { method: 'POST' })
   }
 
   subscribeEvents(onEvent: (event: BusEvent) => void): () => void {
@@ -159,11 +100,6 @@ class ApiClient {
       eventSource.close()
     }
   }
-}
-
-export interface BusEvent {
-  type: string
-  properties: Record<string, unknown>
 }
 
 export const api = new ApiClient()

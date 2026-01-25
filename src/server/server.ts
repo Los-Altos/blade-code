@@ -12,6 +12,7 @@ import { getVersion } from '../utils/packageInfo.js';
 import { BladeServerError } from './error.js';
 import { ConfigRoutes } from './routes/config.js';
 import { GlobalRoutes } from './routes/global.js';
+import { ModelsRoutes } from './routes/models.js';
 import { PermissionRoutes } from './routes/permission.js';
 import { ProviderRoutes } from './routes/provider.js';
 import { SessionRoutes } from './routes/session.js';
@@ -138,10 +139,11 @@ function createApp(): Hono<{ Variables: Variables }> {
   });
 
   app.route('/global', GlobalRoutes());
-  app.route('/session', SessionRoutes());
-  app.route('/config', ConfigRoutes());
-  app.route('/permission', PermissionRoutes());
-  app.route('/provider', ProviderRoutes());
+  app.route('/sessions', SessionRoutes());
+  app.route('/configs', ConfigRoutes());
+  app.route('/permissions', PermissionRoutes());
+  app.route('/providers', ProviderRoutes());
+  app.route('/models', ModelsRoutes());
 
   app.get('/health', (c) => {
     return c.json({ healthy: true, version: getVersion() });

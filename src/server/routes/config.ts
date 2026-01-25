@@ -3,12 +3,7 @@ import { z } from 'zod';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
 import { Bus } from '../../bus/index.js';
 import { BadRequestError } from '../error.js';
-import {
-  getConfig,
-  getAllModels,
-  getCurrentModel,
-  configActions,
-} from '../../store/vanilla.js';
+import { getConfig, configActions } from '../../store/vanilla.js';
 
 const logger = createLogger(LogCategory.SERVICE);
 
@@ -33,34 +28,17 @@ export const ConfigRoutes = () => {
     }
   });
 
-  app.get('/models', async (c) => {
-    try {
-      const models = getAllModels();
-      const currentModel = getCurrentModel();
-      
-      return c.json({
-        models,
-        current: currentModel,
-      });
-    } catch (error) {
-      logger.error('[ConfigRoutes] Failed to get models:', error);
-      return c.json({ models: [], current: null });
-    }
-  });
-
   app.put('/', async (c) => {
     try {
       const body = await c.req.json();
       const parsed = UpdateConfigSchema.safeParse(body);
       
       if (!parsed.success) {
-        throw new BadRequestError('Invalid config update format. Expected { updates: Record<string, any>, options?: { scope?, immediate? } }');
+        throw new BadRequestError('Invalid config update format');
       }
 
       const { updates, options } = parsed.data;
-
       await configActions().updateConfig(updates, options);
-
       await Bus.publish('config.updated', { key: Object.keys(updates).join(',') });
 
       return c.json({ success: true, updates });

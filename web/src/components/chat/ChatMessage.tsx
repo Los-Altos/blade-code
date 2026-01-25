@@ -42,26 +42,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
         )}>
           {message.content}
         </div>
-
-        {message.toolCalls && message.toolCalls.length > 0 && (
-          <div className="mt-2 space-y-1">
-            {message.toolCalls.map((tool) => (
-              <div
-                key={tool.id}
-                className={cn(
-                  "text-xs px-2 py-1 rounded border",
-                  tool.status === 'completed' && "bg-green-500/10 border-green-500/20 text-green-400",
-                  tool.status === 'running' && "bg-blue-500/10 border-blue-500/20 text-blue-400",
-                  tool.status === 'error' && "bg-red-500/10 border-red-500/20 text-red-400",
-                  tool.status === 'pending' && "bg-zinc-500/10 border-zinc-500/20 text-zinc-400"
-                )}
-              >
-                <span className="font-mono">{tool.name}</span>
-                {tool.status === 'running' && <span className="ml-2 animate-pulse">●</span>}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
        {isUser && (
