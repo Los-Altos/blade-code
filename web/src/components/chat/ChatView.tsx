@@ -16,6 +16,7 @@ export function ChatView() {
     abortSession,
     startTemporarySession,
     clearError,
+    unsubscribeFromEvents,
   } = useSessionStore()
 
   useEffect(() => {
@@ -27,6 +28,12 @@ export function ChatView() {
       startTemporarySession()
     }
   }, [currentSessionId, startTemporarySession])
+
+  useEffect(() => {
+    return () => {
+      unsubscribeFromEvents()
+    }
+  }, [unsubscribeFromEvents])
 
   const handleSend = async (content: string) => {
     await sendMessage(content)

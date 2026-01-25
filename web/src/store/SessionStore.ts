@@ -61,7 +61,8 @@ interface SessionState {
   currentToolBatch: ToolBatch | null
   toolBatchAggregationEnabled: boolean
 
-  currentAbort: (() => void) | null
+  currentRunId: string | null
+  eventUnsubscribe: (() => void) | null
 
   loadSessions: () => Promise<void>
   createSession: (projectPath?: string) => Promise<Session>
@@ -70,6 +71,8 @@ interface SessionState {
   deleteSession: (sessionId: string) => Promise<void>
   sendMessage: (content: string) => Promise<void>
   abortSession: () => Promise<void>
+  subscribeToEvents: (sessionId: string) => void
+  unsubscribeFromEvents: () => void
 
   handleEvent: (event: StreamEvent) => void
   clearError: () => void
@@ -155,7 +158,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   currentToolBatch: null,
   toolBatchAggregationEnabled: true,
 
-  currentAbort: null,
+  currentRunId: null,
+  eventUnsubscribe: null,
 
   loadSessions: async () => {
     set({ isLoading: true, error: null })
@@ -234,7 +238,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   sendMessage: async (content: string) => {
-    const { currentSessionId, isTemporarySession, handleEvent } = get()
+    const { currentSessionId, isTemporarySession, subscribeToEvents } = get()
     
     let sessionId = currentSessionId
     
@@ -271,34 +275,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       error: null,
     }))
 
+    subscribeToEvents(sessionId)
+
     try {
       const { currentMode } = useConfigStore.getState()
-      const { abort, done } = api.sendMessageStream(
-        sessionId,
-        content,
-        currentMode,
-        handleEvent
-      )
-      
-      set({ currentAbort: abort })
-      
-      await done
+      const response = await api.sendMessage(sessionId, content, currentMode)
+      set({ currentRunId: response.runId })
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        set({ error: (err as Error).message })
-      }
-    } finally {
-      set({ isStreaming: false, currentAbort: null })
+      set({ error: (err as Error).message, isStreaming: false })
     }
   },
 
   abortSession: async () => {
-    const { currentSessionId, currentAbort } = get()
+    const { currentSessionId, unsubscribeFromEvents } = get()
     
-    if (currentAbort) {
-      currentAbort()
-      set({ currentAbort: null, isStreaming: false })
-    }
+    unsubscribeFromEvents()
+    set({ isStreaming: false, currentRunId: null })
     
     if (currentSessionId) {
       try {
@@ -306,6 +298,25 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       } catch {
         // Ignore abort errors
       }
+    }
+  },
+
+  subscribeToEvents: (sessionId: string) => {
+    const { eventUnsubscribe, handleEvent } = get()
+    
+    if (eventUnsubscribe) {
+      eventUnsubscribe()
+    }
+    
+    const unsubscribe = api.subscribeEvents(sessionId, handleEvent)
+    set({ eventUnsubscribe: unsubscribe })
+  },
+
+  unsubscribeFromEvents: () => {
+    const { eventUnsubscribe } = get()
+    if (eventUnsubscribe) {
+      eventUnsubscribe()
+      set({ eventUnsubscribe: null })
     }
   },
 
@@ -706,7 +717,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       case 'session.completed':
       case 'session.error': {
         if (eventSessionId === currentSessionId) {
-          set({ currentThinkingContent: null })
+          set({ 
+            currentThinkingContent: null, 
+            isStreaming: false,
+            currentRunId: null,
+          })
         }
         break
       }

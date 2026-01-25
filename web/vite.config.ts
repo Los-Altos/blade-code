@@ -23,10 +23,6 @@ export default defineConfig({
         target: API_TARGET,
         changeOrigin: true,
       },
-      '/event': {
-        target: API_TARGET,
-        changeOrigin: true,
-      },
       '/sessions': {
         target: API_TARGET,
         changeOrigin: true,

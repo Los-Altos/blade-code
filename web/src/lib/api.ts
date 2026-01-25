@@ -1,5 +1,4 @@
 import type {
-  BusEvent,
   Message,
   MessageRole,
   ModelConfig,
@@ -10,13 +9,18 @@ import type {
 import { PermissionModeEnum } from '@api/schemas'
 
 export { PermissionModeEnum }
-export type { BusEvent, Message, MessageRole, ModelConfig, PermissionMode, Session }
+export type { Message, MessageRole, ModelConfig, PermissionMode, Session }
 
 const API_BASE = ''
 
 export interface StreamEvent {
   type: string
   properties: Record<string, unknown>
+}
+
+export interface SendMessageResponse {
+  runId: string
+  status: string
 }
 
 class ApiClient {
@@ -101,78 +105,38 @@ class ApiClient {
     })
   }
 
-  sendMessageStream(
+  async sendMessage(
     sessionId: string,
     content: string,
-    permissionMode?: PermissionMode,
-    onEvent?: (event: StreamEvent) => void
-  ): { abort: () => void; done: Promise<void> } {
-    const abortController = new AbortController()
+    permissionMode?: PermissionMode
+  ): Promise<SendMessageResponse> {
+    return this.request<SendMessageResponse>(`/sessions/${sessionId}/message`, {
+      method: 'POST',
+      body: JSON.stringify({ content, permissionMode }),
+    })
+  }
 
-    const done = (async () => {
-      const url = `${this.baseUrl}/sessions/${sessionId}/message`
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream',
-        },
-        body: JSON.stringify({ content, permissionMode }),
-        signal: abortController.signal,
-      })
+  subscribeEvents(
+    sessionId: string,
+    onEvent: (event: StreamEvent) => void
+  ): () => void {
+    const eventSource = new EventSource(`${this.baseUrl}/sessions/${sessionId}/events`)
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ message: response.statusText }))
-        throw new Error(error.error?.message || error.message || 'Request failed')
+    eventSource.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data) as StreamEvent
+        onEvent(event)
+      } catch (err) {
+        console.error('Failed to parse SSE event:', e.data, err)
       }
+    }
 
-      if (!response.body) {
-        throw new Error('No response body')
-      }
+    eventSource.onerror = () => {
+      console.error('SSE connection error')
+    }
 
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data) {
-              try {
-                const event = JSON.parse(data) as StreamEvent
-                onEvent?.(event)
-              } catch {
-                // Ignore invalid JSON
-              }
-            }
-          }
-        }
-      }
-
-      if (buffer.startsWith('data: ')) {
-        const data = buffer.slice(6)
-        if (data) {
-          try {
-            const event = JSON.parse(data) as StreamEvent
-            onEvent?.(event)
-          } catch {
-            // Ignore invalid JSON
-          }
-        }
-      }
-    })()
-
-    return {
-      abort: () => abortController.abort(),
-      done,
+    return () => {
+      eventSource.close()
     }
   }
 
