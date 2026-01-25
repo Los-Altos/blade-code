@@ -9,7 +9,6 @@ import { TodoList } from './TodoList'
 
 export function ChatView() {
   const {
-    sessions,
     messages,
     currentSessionId,
     isStreaming,
@@ -18,8 +17,7 @@ export function ChatView() {
     loadSessions,
     sendMessage,
     abortSession,
-    createSession,
-    selectSession,
+    startTemporarySession,
     handleEvent,
     clearError,
   } = useSessionStore()
@@ -34,15 +32,12 @@ export function ChatView() {
   }, [handleEvent])
 
   useEffect(() => {
-    if (sessions.length > 0 && !currentSessionId) {
-      selectSession(sessions[0].sessionId)
+    if (!currentSessionId) {
+      startTemporarySession()
     }
-  }, [sessions, currentSessionId, selectSession])
+  }, [currentSessionId, startTemporarySession])
 
   const handleSend = async (content: string) => {
-    if (!currentSessionId) {
-      await createSession()
-    }
     await sendMessage(content)
   }
 

@@ -23,6 +23,10 @@ const SendMessageSchema = z.object({
   })).optional(),
 });
 
+const UpdateSessionSchema = z.object({
+  title: z.string().optional(),
+});
+
 interface ActiveSession {
   id: string;
   projectPath: string;
@@ -139,6 +143,33 @@ export const SessionRoutes = () => {
     } catch (error) {
       if (error instanceof NotFoundError) throw error;
       logger.error('[SessionRoutes] Failed to get session:', error);
+      throw error;
+    }
+  });
+
+  app.patch('/:sessionId', async (c) => {
+    const sessionId = c.req.param('sessionId');
+
+    try {
+      const body = await c.req.json();
+      const parsed = UpdateSessionSchema.safeParse(body);
+
+      if (!parsed.success) {
+        throw new BadRequestError('Invalid request body');
+      }
+
+      const { title } = parsed.data;
+      const activeSession = activeSessions.get(sessionId);
+
+      if (activeSession && title) {
+        activeSession.title = title;
+      }
+
+      await Bus.publish('session.updated', { sessionId, title });
+
+      return c.json({ success: true, title });
+    } catch (error) {
+      logger.error('[SessionRoutes] Failed to update session:', error);
       throw error;
     }
   });

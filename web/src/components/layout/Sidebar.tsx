@@ -1,8 +1,9 @@
-import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/store/AppStore'
-import { ChevronLeft, Hash, Plus, Settings, Terminal } from 'lucide-react'
+import { useSessionStore } from '@/store/SessionStore'
+import { Check, ChevronLeft, Pencil, Plus, Settings, Terminal, Trash2, X } from 'lucide-react'
+import { useState } from 'react'
 
 interface SidebarProps {
   className?: string
@@ -10,136 +11,297 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const { toggleSettings, toggleSidebar, isSidebarOpen } = useAppStore()
+  const { sessions, currentSessionId, selectSession, startTemporarySession, deleteSession, loadSessions } = useSessionStore()
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
+  const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null)
+
+  const groupSessionsByDate = () => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    const groups: { label: string; sessions: typeof sessions }[] = []
+    const validSessions = sessions.filter(s => s != null)
+    const getSessionDate = (s: typeof sessions[0]) => {
+      const time = s?.lastMessageTime || s?.firstMessageTime || 0
+      return new Date(time)
+    }
+    const sortByDateDesc = (a: typeof sessions[0], b: typeof sessions[0]) => 
+      getSessionDate(b).getTime() - getSessionDate(a).getTime()
+    
+    const todaySessions = validSessions
+      .filter(s => getSessionDate(s) >= today)
+      .sort(sortByDateDesc)
+    const yesterdaySessions = validSessions
+      .filter(s => {
+        const date = getSessionDate(s)
+        return date >= yesterday && date < today
+      })
+      .sort(sortByDateDesc)
+    const olderSessions = validSessions
+      .filter(s => getSessionDate(s) < yesterday)
+      .sort(sortByDateDesc)
+
+    if (todaySessions.length > 0) {
+      groups.push({ label: 'TODAY', sessions: todaySessions })
+    }
+    if (yesterdaySessions.length > 0) {
+      groups.push({ label: 'YESTERDAY', sessions: yesterdaySessions })
+    }
+    if (olderSessions.length > 0) {
+      groups.push({ label: 'OLDER', sessions: olderSessions })
+    }
+
+    return groups
+  }
+
+  const sessionGroups = groupSessionsByDate()
+
+  const getSessionTitle = (session: typeof sessions[0]) => {
+    if (session.title) return session.title
+    if (session.firstMessageTime) {
+      const date = new Date(session.firstMessageTime)
+      const year = String(date.getFullYear()).slice(-2)
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const hours = String(date.getHours()).padStart(2, '0')
+      const minutes = String(date.getMinutes()).padStart(2, '0')
+      return `Session ${year}-${month}-${day} ${hours}:${minutes}`
+    }
+    return `Session ${session.sessionId.slice(0, 6)}`
+  }
+
+  const handleNewChat = () => {
+    startTemporarySession()
+  }
+
+  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation()
+    await deleteSession(sessionId)
+  }
+
+  const handleStartRename = (e: React.MouseEvent, session: typeof sessions[0]) => {
+    e.stopPropagation()
+    setEditingSessionId(session.sessionId)
+    setEditingTitle(getSessionTitle(session))
+  }
+
+  const handleSaveRename = async (sessionId: string) => {
+    if (!editingTitle.trim()) {
+      setEditingSessionId(null)
+      return
+    }
+    try {
+      await fetch(`/sessions/${sessionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editingTitle.trim() }),
+      })
+      setEditingSessionId(null)
+      await loadSessions()
+    } catch (err) {
+      console.error('Failed to rename session:', err)
+    }
+  }
+
+  const handleCancelRename = () => {
+    setEditingSessionId(null)
+    setEditingTitle('')
+  }
 
   if (!isSidebarOpen) {
     return (
-      <div className={cn("h-screen flex flex-col border-r bg-sidebar border-border/50 items-center py-4 gap-4 w-[64px]", className)}>
-        {/* Logo Area */}
-        <div className="h-10 w-10 flex items-center justify-center">
-            <div className="h-6 w-6 rounded bg-green-500 flex items-center justify-center cursor-pointer" onClick={toggleSidebar}>
-                <div className="w-3 h-3 bg-black rounded-sm" />
-            </div>
+      <div className={cn("h-screen flex flex-col bg-[#09090b] items-center py-6 gap-2 w-[64px]", className)}>
+        <div className="h-6 w-6 rounded bg-[#22C55E] flex items-center justify-center cursor-pointer" onClick={toggleSidebar}>
+          <div className="w-3 h-3 bg-black rounded-sm" />
         </div>
 
-        {/* New Chat Button */}
-        <Button 
-            size="icon"
-            className="h-10 w-10 rounded-md bg-green-500 hover:bg-green-600 text-white shadow-none border-0" 
+        <button
+          onClick={handleNewChat}
+          className="mt-6 h-10 w-10 rounded-md bg-[#22C55E] hover:bg-[#16A34A] text-white flex items-center justify-center transition-colors"
         >
-          <Plus className="h-5 w-5 stroke-[3]" />
-        </Button>
+          <Plus className="h-4 w-4 stroke-[3]" />
+        </button>
 
-        {/* Navigation */}
-        <div className="flex-1 flex flex-col gap-2 w-full items-center">
-            <Button 
-                variant="ghost" 
-                size="icon"
-                className="h-10 w-10 rounded-md bg-zinc-900 text-green-500 hover:bg-zinc-900/80 hover:text-green-500"
-            >
-              <Terminal className="h-5 w-5" />
-            </Button>
-            <Button 
-                variant="ghost" 
-                size="icon"
-                className="h-10 w-10 rounded-md text-zinc-400 hover:text-zinc-100"
-            >
-              <Hash className="h-5 w-5" />
-            </Button>
-        </div>
+        <button className="h-10 w-10 rounded-md bg-[#18181b] text-[#22C55E] flex items-center justify-center">
+          <Terminal className="h-4 w-4" />
+        </button>
 
-        {/* Settings */}
-        <div className="w-full flex justify-center pb-2">
-            <Button 
-                variant="ghost" 
-                size="icon"
-                className="h-10 w-10 rounded-md text-zinc-400 hover:text-zinc-100"
-                onClick={toggleSettings}
-            >
-              <Settings className="h-5 w-5" />
-            </Button>
-        </div>
+        <div className="flex-1" />
 
-        {/* User Area */}
-        <div className="mt-auto">
-            <div className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700">
-                <span className="text-xs text-zinc-200">U</span>
-            </div>
+        <button
+          onClick={toggleSettings}
+          className="h-10 w-10 rounded-md text-[#71717a] hover:text-[#E5E5E5] flex items-center justify-center transition-colors"
+        >
+          <Settings className="h-4 w-4" />
+        </button>
+
+        <div className="mt-4">
+          <div className="h-8 w-8 rounded-full bg-[#27272a] flex items-center justify-center">
+            <span className="text-sm text-[#E5E5E5] font-mono">U</span>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className={cn("h-screen flex flex-col border-r bg-sidebar border-border/50", className)}>
-      {/* Logo Area */}
-      <div className="h-16 flex items-center justify-between px-6">
-        <div className="flex items-center gap-3">
-            <div className="h-6 w-6 rounded bg-green-500 flex items-center justify-center">
-                <div className="w-3 h-3 bg-black rounded-sm" />
+    <div className={cn("h-screen flex flex-col bg-[#09090b] w-[260px]", className)}>
+      <div className="p-6 flex flex-col gap-8">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-6 w-6 rounded bg-[#22C55E] flex items-center justify-center">
+              <div className="w-3 h-3 bg-black rounded-sm" />
             </div>
-            <span className="font-semibold text-base tracking-tight text-foreground">blade_web</span>
-        </div>
-        <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-6 w-6 rounded bg-zinc-900 text-zinc-500 hover:text-zinc-300"
+            <span className="font-semibold text-base text-[#E5E5E5] font-mono">blade_web</span>
+          </div>
+          <button
             onClick={toggleSidebar}
-        >
+            className="h-6 w-6 rounded bg-[#18181b] text-[#71717a] hover:text-[#E5E5E5] flex items-center justify-center transition-colors"
+          >
             <ChevronLeft className="h-3 w-3" />
-        </Button>
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={handleNewChat}
+            className="w-full h-10 rounded-md bg-[#22C55E] hover:bg-[#16A34A] text-white font-semibold text-sm font-mono flex items-center gap-3 px-3 transition-colors"
+          >
+            <Plus className="h-4 w-4 stroke-[3]" />
+            New Chat
+          </button>
+
+          <button className="w-full h-10 rounded-md bg-[#18181b] text-[#22C55E] font-medium text-sm font-mono flex items-center gap-3 px-3">
+            <Terminal className="h-4 w-4" />
+            Terminal
+          </button>
+        </div>
       </div>
 
-      <div className="space-y-4 py-4 flex-1 flex flex-col px-4">
-        {/* New Chat Button */}
-        <Button 
-            className="w-full justify-start gap-3 bg-green-500 hover:bg-green-600 text-white font-semibold h-10 shadow-none border-0" 
-        >
-          <Plus className="h-4 w-4 stroke-[3]" />
-          New Chat
-        </Button>
+      <ScrollArea className="flex-1 px-0">
+        <div className="flex flex-col">
+          {sessionGroups.map((group, groupIndex) => (
+            <div key={group.label}>
+              <div className={cn(
+                "px-3 pb-2 text-[11px] text-[#52525b] font-mono",
+                groupIndex === 0 ? "pt-3" : "pt-4"
+              )}>
+                {group.label}
+              </div>
+              {group.sessions.map((session) => {
+                const isActive = session.sessionId === currentSessionId
+                const isEditing = editingSessionId === session.sessionId
+                const isHovered = hoveredSessionId === session.sessionId
 
-        {/* Navigation */}
-        <ScrollArea className="flex-1 -mx-2">
-          <div className="space-y-1 p-2">
-            <Button 
-                variant="ghost" 
-                className="w-full justify-start font-normal h-10 px-3 bg-zinc-900 text-green-500 hover:bg-zinc-900/80 hover:text-green-500"
-            >
-              <Terminal className="mr-3 h-4 w-4" />
-              Terminal
-            </Button>
-            <Button 
-                variant="ghost" 
-                className="w-full justify-start font-normal h-10 px-3 text-zinc-400 hover:text-zinc-100"
-            >
-              <Hash className="mr-3 h-4 w-4" />
-              History
-            </Button>
-          </div>
-        </ScrollArea>
+                if (isEditing) {
+                  return (
+                    <div
+                      key={session.sessionId}
+                      className="w-full h-[34px] flex items-center gap-2 px-3 bg-[#27272a]"
+                    >
+                      <input
+                        type="text"
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSaveRename(session.sessionId)
+                          if (e.key === 'Escape') handleCancelRename()
+                        }}
+                        autoFocus
+                        className="flex-1 bg-[#18181b] text-[13px] text-[#E5E5E5] font-mono px-2 py-1 rounded outline-none focus:ring-1 focus:ring-[#22C55E]"
+                      />
+                      <button
+                        onClick={() => handleSaveRename(session.sessionId)}
+                        className="p-1 text-[#22C55E] hover:bg-[#18181b] rounded"
+                      >
+                        <Check className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={handleCancelRename}
+                        className="p-1 text-[#71717a] hover:bg-[#18181b] rounded"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )
+                }
 
-        {/* Settings */}
-        <div className="pt-2">
-            <Button 
-                variant="ghost" 
-                className="w-full justify-start font-normal h-10 px-3 text-zinc-400 hover:text-zinc-100"
-                onClick={toggleSettings}
-            >
-              <Settings className="mr-3 h-4 w-4" />
-              Settings
-            </Button>
+                return (
+                  <div
+                    key={session.sessionId}
+                    onMouseEnter={() => setHoveredSessionId(session.sessionId)}
+                    onMouseLeave={() => setHoveredSessionId(null)}
+                    className={cn(
+                      "w-full h-[34px] flex items-center gap-2 px-3 transition-colors group cursor-pointer",
+                      isActive ? "bg-[#27272a]" : "hover:bg-[#18181b]"
+                    )}
+                    onClick={() => selectSession(session.sessionId)}
+                  >
+                    <div
+                      className={cn(
+                        "w-1.5 h-1.5 rounded-full shrink-0",
+                        isActive
+                          ? "bg-[#22C55E] shadow-[0_0_4px_rgba(34,197,94,0.4)]"
+                          : "border border-[#52525b]"
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "text-[13px] font-mono truncate text-left flex-1",
+                        isActive ? "text-[#E5E5E5]" : "text-[#a1a1aa]"
+                      )}
+                    >
+                      {getSessionTitle(session)}
+                    </span>
+                    {isHovered && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => handleStartRename(e, session)}
+                          className="p-1 text-[#71717a] hover:text-[#E5E5E5] hover:bg-[#27272a] rounded transition-colors"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteSession(e, session.sessionId)}
+                          className="p-1 text-[#71717a] hover:text-red-400 hover:bg-[#27272a] rounded transition-colors"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+
+          {sessions.length === 0 && (
+            <div className="px-3 py-8 text-center text-[13px] text-[#52525b] font-mono">
+              No chat history
+            </div>
+          )}
         </div>
+      </ScrollArea>
 
-        {/* User Area */}
-        <div className="mt-auto pt-4 border-t border-border/50">
-          <div className="flex items-center gap-3 px-2 py-2">
-            <div className="h-8 w-8 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700">
-                <span className="text-xs text-zinc-200">U</span>
-            </div>
-            <div className="flex flex-col">
-                <span className="text-sm text-zinc-200 font-medium">User</span>
-                <span className="text-[10px] text-green-500 font-medium">Connected</span>
-            </div>
+      <div className="p-6 flex flex-col gap-4">
+        <button
+          onClick={toggleSettings}
+          className="w-full h-10 rounded-md text-[#a1a1aa] hover:text-[#E5E5E5] hover:bg-[#18181b] font-normal text-sm font-mono flex items-center gap-3 px-3 transition-colors"
+        >
+          <Settings className="h-4 w-4 text-[#71717a]" />
+          Settings
+        </button>
+
+        <div className="flex items-center gap-3 pt-4 border-t border-[#27272a]">
+          <div className="h-8 w-8 rounded-full bg-[#27272a] flex items-center justify-center">
+            <span className="text-sm text-[#E5E5E5] font-mono">U</span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[13px] text-[#E5E5E5] font-mono">User</span>
+            <span className="text-[11px] text-[#22C55E] font-mono">Connected</span>
           </div>
         </div>
       </div>

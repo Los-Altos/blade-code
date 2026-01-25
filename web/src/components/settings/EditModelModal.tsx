@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import type { ModelConfig } from "@/store/ConfigStore"
-import { X } from "lucide-react"
+import { Eye, EyeOff, X } from "lucide-react"
 import { useEffect, useState } from "react"
 
 interface EditModelModalProps {
@@ -16,6 +16,7 @@ export function EditModelModal({ open, onOpenChange, model, onSave }: EditModelM
     apiKey: '',
     model: '',
   })
+  const [showApiKey, setShowApiKey] = useState(false)
 
   useEffect(() => {
     if (model) {
@@ -81,13 +82,22 @@ export function EditModelModal({ open, onOpenChange, model, onSave }: EditModelM
 
             <div className="flex flex-col gap-2">
               <label className="text-[13px] text-[#a1a1aa] font-mono">API Key</label>
-              <input
-                type="password"
-                value={formData.apiKey}
-                onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
-                placeholder="Leave empty to keep current key"
-                className="w-full bg-[#18181b] rounded-md px-3 py-2.5 text-sm text-[#E5E5E5] font-mono placeholder:text-[#71717a] focus:outline-none focus:ring-1 focus:ring-zinc-600"
-              />
+              <div className="relative">
+                <input
+                  type={showApiKey ? "text" : "password"}
+                  value={formData.apiKey}
+                  onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+                  placeholder="Leave empty to keep current key"
+                  className="w-full bg-[#18181b] rounded-md px-3 py-2.5 pr-10 text-sm text-[#E5E5E5] font-mono placeholder:text-[#71717a] focus:outline-none focus:ring-1 focus:ring-zinc-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#71717a] hover:text-[#E5E5E5] transition-colors"
+                >
+                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
           </div>
 

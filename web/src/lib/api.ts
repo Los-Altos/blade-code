@@ -42,11 +42,22 @@ class ApiClient {
     return this.request<Session[]>('/sessions')
   }
 
-  async createSession(projectPath?: string): Promise<Session> {
+  async createSession(projectPath?: string, title?: string): Promise<Session> {
+    const defaultTitle = title || this.generateDefaultTitle()
     return this.request<Session>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ projectPath }),
+      body: JSON.stringify({ projectPath, title: defaultTitle }),
     })
+  }
+
+  private generateDefaultTitle(): string {
+    const now = new Date()
+    const year = String(now.getFullYear()).slice(-2)
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    return `Session ${year}-${month}-${day} ${hours}:${minutes}`
   }
 
   async deleteSession(sessionId: string): Promise<void> {
@@ -87,8 +98,8 @@ class ApiClient {
       try {
         const event = JSON.parse(e.data) as BusEvent
         onEvent(event)
-      } catch {
-        console.error('Failed to parse SSE event:', e.data)
+      } catch (err) {
+        console.error('Failed to parse SSE event:', e.data, err)
       }
     }
 

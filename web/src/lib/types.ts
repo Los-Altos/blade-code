@@ -52,12 +52,14 @@ export interface SessionMessage {
 export interface SessionMetadata {
   sessionId: string
   projectPath: string
+  title?: string
   gitBranch?: string
   messageCount: number
   firstMessageTime: string
   lastMessageTime: string
   hasErrors: boolean
-  filePath: string
+  filePath?: string
+  isActive?: boolean
 }
 
 export interface BusEvent {

@@ -28,6 +28,7 @@ export interface SubagentProgress {
 interface SessionState {
   sessions: Session[]
   currentSessionId: string | null
+  isTemporarySession: boolean
   messages: Message[]
   isLoading: boolean
   isStreaming: boolean
@@ -41,6 +42,7 @@ interface SessionState {
 
   loadSessions: () => Promise<void>
   createSession: (projectPath?: string) => Promise<Session>
+  startTemporarySession: () => void
   selectSession: (sessionId: string) => Promise<void>
   deleteSession: (sessionId: string) => Promise<void>
   sendMessage: (content: string) => Promise<void>
@@ -60,9 +62,12 @@ const initialTokenUsage: TokenUsage = {
   isDefaultMaxTokens: true,
 }
 
+const TEMP_SESSION_ID = '__temp__'
+
 export const useSessionStore = create<SessionState>((set, get) => ({
   sessions: [],
   currentSessionId: null,
+  isTemporarySession: false,
   messages: [],
   isLoading: false,
   isStreaming: false,
@@ -91,6 +96,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       set((state) => ({
         sessions: [...state.sessions, session],
         currentSessionId: session.sessionId,
+        isTemporarySession: false,
         messages: [],
         isLoading: false,
         tokenUsage: { ...initialTokenUsage },
@@ -105,8 +111,21 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }
   },
 
+  startTemporarySession: () => {
+    set({
+      currentSessionId: TEMP_SESSION_ID,
+      isTemporarySession: true,
+      messages: [],
+      tokenUsage: { ...initialTokenUsage },
+      currentThinkingContent: null,
+      todos: [],
+      subagentProgress: null,
+      error: null,
+    })
+  },
+
   selectSession: async (sessionId: string) => {
-    set({ isLoading: true, error: null, currentSessionId: sessionId })
+    set({ isLoading: true, error: null, currentSessionId: sessionId, isTemporarySession: false })
     try {
       const messages = await api.listMessages(sessionId)
       set({
@@ -136,9 +155,27 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   sendMessage: async (content: string) => {
-    const { currentSessionId } = get()
-    if (!currentSessionId) {
-      set({ error: 'No session selected' })
+    const { currentSessionId, isTemporarySession } = get()
+    
+    let sessionId = currentSessionId
+    
+    if (isTemporarySession || !currentSessionId || currentSessionId === TEMP_SESSION_ID) {
+      try {
+        const session = await api.createSession()
+        set((state) => ({
+          sessions: [...state.sessions, session],
+          currentSessionId: session.sessionId,
+          isTemporarySession: false,
+        }))
+        sessionId = session.sessionId
+      } catch (err) {
+        set({ error: (err as Error).message })
+        return
+      }
+    }
+
+    if (!sessionId || sessionId === TEMP_SESSION_ID) {
+      set({ error: 'Failed to create session' })
       return
     }
 
@@ -156,7 +193,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }))
 
     try {
-      await api.sendMessage(currentSessionId, content)
+      await api.sendMessage(sessionId, content)
     } catch (err) {
       set({ error: (err as Error).message, isStreaming: false })
     }
@@ -181,10 +218,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
     switch (event.type) {
       case 'session.created': {
-        const session = props.session as Session
-        set((state) => ({
-          sessions: [...state.sessions, session],
-        }))
         break
       }
 
@@ -209,7 +242,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       case 'message.created':
       case 'message.updated': {
         if (eventSessionId !== currentSessionId) break
-        const message = props.message as Message
+        const messageId = props.messageId as string
+        const role = props.role as Message['role']
+        const content = (props.content as string) || ''
+        if (!messageId) break
+        const message: Message = {
+          id: messageId,
+          role,
+          content,
+          timestamp: Date.now(),
+        }
         set((state) => {
           const existingIndex = state.messages.findIndex((m) => m.id === message.id)
           if (existingIndex >= 0) {
