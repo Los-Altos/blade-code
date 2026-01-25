@@ -114,8 +114,8 @@ export function Sidebar({ className }: SidebarProps) {
   if (!isSidebarOpen) {
     return (
       <div className={cn("h-screen flex flex-col bg-[#09090b] items-center py-6 gap-2 w-[64px]", className)}>
-        <div className="h-6 w-6 rounded bg-[#22C55E] flex items-center justify-center cursor-pointer" onClick={toggleSidebar}>
-          <div className="w-3 h-3 bg-black rounded-sm" />
+        <div className="h-7 w-7 rounded-lg bg-[#22C55E] flex items-center justify-center cursor-pointer" onClick={toggleSidebar}>
+          <div className="w-2 h-2 bg-black rounded-full" />
         </div>
 
         <button

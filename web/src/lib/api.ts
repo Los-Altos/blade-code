@@ -74,10 +74,14 @@ class ApiClient {
     }))
   }
 
-  async sendMessage(sessionId: string, content: string): Promise<Message> {
+  async sendMessage(
+    sessionId: string, 
+    content: string, 
+    permissionMode?: 'default' | 'auto-edit' | 'plan' | 'spec' | 'yolo'
+  ): Promise<Message> {
     const result = await this.request<{ messageId: string; role: string; content: string; timestamp: string }>(`/sessions/${sessionId}/message`, {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, permissionMode }),
     })
     return {
       id: result.messageId,

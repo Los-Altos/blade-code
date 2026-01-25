@@ -1,5 +1,7 @@
 import { api, type BusEvent, type Message, type Session } from '@/lib/api'
+import { PermissionMode } from '@/lib/types'
 import { create } from 'zustand'
+import { useConfigStore } from './ConfigStore'
 
 export interface TokenUsage {
   inputTokens: number
@@ -193,7 +195,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }))
 
     try {
-      await api.sendMessage(sessionId, content)
+      const { currentMode } = useConfigStore.getState()
+      const permissionModeMap: Record<PermissionMode, 'default' | 'auto-edit' | 'plan' | 'spec' | 'yolo'> = {
+        [PermissionMode.DEFAULT]: 'default',
+        [PermissionMode.AUTO_EDIT]: 'auto-edit',
+        [PermissionMode.PLAN]: 'plan',
+        [PermissionMode.SPEC]: 'spec',
+        [PermissionMode.YOLO]: 'yolo',
+      }
+      await api.sendMessage(sessionId, content, permissionModeMap[currentMode])
     } catch (err) {
       set({ error: (err as Error).message, isStreaming: false })
     }

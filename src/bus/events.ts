@@ -162,6 +162,21 @@ export const TokenUsageEvent = z.object({
   }),
 });
 
+export const ThinkingDeltaEvent = z.object({
+  type: z.literal('thinking.delta'),
+  properties: z.object({
+    sessionId: z.string(),
+    delta: z.string(),
+  }),
+});
+
+export const ThinkingCompletedEvent = z.object({
+  type: z.literal('thinking.completed'),
+  properties: z.object({
+    sessionId: z.string(),
+  }),
+});
+
 export const SessionErrorEvent = z.object({
   type: z.literal('session.error'),
   properties: z.object({
@@ -190,6 +205,8 @@ export const BusEventPayload = z.discriminatedUnion('type', [
   ToolStartEvent,
   ToolResultEvent,
   TokenUsageEvent,
+  ThinkingDeltaEvent,
+  ThinkingCompletedEvent,
 ]);
 
 export type BusEventPayload = z.infer<typeof BusEventPayload>;

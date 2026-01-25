@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
-import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { createLogger, LogCategory } from '../../logging/Logger.js';
-import { Bus } from '../../bus/index.js';
-import { NotFoundError, BadRequestError } from '../error.js';
-import { SessionService } from '../../services/SessionService.js';
+import { z } from 'zod';
 import { Agent } from '../../agent/Agent.js';
 import type { ChatContext, LoopOptions } from '../../agent/types.js';
+import { Bus } from '../../bus/index.js';
+import { PermissionMode } from '../../config/types.js';
+import { createLogger, LogCategory } from '../../logging/Logger.js';
 import type { Message } from '../../services/ChatServiceInterface.js';
+import { SessionService } from '../../services/SessionService.js';
+import { BadRequestError, NotFoundError } from '../error.js';
 
 const logger = createLogger(LogCategory.SERVICE);
 
@@ -24,6 +25,7 @@ const SendMessageSchema = z.object({
     url: z.string().optional(),
     content: z.string().optional(),
   })).optional(),
+  permissionMode: z.enum(['default', 'auto-edit', 'plan', 'spec', 'yolo']).optional(),
 });
 
 const UpdateSessionSchema = z.object({
@@ -219,7 +221,16 @@ export const SessionRoutes = () => {
         throw new BadRequestError('Invalid message format');
       }
 
-      const { content } = parsed.data;
+      const { content, permissionMode: requestedMode } = parsed.data;
+
+      const permissionModeMap: Record<string, PermissionMode> = {
+        'default': PermissionMode.DEFAULT,
+        'auto-edit': PermissionMode.AUTO_EDIT,
+        'plan': PermissionMode.PLAN,
+        'spec': PermissionMode.SPEC,
+        'yolo': PermissionMode.YOLO,
+      };
+      const permissionMode = requestedMode ? permissionModeMap[requestedMode] : PermissionMode.DEFAULT;
 
       let session = activeSessions.get(sessionId);
       if (!session) {
@@ -274,6 +285,7 @@ export const SessionRoutes = () => {
             sessionId: sessionId,
             workspaceRoot: currentSession.projectPath,
             signal: abortController.signal,
+            permissionMode,
           };
 
           const loopOptions: LoopOptions = {
