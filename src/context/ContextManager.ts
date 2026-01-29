@@ -305,6 +305,7 @@ export class ContextManager {
   async saveToolResult(
     sessionId: string,
     toolId: string,
+    toolName: string,
     toolOutput: JsonValue,
     parentUuid: string | null = null,
     error?: string,
@@ -323,6 +324,7 @@ export class ContextManager {
     return this.persistent.saveToolResult(
       sessionId,
       toolId,
+      toolName,
       toolOutput,
       parentUuid,
       error,

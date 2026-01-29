@@ -230,8 +230,8 @@ export function ChatInput({ onSend, onAbort, disabled, isStreaming }: ChatInputP
 
   return (
     <div className="py-4 border-t border-[#E5E7EB] dark:border-zinc-800 bg-white dark:bg-[#09090b]">
-      <div className="w-full px-4 md:px-6">
-        <div className="relative border border-[#E5E7EB] dark:border-zinc-800 rounded-lg shadow-sm bg-white dark:bg-zinc-950/50 focus-within:border-[#D1D5DB] dark:focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-[#D1D5DB] dark:focus-within:ring-zinc-600 transition-all duration-200 flex flex-col min-h-[120px]">
+      <div className="px-4 w-full md:px-6">
+        <div className="relative border border-[#E5E7EB] dark:border-zinc-800 rounded-lg shadow-sm bg-white dark:bg-zinc-950/50 focus-within:border-[#D1D5DB] dark:focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-[#D1D5DB] dark:focus-within:ring-zinc-600 transition-all duration-200 flex flex-col min-h-[88px]">
           <SuggestionPopover
             type="command"
             suggestions={slashCommand.suggestions}
@@ -264,21 +264,21 @@ export function ChatInput({ onSend, onAbort, disabled, isStreaming }: ChatInputP
             disabled={disabled || isStreaming}
           />
         
-          <div className="flex items-center justify-between p-3 mt-auto">
-            <div className="flex items-center gap-2">
+          <div className="flex justify-between items-center p-3 mt-auto">
+            <div className="flex gap-2 items-center">
               <Button variant="ghost" size="icon" className="h-8 w-8 text-[#9CA3AF] hover:text-[#111827] hover:bg-[#E5E7EB] dark:text-zinc-500 dark:hover:text-zinc-300 dark:hover:bg-zinc-800/50">
-                <Paperclip className="h-4 w-4" />
+                <Paperclip className="w-4 h-4" />
               </Button>
                  
               <Popover open={modelOpen} onOpenChange={setModelOpen}>
                 <PopoverTrigger asChild>
                   <button className="flex items-center gap-1 text-xs text-[#6B7280] hover:text-[#111827] px-2 py-1 rounded hover:bg-[#E5E7EB] dark:text-zinc-500 dark:hover:text-zinc-200 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors">
                     {displayModelName}
-                    <ChevronDown className="h-3 w-3" />
+                    <ChevronDown className="w-3 h-3" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64 p-2 bg-white dark:bg-zinc-900 border border-[#E5E7EB] dark:border-zinc-700" align="start">
-                  <div className="max-h-72 overflow-y-auto">
+                  <div className="overflow-y-auto max-h-72">
                     {configuredModels.length === 0 ? (
                       <div className="text-xs text-[#6B7280] dark:text-zinc-500 px-2 py-2">No models configured</div>
                     ) : (
@@ -317,7 +317,7 @@ export function ChatInput({ onSend, onAbort, disabled, isStreaming }: ChatInputP
                 <PopoverTrigger asChild>
                   <button className="flex items-center gap-1 text-xs text-[#6B7280] hover:text-[#111827] px-2 py-1 rounded hover:bg-[#E5E7EB] dark:text-zinc-500 dark:hover:text-zinc-200 dark:hover:bg-zinc-800/50 cursor-pointer transition-colors">
                     {currentModeLabel}
-                    <ChevronDown className="h-3 w-3" />
+                    <ChevronDown className="w-3 h-3" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent className="w-40 p-1 bg-white dark:bg-zinc-900 border border-[#E5E7EB] dark:border-zinc-700" align="start">
@@ -344,9 +344,9 @@ export function ChatInput({ onSend, onAbort, disabled, isStreaming }: ChatInputP
               <Button 
                 size="icon" 
                 onClick={onAbort}
-                className="h-8 w-8 bg-red-500 text-white hover:bg-red-600"
+                className="w-8 h-8 text-white bg-red-500 hover:bg-red-600"
               >
-                <Square className="h-3 w-3" />
+                <Square className="w-3 h-3" />
               </Button>
             ) : (
               <Button 
@@ -355,7 +355,7 @@ export function ChatInput({ onSend, onAbort, disabled, isStreaming }: ChatInputP
                 disabled={!input.trim() || disabled || showAnySuggestions}
                 className="h-8 w-8 bg-[#111827] text-white hover:bg-[#0F172A] disabled:bg-[#E5E7EB] disabled:text-[#9CA3AF] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white dark:disabled:bg-zinc-800 dark:disabled:text-zinc-600"
               >
-                <Send className="h-4 w-4" />
+                <Send className="w-4 h-4" />
               </Button>
             )}
           </div>

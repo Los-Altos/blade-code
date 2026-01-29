@@ -1,11 +1,11 @@
 import type { StreamEvent } from '@/services'
 import type {
-    AgentResponseContent,
-    Message,
-    SessionStoreState,
-    SubagentProgress,
-    TodoItem,
-    ToolCallInfo,
+  AgentResponseContent,
+  Message,
+  SessionStoreState,
+  SubagentProgress,
+  TodoItem,
+  ToolCallInfo,
 } from '../types'
 
 type GetState = () => SessionStoreState
@@ -27,9 +27,45 @@ const createEmptyAgentContent = (): AgentResponseContent => ({
   question: null,
 })
 
+const ensureAssistantMessage = (
+  get: GetState,
+  set: SetState,
+  _fallbackId?: string
+): string | null => {
+  const { currentAssistantMessageId, messages, addMessage, startAgentResponse } = get()
+  
+  // 验证 currentAssistantMessageId 是否是有效的消息 ID（不是 toolCallId）
+  if (currentAssistantMessageId && !currentAssistantMessageId.startsWith('call_')) {
+    return currentAssistantMessageId
+  }
+
+  // 只有当最后一条消息是 assistant 时才复用，否则创建新的
+  const lastMessage = messages[messages.length - 1]
+  if (lastMessage?.role === 'assistant') {
+    return lastMessage.id
+  }
+
+  // 创建新的 assistant 消息
+  const id = `assistant-${Date.now()}`
+  const message: Message = {
+    id,
+    role: 'assistant',
+    content: '',
+    timestamp: Date.now(),
+    agentContent: createEmptyAgentContent(),
+  }
+  addMessage(message)
+  startAgentResponse(id)
+  set((state) => ({
+    messages: state.messages.map((m) =>
+      m.id === id ? { ...m, agentContent: { ...(m.agentContent || createEmptyAgentContent()) } } : m
+    ),
+  }))
+  return id
+}
+
 const handleMessageCreated: EventHandler = (props, get, _set) => {
   const { currentSessionId, addMessage, startAgentResponse } = get()
-  console.log('[handleMessageCreated]', { propsSessionId: props.sessionId, currentSessionId })
   if (props.sessionId !== currentSessionId) return
 
   const messageId = props.messageId as string
@@ -105,10 +141,11 @@ const handleThinkingDelta: EventHandler = (props, get) => {
 
 const handleThinkingCompleted: EventHandler = () => {}
 
-const handleToolStart: EventHandler = (props, get) => {
-  const { currentSessionId, appendToolCall, currentAssistantMessageId, setHasToolCalls, setSubagent } = get()
+const handleToolStart: EventHandler = (props, get, set) => {
+  const { currentSessionId, appendToolCall, setHasToolCalls, setSubagent } = get()
   if (props.sessionId !== currentSessionId) return
-  if (!currentAssistantMessageId) return
+  const targetMessageId = ensureAssistantMessage(get, set, props.toolCallId as string)
+  if (!targetMessageId) return
 
   setHasToolCalls(true)
 
@@ -129,7 +166,7 @@ const handleToolStart: EventHandler = (props, get) => {
   }
 
   if (subagentType) {
-    setSubagent(currentAssistantMessageId, {
+    setSubagent(targetMessageId, {
       id: (props.toolCallId as string) || `subagent-${Date.now()}`,
       type: subagentType,
       description,
@@ -147,28 +184,55 @@ const handleToolStart: EventHandler = (props, get) => {
     status: 'running',
     startTime: Date.now(),
   }
-  appendToolCall(currentAssistantMessageId, toolCall)
+  appendToolCall(targetMessageId, toolCall)
 }
 
 const handleToolResult: EventHandler = (props, get, set) => {
-  const { currentSessionId, updateToolCall, currentAssistantMessageId, messages } = get()
+  const { currentSessionId, updateToolCall, messages } = get()
   if (props.sessionId !== currentSessionId) return
-  if (!currentAssistantMessageId) return
 
   const toolCallId = props.toolCallId as string
   if (!toolCallId) return
 
-  updateToolCall(currentAssistantMessageId, toolCallId, {
+  // 先通过 toolCallId 找到包含该工具调用的消息
+  const messageWithTool = messages.find((m) =>
+    m.agentContent?.toolCalls.some((tc) => tc.toolCallId === toolCallId)
+  )
+  
+  console.log('[handleToolResult]', {
+    toolCallId,
+    foundMessage: !!messageWithTool,
+    messageId: messageWithTool?.id,
+    toolCallsInMessage: messageWithTool?.agentContent?.toolCalls.map(tc => tc.toolCallId),
+    success: props.success,
+  })
+  
+  const targetMessageId = messageWithTool?.id ||
+    [...messages].reverse().find((m) => m.role === 'assistant')?.id
+
+  if (!targetMessageId) {
+    console.log('[handleToolResult] No targetMessageId found!')
+    return
+  }
+
+  const output = props.output as string
+  const summary =
+    (props.summary as string) ||
+    (output && output.trim() ? output.trim().split('\n')[0].slice(0, 120) : props.success ? '执行成功' : '执行失败')
+
+  console.log('[handleToolResult] Updating tool call', { targetMessageId, toolCallId, status: props.success ? 'success' : 'error' })
+  updateToolCall(targetMessageId, toolCallId, {
     status: props.success ? 'success' : 'error',
-    summary: props.summary as string,
-    output: props.output as string,
+    summary,
+    output,
+    metadata: props.metadata as Record<string, unknown>,
   })
 
-  const message = messages.find((m) => m.id === currentAssistantMessageId)
+  const message = messages.find((m) => m.id === targetMessageId)
   if (message?.agentContent?.subagent?.id === toolCallId) {
     set((state) => ({
       messages: state.messages.map((m) => {
-        if (m.id !== currentAssistantMessageId) return m
+        if (m.id !== targetMessageId) return m
         if (!m.agentContent?.subagent) return m
         return {
           ...m,
@@ -276,17 +340,22 @@ const handleSubagentComplete: EventHandler = (props, get, set) => {
   }))
 }
 
-const handlePermissionAsked: EventHandler = (props, get) => {
-  const { currentSessionId, setConfirmation, currentAssistantMessageId } = get()
+const handlePermissionAsked: EventHandler = (props, get, _set) => {
+  const { currentSessionId, setConfirmation, messages } = get()
   if (props.sessionId !== currentSessionId) return
-  if (!currentAssistantMessageId) return
+
+  // 直接找最后一条 assistant 消息（不依赖 currentAssistantMessageId，因为它可能被错误设置）
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+  if (!lastAssistant) return
 
   const details = props.details as Record<string, unknown> | undefined
-  setConfirmation(currentAssistantMessageId, {
+  const toolName = (props.toolName as string) || (details?.toolName as string) || 'Edit'
+  
+  setConfirmation(lastAssistant.id, {
     toolCallId: (props.requestId as string) || '',
-    toolName: props.toolName as string,
+    toolName,
     description: props.description as string,
-    diff: (details?.diff as string) || '',
+    diff: (details?.details as string) || (details?.diff as string) || '',
     status: 'pending',
   })
 }

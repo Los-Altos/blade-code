@@ -157,7 +157,7 @@ export function FilePreview() {
           onClick={toggleFilePreview}
           className="h-8 w-8 text-[#9CA3AF] hover:text-[#111827] hover:bg-[#E5E7EB]/60 dark:text-zinc-500 dark:hover:text-zinc-300 dark:hover:bg-zinc-800/50"
         >
-          <X className="h-4 w-4" />
+          <X className="w-4 h-4" />
         </Button>
       </div>
 
@@ -194,20 +194,20 @@ export function FilePreview() {
           </TabsList>
         </div>
 
-        <TabsContent value="diff" className="flex-1 overflow-hidden mt-0">
-          <div className="h-full overflow-y-auto px-4 py-4 space-y-4">
+        <TabsContent value="diff" className="overflow-hidden flex-1 mt-0">
+          <div className="overflow-y-auto px-4 py-4 space-y-4 h-full">
             {!latestDiff ? (
               <EmptyState title="No patch yet" subtitle="Run a tool that changes files to see diffs here." />
             ) : (
               <>
-                <div className="flex items-center justify-between">
+                <div className="flex justify-between items-center">
                   <div>
                     <div className="text-[12px] text-[#6B7280] dark:text-[#71717a] font-mono">Latest change</div>
                     <div className="text-[13px] text-[#111827] dark:text-[#E5E5E5] font-mono">
                       {latestDiff.filePath || 'Untitled file'}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex gap-3 items-center">
                     {latestDiff.summary && (
                       <span className="text-[12px] text-[#6B7280] dark:text-[#a1a1aa] font-mono">{latestDiff.summary}</span>
                     )}
@@ -242,8 +242,8 @@ export function FilePreview() {
           </div>
         </TabsContent>
 
-        <TabsContent value="files" className="flex-1 overflow-hidden mt-0">
-          <div className="h-full px-4 py-4">
+        <TabsContent value="files" className="overflow-hidden flex-1 mt-0">
+          <div className="px-4 py-4 h-full">
             {fileLoading && <EmptyState title="Loading files…" subtitle="Fetching workspace tree." />}
             {!fileLoading && fileError && (
               <EmptyState title="Failed to load files" subtitle={fileError} />
@@ -313,8 +313,8 @@ export function FilePreview() {
           </div>
         </TabsContent>
 
-        <TabsContent value="logs" className="flex-1 overflow-hidden mt-0">
-          <div className="h-full overflow-y-auto px-4 py-4 space-y-3">
+        <TabsContent value="logs" className="overflow-hidden flex-1 mt-0">
+          <div className="overflow-y-auto px-4 py-4 space-y-3 h-full">
             {logs.length === 0 ? (
               <EmptyState title="No logs yet" subtitle="Tool runs will appear here." />
             ) : (
@@ -345,7 +345,7 @@ export function FilePreview() {
                             onClick={() => toggleLog(log.id)}
                             className="flex items-center gap-1 text-[12px] text-[#6B7280] dark:text-[#a1a1aa] font-mono hover:text-[#111827] dark:hover:text-[#E5E5E5] transition-colors"
                           >
-                            {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                            {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                             {isExpanded ? 'Collapse' : 'Expand'}
                           </button>
                         )}
@@ -463,46 +463,109 @@ function LazyTreeNode({
 
 
 
-function buildLogs(messages: Array<{ id: string; metadata?: Record<string, unknown>; timestamp?: number }>): LogEntry[] {
+function buildLogs(
+  messages: Array<{
+    id: string
+    metadata?: Record<string, unknown>
+    timestamp?: number
+    agentContent?: {
+      toolCalls?: Array<{
+        toolCallId: string
+        toolName: string
+        arguments?: string
+        toolKind?: string
+        status: string
+        summary?: string
+        output?: string
+      }>
+    }
+  }>
+): LogEntry[] {
   return messages.flatMap((message) => {
+    const logs: LogEntry[] = []
+
+    if (message.agentContent?.toolCalls) {
+      for (const toolCall of message.agentContent.toolCalls) {
+        const args = formatArguments(toolCall.arguments)
+        const output = toolCall.output
+        const cleaned = output ? (extractDiffBlock(output)?.diff ? removeDiffBlock(output) : output) : undefined
+
+        logs.push({
+          id: `${message.id}-${toolCall.toolCallId}`,
+          title: toolCall.toolName || 'Tool',
+          subtitle: toolCall.summary,
+          status: toolCall.status === 'success' ? 'success' : toolCall.status === 'error' ? 'error' : 'running',
+          content: cleaned || (args ? `Arguments:\n${args}` : undefined),
+          timestamp: message.timestamp,
+        })
+      }
+    }
+
     const meta = message.metadata as Record<string, unknown> | undefined
-    if (!meta) return []
-    if (meta.kind === 'tool_call') {
-      const toolName = (meta.toolName as string) || 'Tool'
-      const args = formatArguments(meta.arguments as string | Record<string, unknown> | undefined)
-      return [{
-        id: message.id,
-        title: `Tool Call · ${toolName}`,
-        subtitle: meta.toolKind ? String(meta.toolKind) : undefined,
-        status: meta.status === 'success' ? 'success' : meta.status === 'error' ? 'error' : 'running',
-        content: args ? `Arguments:\n${args}` : undefined,
-        timestamp: message.timestamp,
-      }]
+    if (meta) {
+      if (meta.kind === 'tool_call') {
+        const toolName = (meta.toolName as string) || 'Tool'
+        const args = formatArguments(meta.arguments as string | Record<string, unknown> | undefined)
+        logs.push({
+          id: message.id,
+          title: `Tool Call · ${toolName}`,
+          subtitle: meta.toolKind ? String(meta.toolKind) : undefined,
+          status: meta.status === 'success' ? 'success' : meta.status === 'error' ? 'error' : 'running',
+          content: args ? `Arguments:\n${args}` : undefined,
+          timestamp: message.timestamp,
+        })
+      }
+      if (meta.kind === 'tool_result') {
+        const toolName = (meta.toolName as string) || 'Tool'
+        const success = meta.success as boolean | undefined
+        const summary = meta.summary as string | undefined
+        const output = meta.output as string | undefined
+        const cleaned = output ? (extractDiffBlock(output)?.diff ? removeDiffBlock(output) : output) : undefined
+        logs.push({
+          id: message.id,
+          title: `Tool Result · ${toolName}`,
+          subtitle: summary,
+          status: success === undefined ? 'running' : success ? 'success' : 'error',
+          content: cleaned,
+          timestamp: message.timestamp,
+        })
+      }
     }
-    if (meta.kind === 'tool_result') {
-      const toolName = (meta.toolName as string) || 'Tool'
-      const success = meta.success as boolean | undefined
-      const summary = meta.summary as string | undefined
-      const output = meta.output as string | undefined
-      const cleaned = output ? (extractDiffBlock(output)?.diff ? removeDiffBlock(output) : output) : undefined
-      return [{
-        id: message.id,
-        title: `Tool Result · ${toolName}`,
-        subtitle: summary,
-        status: success === undefined ? 'running' : success ? 'success' : 'error',
-        content: cleaned,
-        timestamp: message.timestamp,
-      }]
-    }
-    return []
+
+    return logs
   })
 }
 
 function findLatestDiff(
-  messages: Array<{ metadata?: Record<string, unknown>; content?: string }>
+  messages: Array<{
+    metadata?: Record<string, unknown>
+    content?: string
+    agentContent?: { toolCalls?: Array<{ output?: string; metadata?: Record<string, unknown>; toolName?: string; summary?: string }> }
+  }>
 ): FullDiffPayload | null {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i]
+
+    if (message.agentContent?.toolCalls) {
+      for (let j = message.agentContent.toolCalls.length - 1; j >= 0; j -= 1) {
+        const toolCall = message.agentContent.toolCalls[j]
+        const toolMeta = toolCall.metadata
+        const output = toolCall.output || ''
+        const diffCandidate = extractDiffBlock(output) || extractDiffBlock((toolMeta?.diff_snippet as string) || '')
+        if (diffCandidate?.diff) {
+          const oldContent = typeof toolMeta?.oldContent === 'string' ? toolMeta.oldContent : undefined
+          const newContent = typeof toolMeta?.newContent === 'string' ? toolMeta.newContent : undefined
+          return {
+            diff: diffCandidate.diff,
+            filePath: (toolMeta?.file_path as string) || toolCall.toolName,
+            summary: toolCall.summary,
+            oldContent,
+            newContent,
+          }
+        }
+      }
+    }
+
     const meta = message.metadata as Record<string, unknown> | undefined
     if (!meta || meta.kind !== 'tool_result') continue
     const toolMeta = meta.metadata as Record<string, unknown> | undefined

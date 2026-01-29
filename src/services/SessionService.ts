@@ -251,7 +251,7 @@ export class SessionService {
               role: 'tool',
               content,
               tool_call_id: entry.toolResult.id,
-              name: entry.tool?.name, // 从对应的 tool_use 获取工具名称
+              name: entry.tool?.name,
             });
           }
           break;

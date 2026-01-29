@@ -6,6 +6,7 @@ interface AppState {
   setSidebarOpen: (open: boolean) => void
   isFilePreviewOpen: boolean
   toggleFilePreview: () => void
+  setFilePreviewOpen: (open: boolean) => void
   isSettingsOpen: boolean
   toggleSettings: () => void
   isMcpOpen: boolean
@@ -22,6 +23,7 @@ export const useAppStore = create<AppState>((set) => ({
   setSidebarOpen: (open) => set({ isSidebarOpen: open }),
   isFilePreviewOpen: false,
   toggleFilePreview: () => set((state) => ({ isFilePreviewOpen: !state.isFilePreviewOpen })),
+  setFilePreviewOpen: (open) => set({ isFilePreviewOpen: open }),
   isSettingsOpen: false,
   toggleSettings: () => set((state) => ({ isSettingsOpen: !state.isSettingsOpen })),
   isMcpOpen: false,

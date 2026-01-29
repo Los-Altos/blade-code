@@ -36,6 +36,7 @@ export interface ToolCallInfo {
   summary?: string
   output?: string
   startTime: number
+  metadata?: Record<string, unknown>
 }
 
 export interface AgentResponseContent {

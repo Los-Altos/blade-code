@@ -1,4 +1,3 @@
-import { EventEmitter } from 'events';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { LRUCache } from 'lru-cache';
@@ -12,6 +11,7 @@ import type { Message } from '../../services/ChatServiceInterface.js';
 import { SessionService } from '../../services/SessionService.js';
 import type { ConfirmationDetails, ConfirmationResponse } from '../../tools/types/ExecutionTypes.js';
 import type { ToolResultMetadata } from '../../tools/types/ToolTypes.js';
+import { Bus } from '../bus.js';
 import { BadRequestError, NotFoundError } from '../error.js';
 
 const logger = createLogger(LogCategory.SERVICE);
@@ -40,7 +40,6 @@ export interface RunState {
   id: string;
   sessionId: string;
   status: 'running' | 'waiting_permission' | 'completed' | 'failed' | 'cancelled';
-  emitter: EventEmitter;
   abortController: AbortController;
   pendingPermission?: {
     permissionId: string;
@@ -69,7 +68,6 @@ const activeRuns = new LRUCache<string, RunState>({
       run.abortController.abort();
       logger.debug(`[SessionRoutes] Run ${runId} disposed due to cache eviction`);
     }
-    run.emitter.removeAllListeners();
   },
 });
 
@@ -224,7 +222,7 @@ export const SessionRoutes = () => {
       const run = activeRuns.get(session.currentRunId);
       if (run) {
         run.abortController.abort();
-        run.emitter.emit('event', { type: 'run.cancelled', properties: { sessionId, runId: run.id } });
+        Bus.publish(sessionId, 'run.cancelled', { runId: run.id });
         activeRuns.delete(session.currentRunId);
       }
     }
@@ -248,9 +246,17 @@ export const SessionRoutes = () => {
   app.get('/:sessionId/events', async (c) => {
     const sessionId = c.req.param('sessionId');
 
-    const session = sessions.get(sessionId);
+    let session = sessions.get(sessionId);
     if (!session) {
-      throw new NotFoundError('Session', sessionId);
+      const directory = c.get('directory') || process.cwd();
+      session = {
+        id: sessionId,
+        projectPath: directory,
+        title: `Session ${sessionId.slice(0, 6)}`,
+        createdAt: new Date(),
+        messages: [],
+      };
+      sessions.set(sessionId, session);
     }
 
     return streamSSE(c, async (stream) => {
@@ -260,34 +266,12 @@ export const SessionRoutes = () => {
         data: JSON.stringify({ type: 'connected', properties: { sessionId, timestamp: Date.now() } }) 
       });
 
-      const onEvent = (event: { type: string; properties: Record<string, unknown> }) => {
-        stream.writeSSE({ data: JSON.stringify(event) }).catch(() => { /* ignore write errors on closed streams */ });
-      };
-
-      let currentRun: RunState | null = null;
-      let currentRunId: string | undefined = undefined;
-
-      const checkRun = () => {
-        if (session.currentRunId && session.currentRunId !== currentRunId) {
-          if (currentRun) {
-            currentRun.emitter.off('event', onEvent);
-          }
-          const run = activeRuns.get(session.currentRunId);
-          if (run) {
-            run.emitter.on('event', onEvent);
-            currentRun = run;
-            currentRunId = session.currentRunId;
-            return run;
-          }
-        }
-        return currentRun;
-      };
-
-      checkRun();
-
-      const runCheckInterval = setInterval(() => {
-        checkRun();
-      }, 100);
+      const unsubscribe = Bus.subscribe((event) => {
+        if (event.sessionId !== sessionId) return;
+        stream.writeSSE({ 
+          data: JSON.stringify({ type: event.type, properties: { sessionId: event.sessionId, ...event.properties } }) 
+        }).catch(() => { /* ignore write errors on closed streams */ });
+      });
 
       const heartbeatInterval = setInterval(() => {
         if (!stream.aborted) {
@@ -298,11 +282,8 @@ export const SessionRoutes = () => {
       }, HEARTBEAT_INTERVAL);
 
       stream.onAbort(() => {
-        clearInterval(runCheckInterval);
         clearInterval(heartbeatInterval);
-        if (currentRun) {
-          currentRun.emitter.off('event', onEvent);
-        }
+        unsubscribe();
       });
 
       while (true) {
@@ -339,14 +320,12 @@ export const SessionRoutes = () => {
     }
 
     const runId = nanoid(12);
-    const emitter = new EventEmitter();
     const abortController = new AbortController();
 
     const run: RunState = {
       id: runId,
       sessionId,
       status: 'running',
-      emitter,
       abortController,
       createdAt: new Date(),
     };
@@ -370,7 +349,7 @@ export const SessionRoutes = () => {
       if (run) {
         run.abortController.abort();
         run.status = 'cancelled';
-        run.emitter.emit('event', { type: 'run.cancelled', properties: { sessionId, runId: run.id } });
+        Bus.publish(sessionId, 'run.cancelled', { runId: run.id });
       }
     }
 
@@ -402,12 +381,12 @@ async function executeRunAsync(
   content: string,
   permissionMode: PermissionMode
 ): Promise<void> {
-  const { emitter, abortController, sessionId, id: runId } = run;
+  const { abortController, sessionId, id: runId } = run;
   const userMessageId = nanoid(12);
   const assistantMessageId = nanoid(12);
 
   const emit = (type: string, properties: Record<string, unknown>) => {
-    emitter.emit('event', { type, properties: { sessionId, ...properties } });
+    Bus.publish(sessionId, type, properties);
   };
 
   try {
@@ -451,6 +430,7 @@ async function executeRunAsync(
       logger.info(`[SessionRoutes] Permission request created: ${permissionId}, runId: ${runId}`);
       
       const response = await resultPromise;
+      logger.info(`[SessionRoutes] Permission response received: ${permissionId}, approved: ${response.approved}`);
       run.status = 'running';
       run.pendingPermission = undefined;
       
@@ -531,7 +511,11 @@ export function respondToPermission(
   permissionId: string,
   response: ConfirmationResponse
 ): boolean {
-  for (const run of activeRuns.values()) {
+  logger.info(`[SessionRoutes] Looking for permission ${permissionId} in session ${sessionId}`);
+  logger.info(`[SessionRoutes] Active runs: ${activeRuns.size}`);
+  
+  for (const [runId, run] of activeRuns.entries()) {
+    logger.info(`[SessionRoutes] Checking run ${runId}: sessionId=${run.sessionId}, pendingPermission=${run.pendingPermission?.permissionId}`);
     if (run.sessionId === sessionId && run.pendingPermission?.permissionId === permissionId) {
       run.pendingPermission.resolve(response);
       logger.info(`[SessionRoutes] Permission ${permissionId} responded, runId: ${run.id}`);

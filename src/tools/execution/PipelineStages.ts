@@ -398,8 +398,10 @@ export class ConfirmationStage implements PipelineStage {
       // 如果提供了 confirmationHandler,使用它来请求用户确认
       const confirmationHandler = execution.context.confirmationHandler;
       if (confirmationHandler) {
+        logger.info(`[ConfirmationStage] Requesting confirmation for ${tool.name}`);
         const response =
           await confirmationHandler.requestConfirmation(confirmationDetails);
+        logger.info(`[ConfirmationStage] Confirmation response: approved=${response.approved}`);
 
         if (!response.approved) {
           execution.abort(
@@ -408,6 +410,7 @@ export class ConfirmationStage implements PipelineStage {
           );
           return;
         }
+        logger.info(`[ConfirmationStage] User approved, continuing to execution stage`);
 
         const scope = response.scope || 'once';
         if (scope === 'session' && execution._internal.permissionSignature) {

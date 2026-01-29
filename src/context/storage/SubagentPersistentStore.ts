@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import type { JsonValue, MessageRole } from '../../store/types.js';
 import type { BladeJSONLEntry } from '../types.js';
 import { JSONLStore } from './JSONLStore.js';
-import { detectGitBranch, getSubagentFilePath, getProjectStoragePath } from './pathUtils.js';
+import { detectGitBranch, getProjectStoragePath, getSubagentFilePath } from './pathUtils.js';
 
 export interface SubagentInfo {
   agentId: string;
@@ -127,6 +127,7 @@ export class SubagentPersistentStore {
   async saveToolResult(
     subagentInfo: SubagentInfo,
     toolId: string,
+    toolName: string,
     toolOutput: JsonValue,
     parentUuid: string | null = null,
     error?: string
@@ -149,6 +150,11 @@ export class SubagentPersistentStore {
         message: {
           role: 'assistant',
           content: '',
+        },
+        tool: {
+          id: toolId,
+          name: toolName,
+          input: {},
         },
         toolResult: {
           id: toolId,

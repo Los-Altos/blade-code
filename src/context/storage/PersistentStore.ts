@@ -3,17 +3,17 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { JsonValue, MessageRole } from '../../store/types.js';
 import type {
-  BladeJSONLEntry,
-  ContextData,
-  ConversationContext,
-  SessionContext,
+    BladeJSONLEntry,
+    ContextData,
+    ConversationContext,
+    SessionContext,
 } from '../types.js';
 import { JSONLStore } from './JSONLStore.js';
 import {
-  detectGitBranch,
-  getProjectStoragePath,
-  getSessionFilePath,
-  listProjectDirectories,
+    detectGitBranch,
+    getProjectStoragePath,
+    getSessionFilePath,
+    listProjectDirectories,
 } from './pathUtils.js';
 
 /**
@@ -166,6 +166,7 @@ export class PersistentStore {
   async saveToolResult(
     sessionId: string,
     toolId: string,
+    toolName: string,
     toolOutput: JsonValue,
     parentUuid: string | null = null,
     error?: string,
@@ -197,6 +198,11 @@ export class PersistentStore {
         message: {
           role: 'assistant',
           content: '',
+        },
+        tool: {
+          id: toolId,
+          name: toolName,
+          input: {},
         },
         toolResult: {
           id: toolId,

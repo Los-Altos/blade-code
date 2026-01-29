@@ -1,9 +1,10 @@
 import { cn } from '@/lib/utils'
 import { sessionService } from '@/services'
+import { useAppStore } from '@/store/AppStore'
 import type { AgentResponseContent, Message, ToolCallInfo } from '@/store/session'
 import { useSessionStore } from '@/store/session'
-import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react'
-import { useState } from 'react'
+import { ChevronDown, ChevronRight, FileText, Loader2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 
 export type { Message }
@@ -174,6 +175,54 @@ function TodoSection({ todos }: { todos: AgentResponseContent['todos'] }) {
   )
 }
 
+function ChangedFilesSection({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
+  const { setFilePreviewOpen } = useAppStore()
+
+  const changedFiles = useMemo(() => {
+    const files = new Map<string, { path: string; toolName: string }>()
+    const editTools = ['Write', 'SearchReplace', 'Edit']
+    for (const tc of toolCalls) {
+      if (tc.status !== 'success') continue
+      const meta = tc.metadata as Record<string, unknown> | undefined
+      const filePath = meta?.file_path as string | undefined
+      if (filePath && editTools.includes(tc.toolName)) {
+        files.set(filePath, { path: filePath, toolName: tc.toolName })
+      }
+    }
+    return Array.from(files.values())
+  }, [toolCalls])
+
+  if (changedFiles.length === 0) return null
+
+  const handleFileClick = () => {
+    setFilePreviewOpen(true)
+  }
+
+  return (
+    <div className="bg-[#F9FAFB] dark:bg-[#18181b] border border-[#E5E7EB] dark:border-[#27272a] rounded-lg px-3 py-2">
+      <div className="text-[11px] text-[#6B7280] dark:text-[#71717a] font-mono mb-1.5">
+        Changed files ({changedFiles.length})
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {changedFiles.map(({ path }) => {
+          const fileName = path.split('/').pop() || path
+          return (
+            <button
+              key={path}
+              onClick={handleFileClick}
+              className="flex items-center gap-1 px-2 py-1 text-[11px] font-mono bg-[#E5E7EB] dark:bg-[#27272a] text-[#374151] dark:text-[#d4d4d8] rounded hover:bg-[#D1D5DB] dark:hover:bg-[#3f3f46] transition-colors"
+              title={path}
+            >
+              <FileText className="w-3 h-3" />
+              {fileName}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function SubagentSection({ subagent }: { subagent: AgentResponseContent['subagent'] }) {
   if (!subagent) return null
 
@@ -190,33 +239,33 @@ function SubagentSection({ subagent }: { subagent: AgentResponseContent['subagen
   )
 }
 
-function ConfirmationSection({ confirmation }: { confirmation: AgentResponseContent['confirmation'] }) {
+function ConfirmationSection({ confirmation, messageId }: { confirmation: AgentResponseContent['confirmation'], messageId: string }) {
   const [submitting, setSubmitting] = useState(false)
-  const { currentSessionId } = useSessionStore()
+  const { currentSessionId, setConfirmation } = useSessionStore()
 
   if (!confirmation) return null
 
-  const handleResponse = async (approved: boolean) => {
+  const handleResponse = async (approved: boolean, scope?: 'once' | 'session') => {
     if (!currentSessionId || submitting) return
     setSubmitting(true)
     try {
-      await sessionService.respondPermission(currentSessionId, confirmation.toolCallId, { approved })
+      await sessionService.respondPermission(currentSessionId, confirmation.toolCallId, { approved, scope })
+      setConfirmation(messageId, {
+        ...confirmation,
+        status: approved ? 'approved' : 'denied',
+      })
+    } catch (error) {
+      setConfirmation(messageId, {
+        ...confirmation,
+        status: approved ? 'approved' : 'denied',
+      })
     } finally {
       setSubmitting(false)
     }
   }
 
   if (confirmation.status !== 'pending') {
-    return (
-      <div className="bg-[#F9FAFB] dark:bg-[#18181b] border border-[#E5E7EB] dark:border-[#27272a] rounded-lg px-3 py-2">
-        <div className="flex gap-2 items-center">
-          <span className="text-[12px] text-[#6B7280] dark:text-[#71717a] font-mono">
-            {confirmation.toolName}: {confirmation.status === 'approved' ? 'Approved' : 'Denied'}
-          </span>
-          <StatusPill status={confirmation.status === 'approved' ? 'success' : 'error'} />
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
@@ -234,11 +283,18 @@ function ConfirmationSection({ confirmation }: { confirmation: AgentResponseCont
       )}
       <div className="flex gap-2">
         <button
-          onClick={() => handleResponse(true)}
+          onClick={() => handleResponse(true, 'once')}
           disabled={submitting}
           className="px-3 py-1.5 text-[12px] font-mono bg-[#22C55E] text-white rounded-md hover:bg-[#16A34A] disabled:opacity-50"
         >
-          Approve
+          Once
+        </button>
+        <button
+          onClick={() => handleResponse(true, 'session')}
+          disabled={submitting}
+          className="px-3 py-1.5 text-[12px] font-mono bg-[#3B82F6] text-white rounded-md hover:bg-[#2563EB] disabled:opacity-50"
+        >
+          Session
         </button>
         <button
           onClick={() => handleResponse(false)}
@@ -348,6 +404,9 @@ function AgentMessageContent({ message }: { message: Message }) {
     )
   }
 
+  const allToolsCompleted = toolCalls.length > 0 && toolCalls.every((tc) => tc.status === 'success' || tc.status === 'error')
+  const showChangedFiles = allToolsCompleted && (!isCurrentMessage || !isStreaming)
+
   return (
     <div className="space-y-3">
       {thinkingContent && <ThinkingSection content={thinkingContent} />}
@@ -355,8 +414,9 @@ function AgentMessageContent({ message }: { message: Message }) {
       {todos.length > 0 && <TodoSection todos={todos} />}
       {subagent && <SubagentSection subagent={subagent} />}
       <ToolCallsList toolCalls={toolCalls} />
-      {confirmation && <ConfirmationSection confirmation={confirmation} />}
+      {confirmation && <ConfirmationSection confirmation={confirmation} messageId={message.id} />}
       {question && <QuestionSection question={question} />}
+      {showChangedFiles && <ChangedFilesSection toolCalls={toolCalls} />}
       {textAfter && <MarkdownRenderer content={textAfter} />}
     </div>
   )

@@ -13,10 +13,10 @@
 import * as os from 'os';
 import * as path from 'path';
 import {
-    type BladeConfig,
-    ConfigManager,
-    type PermissionConfig,
-    PermissionMode,
+  type BladeConfig,
+  ConfigManager,
+  type PermissionConfig,
+  PermissionMode,
 } from '../config/index.js';
 import { CompactionService } from '../context/CompactionService.js';
 import { ContextManager } from '../context/ContextManager.js';
@@ -30,12 +30,12 @@ import { AttachmentCollector } from '../prompts/processors/AttachmentCollector.j
 import type { Attachment } from '../prompts/processors/types.js';
 import { buildSpecModePrompt, createSpecModeReminder } from '../prompts/spec.js';
 import {
-    type ChatResponse,
-    type ContentPart,
-    createChatServiceAsync,
-    type IChatService,
-    type Message,
-    type StreamToolCall,
+  type ChatResponse,
+  type ContentPart,
+  createChatServiceAsync,
+  type IChatService,
+  type Message,
+  type StreamToolCall,
 } from '../services/ChatServiceInterface.js';
 import type { JsonValue } from '../store/types.js';
 
@@ -51,14 +51,14 @@ function toJsonValue(value: string | object): JsonValue {
 import { discoverSkills, injectSkillsMetadata } from '../skills/index.js';
 import { SpecManager } from '../spec/SpecManager.js';
 import {
-    appActions,
-    configActions,
-    ensureStoreInitialized,
-    getAllModels,
-    getConfig,
-    getCurrentModel,
-    getMcpServers,
-    getThinkingModeEnabled,
+  appActions,
+  configActions,
+  ensureStoreInitialized,
+  getAllModels,
+  getConfig,
+  getCurrentModel,
+  getMcpServers,
+  getThinkingModeEnabled,
 } from '../store/vanilla.js';
 import { getBuiltinTools } from '../tools/builtin/index.js';
 import { ExecutionPipeline } from '../tools/execution/ExecutionPipeline.js';
@@ -69,13 +69,13 @@ import { isThinkingModel } from '../utils/modelDetection.js';
 import { ExecutionEngine } from './ExecutionEngine.js';
 import { subagentRegistry } from './subagents/SubagentRegistry.js';
 import type {
-    AgentOptions,
-    AgentResponse,
-    AgentTask,
-    ChatContext,
-    LoopOptions,
-    LoopResult,
-    UserMessageContent,
+  AgentOptions,
+  AgentResponse,
+  AgentTask,
+  ChatContext,
+  LoopOptions,
+  LoopResult,
+  UserMessageContent,
 } from './types.js';
 
 // 创建 Agent 专用 Logger
@@ -1248,6 +1248,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
               lastMessageUuid = await contextMgr.saveToolResult(
                 context.sessionId,
                 toolCall.id,
+                toolCall.function.name,
                 result.success ? toJsonValue(result.llmContent) : null,
                 toolUseUuid,
                 result.success ? undefined : result.error?.message,
