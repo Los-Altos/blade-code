@@ -15,6 +15,7 @@
   ],
   "scripts": {
     "dev": "bun --watch src/blade.tsx",
+    "dev:serve": "bun --watch src/blade.tsx serve --port 4097",
     "build": "rm -rf dist && bun run scripts/build.ts",
     "start": "bun run dist/blade.js",
     "test": "node scripts/test.js",
@@ -103,7 +104,9 @@
     "vitest": "^3.0.0"
   },
   "optionalDependencies": {
-    "@vscode/ripgrep": "^1.17.0"
+    "@vscode/ripgrep": "^1.17.0",
+    "bun-pty": "^0.4.8",
+    "node-pty": "1.0.0"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.12.0",
@@ -128,6 +131,7 @@
     "fast-glob": "^3.3.3",
     "fuse.js": "^7.1.0",
     "gray-matter": "^4.0.3",
+    "hono": "^4.7.10",
     "ink": "npm:@jrichman/ink@6.4.6",
     "ink-big-text": "^2.0.0",
     "ink-gradient": "^3.0.0",
@@ -139,10 +143,9 @@
     "lowlight": "^3.3.0",
     "lru-cache": "^11.2.4",
     "nanoid": "^5.1.6",
+    "open": "^10.1.2",
     "openai": "^6.2.0",
     "picomatch": "^4.0.3",
-    "pino": "^10.1.0",
-    "pino-pretty": "^13.1.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "semver": "^7.7.3",

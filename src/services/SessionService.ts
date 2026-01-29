@@ -52,9 +52,11 @@ export class SessionService {
         const projectDirPath = path.join(projectsDir, dir.name);
         const projectPath = unescapeProjectPath(dir.name);
 
-        // 读取项目目录下的所有 JSONL 文件
+        // 读取项目目录下的所有 JSONL 文件（排除子代理会话文件）
         const files = await readdir(projectDirPath);
-        const jsonlFiles = files.filter((f) => f.endsWith('.jsonl'));
+        const jsonlFiles = files.filter(
+          (f) => f.endsWith('.jsonl') && !f.startsWith('agent_')
+        );
 
         for (const file of jsonlFiles) {
           const filePath = path.join(projectDirPath, file);
@@ -249,7 +251,7 @@ export class SessionService {
               role: 'tool',
               content,
               tool_call_id: entry.toolResult.id,
-              name: entry.tool?.name, // 从对应的 tool_use 获取工具名称
+              name: entry.tool?.name,
             });
           }
           break;

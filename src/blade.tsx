@@ -18,12 +18,14 @@ import { doctorCommands } from './commands/doctor.js';
 import { installCommands } from './commands/install.js';
 import { mcpCommands } from './commands/mcp.js';
 import { handlePrintMode } from './commands/print.js';
+import { serveCommand } from './commands/serve.js';
 import { updateCommands } from './commands/update.js';
+import { webCommand } from './commands/web.js';
 import { Logger } from './logging/Logger.js';
 import { initializeGracefulShutdown } from './services/GracefulShutdown.js';
 import { checkVersionOnStartup } from './services/VersionChecker.js';
-import { AppWrapper as BladeApp } from './ui/App.js';
 import type { AppProps } from './ui/App.js';
+import { AppWrapper as BladeApp } from './ui/App.js';
 
 // ⚠️ 关键：在创建任何 logger 之前，先解析 --debug 参数并设置全局配置
 // 这样可以确保所有 logger（包括 middleware、commands 中的）都能正确输出到终端
@@ -96,6 +98,8 @@ export async function main() {
     .command(doctorCommands)
     .command(updateCommands)
     .command(installCommands)
+    .command(webCommand)
+    .command(serveCommand)
 
     // 自动生成补全（隐藏，避免干扰普通用户）
     .completion('completion', false)

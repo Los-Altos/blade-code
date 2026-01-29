@@ -13,10 +13,10 @@
 import * as os from 'os';
 import * as path from 'path';
 import {
-    type BladeConfig,
-    ConfigManager,
-    type PermissionConfig,
-    PermissionMode,
+  type BladeConfig,
+  ConfigManager,
+  type PermissionConfig,
+  PermissionMode,
 } from '../config/index.js';
 import { CompactionService } from '../context/CompactionService.js';
 import { ContextManager } from '../context/ContextManager.js';
@@ -30,12 +30,12 @@ import { AttachmentCollector } from '../prompts/processors/AttachmentCollector.j
 import type { Attachment } from '../prompts/processors/types.js';
 import { buildSpecModePrompt, createSpecModeReminder } from '../prompts/spec.js';
 import {
-    type ChatResponse,
-    type ContentPart,
-    createChatServiceAsync,
-    type IChatService,
-    type Message,
-    type StreamToolCall,
+  type ChatResponse,
+  type ContentPart,
+  createChatServiceAsync,
+  type IChatService,
+  type Message,
+  type StreamToolCall,
 } from '../services/ChatServiceInterface.js';
 import type { JsonValue } from '../store/types.js';
 
@@ -51,14 +51,14 @@ function toJsonValue(value: string | object): JsonValue {
 import { discoverSkills, injectSkillsMetadata } from '../skills/index.js';
 import { SpecManager } from '../spec/SpecManager.js';
 import {
-    appActions,
-    configActions,
-    ensureStoreInitialized,
-    getAllModels,
-    getConfig,
-    getCurrentModel,
-    getMcpServers,
-    getThinkingModeEnabled,
+  appActions,
+  configActions,
+  ensureStoreInitialized,
+  getAllModels,
+  getConfig,
+  getCurrentModel,
+  getMcpServers,
+  getThinkingModeEnabled,
 } from '../store/vanilla.js';
 import { getBuiltinTools } from '../tools/builtin/index.js';
 import { ExecutionPipeline } from '../tools/execution/ExecutionPipeline.js';
@@ -69,13 +69,13 @@ import { isThinkingModel } from '../utils/modelDetection.js';
 import { ExecutionEngine } from './ExecutionEngine.js';
 import { subagentRegistry } from './subagents/SubagentRegistry.js';
 import type {
-    AgentOptions,
-    AgentResponse,
-    AgentTask,
-    ChatContext,
-    LoopOptions,
-    LoopResult,
-    UserMessageContent,
+  AgentOptions,
+  AgentResponse,
+  AgentTask,
+  ChatContext,
+  LoopOptions,
+  LoopResult,
+  UserMessageContent,
 } from './types.js';
 
 // 创建 Agent 专用 Logger
@@ -423,8 +423,9 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
     // Plan 模式差异 1: 使用统一入口构建 Plan 模式系统提示词
     const { prompt: systemPrompt } = await buildSystemPrompt({
       projectPath: process.cwd(),
-      mode: PermissionMode.PLAN, // Plan 模式会使用 PLAN_MODE_SYSTEM_PROMPT
+      mode: PermissionMode.PLAN,
       includeEnvironment: true,
+      language: this.config.language,
     });
 
     // Plan 模式差异 2: 在用户消息中注入 system-reminder
@@ -556,6 +557,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
       replaceDefault: replacePrompt,
       append: appendPrompt,
       includeEnvironment: false,
+      language: this.config.language,
     });
 
     return result.prompt;
@@ -645,7 +647,10 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
           lastMessageUuid = await contextMgr.saveMessage(
             context.sessionId,
             'user',
-            textContent
+            textContent,
+            null,
+            undefined,
+            context.subagentInfo
           );
         } else if (textContent.trim() === '') {
           logger.debug('[Agent] 跳过保存空用户消息');
@@ -990,7 +995,9 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
                   context.sessionId,
                   'assistant',
                   turnResult.content,
-                  lastMessageUuid // 链接到上一条消息
+                  lastMessageUuid,
+                  undefined,
+                  context.subagentInfo
                 );
               } else {
                 logger.debug('[Agent] 跳过保存空响应（任务完成时）');
@@ -1031,7 +1038,9 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
                 context.sessionId,
                 'assistant',
                 turnResult.content,
-                lastMessageUuid // 链接到上一条消息
+                lastMessageUuid,
+                undefined,
+                context.subagentInfo
               );
             } else {
               logger.debug('[Agent] 跳过保存空响应（工具调用时）');
@@ -1115,7 +1124,8 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
                   context.sessionId,
                   toolCall.function.name,
                   params,
-                  lastMessageUuid
+                  lastMessageUuid,
+                  context.subagentInfo
                 );
               }
             } catch (error) {
@@ -1238,9 +1248,11 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
               lastMessageUuid = await contextMgr.saveToolResult(
                 context.sessionId,
                 toolCall.id,
+                toolCall.function.name,
                 result.success ? toJsonValue(result.llmContent) : null,
                 toolUseUuid,
-                result.success ? undefined : result.error?.message
+                result.success ? undefined : result.error?.message,
+                context.subagentInfo
               );
             }
           } catch (err) {
@@ -1858,6 +1870,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
         replaceDefault: replacePrompt,
         append: appendPrompt,
         includeEnvironment: false,
+        language: this.config.language,
       });
 
       if (result.prompt) {
