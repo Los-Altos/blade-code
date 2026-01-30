@@ -3,6 +3,7 @@
 * 快速开始
   * [安装指南](getting-started/installation.md)
   * [快速开始](getting-started/quick-start.md)
+  * [Web UI](getting-started/web-ui.md)
 
 * 配置
   * [配置系统](configuration/config-system.md)

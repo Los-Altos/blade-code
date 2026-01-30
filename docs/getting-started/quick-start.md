@@ -2,6 +2,8 @@
 
 本指南帮助你在 5 分钟内开始使用 Blade。
 
+> **当前版本**: 0.2.0
+
 ## 安装
 
 ```bash
@@ -17,6 +19,8 @@ yarn global add blade-code
 
 ## 启动
 
+### CLI 模式
+
 ```bash
 # 在项目目录下启动
 cd /path/to/project
@@ -24,6 +28,16 @@ blade
 
 # 或带初始消息启动
 blade "帮我分析这个项目的架构"
+```
+
+### Web UI 模式（0.2.0 新增）
+
+```bash
+# 启动 Web UI 并自动打开浏览器
+blade web
+
+# 或启动无头服务器（适合远程访问）
+blade serve --port 3000 --hostname 0.0.0.0
 ```
 
 ## 零配置体验

@@ -2,7 +2,7 @@
 
 # 🗡️ Blade Code
 
-**新一代 AI 编程助手（CLI）**
+**新一代 AI 编程助手（CLI + Web UI）**
 
 [![npm version](https://img.shields.io/npm/v/blade-code.svg?style=flat-square)](https://www.npmjs.com/package/blade-code)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
@@ -15,10 +15,16 @@
 
 ---
 
-## 📸 启动界面
+## 📸 界面预览
 
 <div align="center">
-  <img src="./assets/screenshots/startup.png" alt="Blade Code 启动界面" width="800" />
+  <img src="./assets/screenshots/startup.png" alt="Blade Code CLI 界面" width="800" />
+  <p><em>CLI 终端界面</em></p>
+</div>
+
+<div align="center">
+  <img src="./assets/screenshots/web.png" alt="Blade Code Web UI" width="800" />
+  <p><em>Web UI 界面（0.2.0 新增）</em></p>
 </div>
 
 ---
@@ -27,26 +33,34 @@
 
 - 🤖 **智能对话** - 上下文理解、多轮协作、可继续会话
 - 🆓 **开箱即用** - 内置免费 GLM-4.7 模型，可选自定义模型
+- 🌐 **双模式界面** - CLI 终端 + Web UI，随心切换
 - 🛠️ **丰富工具** - 20+ 内置工具：文件/搜索/Shell/Git/Web 等
 - 🔗 **扩展能力** - MCP、插件与 Skills 系统
 - 📋 **结构化工作流** - Spec / Plan / Subagents
 - 🔒 **安全可控** - default/autoEdit/plan/yolo 权限模式与工具白/黑名单
-- 🎨 **现代 UI** - React + Ink 终端 UI，支持 Markdown 与高亮
+- 🎨 **现代 UI** - React + Ink 终端 UI / React + Vite Web UI
 
 ---
 
 ## 🚀 快速开始
 
 ```bash
+# 快速体验
 npx blade-code
 
+# 全局安装
 npm install -g blade-code
 # 或
 pnpm add -g blade-code
 
+# CLI 模式
 blade
 blade "帮我分析这个项目"
 blade --print "写一个快排算法"
+
+# Web UI 模式（0.2.0 新增）
+blade web                    # 启动并打开浏览器
+blade serve --port 3000      # 无头服务器模式
 ```
 
 > 默认使用内置免费模型；要使用自有模型，可运行 `blade` 按提示配置。
@@ -73,11 +87,12 @@ blade --print "写一个快排算法"
 
 **常用命令**
 
-- `blade` 启动交互式界面
+- `blade` 启动交互式 CLI 界面
+- `blade web` 启动 Web UI（0.2.0 新增）
+- `blade serve` 启动无头服务器（0.2.0 新增）
 - `blade mcp` 管理 MCP 服务器
 - `blade doctor` 环境自检
 - `blade update` 检查更新
-- `blade install` 安装指定版本（实验）
 
 **常用选项**
 

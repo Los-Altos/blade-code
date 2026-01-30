@@ -109,6 +109,57 @@ blade -p --output-format stream-json "写一段代码"
 
 ## 子命令
 
+### blade web（0.2.0 新增）
+
+启动 Web UI 服务器并自动打开浏览器。
+
+```bash
+blade web [options]
+```
+
+**选项**：
+
+| 选项 | 说明 | 默认值 |
+|------|------|--------|
+| `--port <port>` | 监听端口（0 为自动选择） | `0` |
+| `--hostname <host>` | 监听主机名 | `127.0.0.1` |
+| `--cors <domains>` | 额外允许的 CORS 域名 | `[]` |
+
+**示例**：
+
+```bash
+# 默认启动（自动选择端口，打开浏览器）
+blade web
+
+# 指定端口
+blade web --port 3000
+
+# 允许局域网访问
+blade web --hostname 0.0.0.0 --port 3000
+```
+
+**安全提示**：设置 `BLADE_SERVER_PASSWORD` 环境变量可启用 Basic Auth 认证。
+
+### blade serve（0.2.0 新增）
+
+启动无头 Web 服务器（不打开浏览器），适合远程访问或集成场景。
+
+```bash
+blade serve [options]
+```
+
+**选项**：与 `blade web` 相同。
+
+**示例**：
+
+```bash
+# 启动无头服务器
+blade serve --port 3000 --hostname 0.0.0.0
+
+# 带认证启动
+BLADE_SERVER_PASSWORD=secret blade serve --port 3000
+```
+
 ### blade doctor
 
 环境自检，检查配置加载、Node 版本、目录权限等。
@@ -125,14 +176,6 @@ blade doctor
 
 ```bash
 blade update
-```
-
-### blade install
-
-安装指定版本（占位实现）。
-
-```bash
-blade install [stable|latest] [--force]
 ```
 
 ### blade mcp

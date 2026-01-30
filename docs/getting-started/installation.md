@@ -1,5 +1,7 @@
 # 📦 安装指南
 
+> **当前版本**: 0.2.0
+
 ## 🚀 安装方式
 
 ### 1. 零安装试用
@@ -30,9 +32,14 @@ yarn global add blade-code
 安装后即可使用 `blade` 命令：
 
 ```bash
+# CLI 模式
 blade                    # 进入交互式界面
 blade "帮我分析代码"      # 带首条消息启动
 blade --print "你好"     # 打印模式
+
+# Web UI 模式（0.2.0 新增）
+blade web                # 启动 Web UI 并打开浏览器
+blade serve              # 启动无头服务器
 ```
 
 ### 3. 项目本地安装
@@ -112,10 +119,11 @@ Blade Code 内置了免费的 GLM-4.7 模型，让你无需配置即可体验：
 ## ✅ 验证安装
 
 ```bash
-blade --version    # 查看版本
+blade --version    # 查看版本（应显示 0.2.0）
 blade --help       # 查看帮助
 blade doctor       # 环境检查
 blade --print "测试一下"  # 测试 API 连接
+blade web          # 测试 Web UI（0.2.0 新增）
 ```
 
 ## 🔧 系统要求

@@ -2,7 +2,7 @@
 
 # 🗡️ Blade Code
 
-**Next-Generation AI Coding Assistant (CLI)**
+**Next-Generation AI Coding Assistant (CLI + Web UI)**
 
 [![npm version](https://img.shields.io/npm/v/blade-code.svg?style=flat-square)](https://www.npmjs.com/package/blade-code)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
@@ -15,31 +15,53 @@ English | [简体中文](README.md)
 
 ---
 
+## 📸 Screenshots
+
+<div align="center">
+  <img src="./assets/screenshots/startup.png" alt="Blade Code CLI" width="800" />
+  <p><em>CLI Terminal Interface</em></p>
+</div>
+
+<div align="center">
+  <img src="./assets/screenshots/web.png" alt="Blade Code Web UI" width="800" />
+  <p><em>Web UI Interface (new in 0.2.0)</em></p>
+</div>
+
+---
+
 ## ✨ Key Features
 
 - 🤖 **Smart Chat** - Context-aware, multi-turn collaboration with session continuity
 - 🆓 **Out of the Box** - Built-in free GLM-4.7 model (with chain-of-thought), plus custom models
+- 🌐 **Dual Interface** - CLI terminal + Web UI, switch as you like
 - 🛠️ **Rich Tooling** - 20+ built-in tools: file/search/shell/git/web and more
-- 🌐 **Smart Search** - WebSearch with multi-provider fallback (Exa → DuckDuckGo → SearXNG)
+- 🔍 **Smart Search** - WebSearch with multi-provider fallback (Exa → DuckDuckGo → SearXNG)
 - 🔗 **Extensible** - MCP, plugins, and Skills system
 - 📋 **Structured Workflows** - Spec / Plan / Subagents
 - 🔒 **Secure Control** - Permission modes: default/autoEdit/plan/yolo/spec + allow/deny lists
-- 🎨 **Modern UI** - React + Ink TUI with Markdown and syntax highlighting
+- 🎨 **Modern UI** - React + Ink TUI / React + Vite Web UI
 
 ---
 
 ## 🚀 Quick Start
 
 ```bash
+# Quick try
 npx blade-code
 
+# Global install
 npm install -g blade-code
 # or
 pnpm add -g blade-code
 
+# CLI mode
 blade
 blade "Help me analyze this project"
 blade --print "Write a quicksort"
+
+# Web UI mode (new in 0.2.0)
+blade web                    # Start and open browser
+blade serve --port 3000      # Headless server mode
 ```
 
 > Uses the built-in free model by default; run `blade` to configure your own provider.
@@ -66,11 +88,12 @@ See docs for the full schema.
 
 **Common Commands**
 
-- `blade` start interactive UI
+- `blade` start interactive CLI
+- `blade web` start Web UI (new in 0.2.0)
+- `blade serve` start headless server (new in 0.2.0)
 - `blade mcp` manage MCP servers
 - `blade doctor` environment check
 - `blade update` check for updates
-- `blade install` install a specific version (experimental)
 
 **Common Options**
 

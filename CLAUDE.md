@@ -6,19 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Blade Code is a modern AI-powered CLI coding assistant built with React + Ink and TypeScript. The project uses **pnpm workspace monorepo** architecture.
+Blade Code is a modern AI-powered coding assistant with CLI + Web UI, built with React + Ink (CLI) and React + Vite (Web), using TypeScript. Current version: **0.2.0**.
 
 ## Quick Commands
 
 ```bash
-pnpm dev              # Start all packages in dev mode
-pnpm dev:cli          # Start CLI dev mode only
-pnpm dev:web          # Start Web UI dev mode only
-pnpm build            # Build all packages
+# Development
+pnpm dev              # Start CLI dev mode (watch)
+pnpm dev:serve        # Start CLI + Web server
+pnpm build            # Build CLI
+
+# Running
+blade                 # Start interactive CLI
+blade web             # Start Web UI (opens browser)
+blade serve           # Start headless server
+
+# Testing & Quality
 pnpm test:all         # Run all tests
 pnpm lint             # Run linter
 pnpm type-check       # TypeScript type checking
-pnpm preflight        # Full check (clean, install, format, lint, build, type-check, test)
 ```
 
 ## Architecture
@@ -28,27 +34,27 @@ pnpm preflight        # Full check (clean, install, format, lint, build, type-ch
 ```
 Blade/
 ├── packages/
-│   ├── cli/            # @blade/cli - CLI core
+│   ├── cli/            # blade-code - CLI core (npm package)
 │   │   └── src/
 │   │       ├── agent/          # Stateless Agent core
 │   │       ├── tools/          # Tool system (builtin, execution, registry)
+│   │       ├── server/         # Web server (Hono)
 │   │       ├── mcp/            # MCP protocol support
 │   │       ├── context/        # Context management
 │   │       ├── config/         # Configuration management
-│   │       ├── ui/             # UI components (React + Ink)
+│   │       ├── ui/             # Terminal UI (React + Ink)
 │   │       ├── store/          # State management (Zustand)
-│   │       ├── services/       # Service layer
-│   │       ├── cli/            # CLI configuration
-│   │       ├── commands/       # Command handlers
+│   │       ├── services/       # Service layer (Chat, Session, etc.)
+│   │       ├── commands/       # CLI subcommands (serve, web, mcp, etc.)
 │   │       ├── prompts/        # Prompt templates
 │   │       ├── slash-commands/ # Slash commands
+│   │       ├── skills/         # Skills system
+│   │       ├── hooks/          # Hooks system
+│   │       ├── spec/           # Spec mode
 │   │       └── blade.tsx       # Entry point
-│   ├── web/            # @blade/web - Web UI
-│   ├── vscode/         # @blade/vscode - VSCode extension
-│   └── shared/         # @blade/shared - Shared utilities
-├── docs/               # Documentation
-├── pnpm-workspace.yaml # Workspace config
-└── tsconfig.base.json  # Shared TypeScript config
+│   └── vscode/         # blade-vscode - VSCode extension
+├── docs/               # User documentation (Docsify)
+└── .blade/             # Project-level config
 ```
 
 ## Key Design Principles

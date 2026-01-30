@@ -52,21 +52,29 @@
 
 2. **开发模式**：
    ```bash
-   pnpm dev:cli   # 启动 CLI 开发模式
-   pnpm dev:web   # 启动 Web UI 开发模式
-   pnpm dev       # 并行启动所有包
+   cd packages/cli
+   pnpm dev           # 启动 CLI 开发模式（watch）
+   pnpm dev:serve     # 启动 CLI + Web 服务器
    ```
 
-3. **代码质量检查**：
+3. **测试 Web UI**：
+   ```bash
+   # 构建后启动 Web UI
+   pnpm build
+   blade web          # 启动 Web UI 并打开浏览器
+   blade serve        # 启动无头服务器模式
+   ```
+
+4. **代码质量检查**：
    ```bash
    pnpm lint          # 运行 linting 检查
    pnpm type-check    # TypeScript 类型检查
    pnpm test:all      # 运行测试
    ```
 
-4. **构建验证**：
+5. **构建验证**：
    ```bash
-   pnpm build         # 构建所有包
+   pnpm build         # 构建 CLI
    ```
 
 #### 代码规范
@@ -112,30 +120,30 @@
 ```
 Blade/
 ├── packages/
-│   ├── cli/            # @blade/cli - CLI 核心工具
+│   ├── cli/            # blade-code - CLI 核心工具（npm 包）
 │   │   ├── src/
 │   │   │   ├── agent/          # Agent 核心逻辑
-│   │   │   ├── cli/            # CLI 配置和中间件
-│   │   │   ├── commands/       # CLI 命令实现
+│   │   │   ├── commands/       # CLI 子命令（serve、web、mcp 等）
+│   │   │   ├── server/         # Web 服务器（Hono）
 │   │   │   ├── config/         # 配置管理
 │   │   │   ├── context/        # 上下文管理
-│   │   │   ├── ide/            # IDE 集成
-│   │   │   ├── logging/        # 日志系统
 │   │   │   ├── mcp/            # MCP 协议
 │   │   │   ├── prompts/        # 提示模板
-│   │   │   ├── services/       # 核心服务
+│   │   │   ├── services/       # 核心服务（Chat、Session 等）
 │   │   │   ├── slash-commands/ # 斜杠命令
+│   │   │   ├── skills/         # Skills 系统
+│   │   │   ├── hooks/          # Hooks 系统
+│   │   │   ├── spec/           # Spec 模式
 │   │   │   ├── tools/          # 工具系统
-│   │   │   ├── ui/             # 用户界面
-│   │   │   ├── utils/          # 工具函数
+│   │   │   ├── ui/             # 终端 UI（React + Ink）
+│   │   │   ├── store/          # 状态管理（Zustand）
 │   │   │   └── blade.tsx       # 应用入口
 │   │   └── tests/              # 测试文件
-│   ├── web/            # @blade/web - Web UI 前端
-│   ├── vscode/         # @blade/vscode - VSCode 扩展
-│   └── shared/         # @blade/shared - 共享代码
-├── docs/               # 文档
-├── pnpm-workspace.yaml # Workspace 配置
-├── tsconfig.base.json  # 共享 TypeScript 配置
+│   └── vscode/         # blade-vscode - VSCode 扩展
+├── docs/               # 用户文档（Docsify）
+├── .blade/             # 项目级配置
+│   ├── commands/       # 自定义 Slash 命令
+│   └── skills/         # 自定义 Skills
 └── package.json        # 根 package.json
 ```
 

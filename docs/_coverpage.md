@@ -2,14 +2,14 @@
 
 ![logo](https://via.placeholder.com/150x150/3F51B5/FFFFFF?text=Blade)
 
-# Blade Code <small>v0.1.2</small>
+# Blade Code <small>v0.2.0</small>
 
-> 🗡️ 新一代 AI 编程助手（CLI）
+> 🗡️ 新一代 AI 编程助手（CLI + Web UI）
 
 - 🆓 **开箱即用**：内置免费 GLM-4.7 模型，支持思维链推理
-- 🤖 **多模型支持**：OpenAI、Anthropic、Gemini、Azure、Copilot
+- 🌐 **双模式界面**：CLI 终端 + Web UI，随心切换
+- 🤖 **80+ Provider**：OpenAI、Anthropic、DeepSeek、Gemini 等
 - 🛠️ **丰富工具**：20+ 内置工具，文件/搜索/Shell/Git/Web
-- 🌐 **智能搜索**：Exa/DuckDuckGo/SearXNG 多提供商自动故障转移
 - 🔒 **安全可控**：五级权限模式 + 工具白/黑名单
 - 🔗 **MCP 协议**：无限扩展能力
 - ⚡ **Skills & Hooks**：动态 Prompt 和工具钩子

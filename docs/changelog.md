@@ -5,33 +5,65 @@ All notable changes to this project will be documented in this file.
 
 ## [0.2.0] - 2026-01-30
 
+🎉 **重大更新：Web UI 发布！**
+
+本版本带来了全新的 Web UI 界面，让你可以在浏览器中使用 Blade Code。
+
 ### ✨ 新功能
 
+#### 🌐 Web UI（全新）
+- **完整的 Web 界面** - 在浏览器中使用 Blade Code，支持所有核心功能
+- **`blade web` 命令** - 启动 Web 服务器并自动打开浏览器
+- **`blade serve` 命令** - 启动无头服务器模式，适合远程访问
+- **实时终端** - 支持 WebSocket 连接的终端功能
+- **会话管理** - 创建、切换、恢复会话
+- **模型管理** - 在 Web 界面中配置和切换模型
+- **权限控制** - 支持权限模式切换和操作确认
+- **多语言支持** - 中英文界面切换
+
+#### 💻 CLI 改进
 - 支持展示所有变更文件并允许展开/折叠差异 (a96ac69)
-- 移除pino日志库并实现自定义日志系统 (d5b5b67)
-- 支持Node.js环境的终端WebSocket连接 (ff2cde1)
-- 添加多语言支持并优化UI主题配置 (de2fe52)
+- 移除 pino 日志库并实现自定义日志系统 (d5b5b67)
+- 支持 Node.js 环境的终端 WebSocket 连接 (ff2cde1)
+- 添加多语言支持并优化 UI 主题配置 (de2fe52)
 - 添加权限模式支持并优化侧边栏样式 (5b83127)
-- 添加终端功能及UI改进 (37831e3)
+- 添加终端功能及 UI 改进 (37831e3)
 - 实现临时会话功能并增强侧边栏 (4c598e9)
 - 添加模型管理和会话功能 (c85cff9)
 - 实现聊天会话管理和消息流式处理功能 (9b2682c)
-- 添加完整的Web UI界面 (55540e5)
-- 新增Blade服务器核心功能及API路由 (52e3db3)
+
+#### 🖥️ 服务器
+- 新增 Blade 服务器核心功能及 API 路由 (52e3db3)
+- RESTful API 支持会话、模型、配置、权限等管理
+- WebSocket 支持实时消息推送和终端交互
+- 支持 CORS 配置和 Basic Auth 认证
 
 ### 🐛 问题修复
 
-- correct web dist path detection in server (b778444)
+- 修复 Web 静态资源路径检测问题 (b778444)
 
 ### ♻️ 代码重构
 
-- simplify monorepo architecture (1c820dd)
+- 简化 monorepo 架构 (1c820dd)
 - 重构消息组件和状态管理逻辑 (05e579a)
 - 重构会话存储结构，移除工具切片并优化事件处理 (e6fe25e)
 - 重构会话存储结构，将状态管理拆分为多个切片 (785bd56)
 - 重构会话管理及事件处理机制 (18d75a5)
 - 移除事件总线并重构会话和权限处理 (67a4dab)
 - 统一使用 PermissionMode 枚举类型 (11b3b4d)
+
+### 📖 升级指南
+
+```bash
+# 更新到 0.2.0
+npm update -g blade-code
+
+# 启动 Web UI
+blade web
+
+# 或启动无头服务器
+blade serve --port 3000 --hostname 0.0.0.0
+```
 
 
 ## [0.1.10] - 2026-01-22
