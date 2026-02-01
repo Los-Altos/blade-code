@@ -424,12 +424,6 @@ function removePortFile() {
  * 设置终端环境变量
  */
 function setTerminalEnv(port: number) {
-  // 为所有新终端设置环境变量
-  const terminalOptions: vscode.ExtensionTerminalOptions = {
-    name: 'Blade Code',
-    env: { [ENV_VAR_NAME]: String(port) }
-  };
-
   // 使用 VS Code API 更新终端环境变量
   // 注意：这只影响新创建的终端
   vscode.workspace.getConfiguration().update(

@@ -99,6 +99,11 @@ export const SessionRoutes = () => {
         sessionId: s.id,
         projectPath: s.projectPath,
         title: s.title,
+        parentId: undefined,
+        relationType: undefined,
+        status: undefined,
+        agentType: undefined,
+        model: undefined,
         messageCount: s.messages.length,
         firstMessageTime: s.createdAt.toISOString(),
         lastMessageTime: new Date().toISOString(),
@@ -145,6 +150,11 @@ export const SessionRoutes = () => {
         sessionId,
         projectPath: directory,
         title: session.title,
+        parentId: undefined,
+        relationType: undefined,
+        status: undefined,
+        agentType: undefined,
+        model: undefined,
         messageCount: 0,
         firstMessageTime: session.createdAt.toISOString(),
         lastMessageTime: session.createdAt.toISOString(),
@@ -525,13 +535,4 @@ export function respondToPermission(
 
   logger.error(`[SessionRoutes] Permission not found: ${permissionId}`);
   return false;
-}
-
-export function cancelPendingPermissions(sessionId: string): void {
-  for (const run of activeRuns.values()) {
-    if (run.sessionId === sessionId && run.pendingPermission) {
-      run.pendingPermission.resolve({ approved: false });
-      run.pendingPermission = undefined;
-    }
-  }
 }

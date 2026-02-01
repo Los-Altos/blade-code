@@ -10,7 +10,7 @@ import type {
 import { isBuiltinApiKey } from '../config/builtinModels.js';
 import type { ProviderType } from '../config/types.js';
 import { createLogger, LogCategory } from '../logging/Logger.js';
-import type { MessageRole } from '../store/types.js';
+import type { JsonValue, MessageRole } from '../store/types.js';
 import { getProviderHeaders } from '../ui/components/model-config/types.js';
 import { AntigravityChatService } from './AntigravityChatService.js';
 import { resolveBuiltinApiKey } from './BuiltinKeyService.js';
@@ -71,6 +71,7 @@ export type Message = {
   tool_call_id?: string; // tool 角色必需
   name?: string; // 工具名称
   tool_calls?: ChatCompletionMessageToolCall[]; // assistant 返回工具调用时需要
+  metadata?: JsonValue;
 };
 
 /**
@@ -91,18 +92,6 @@ export interface ChatConfig {
   customHeaders?: Record<string, string>; // Provider 特定的自定义 HTTP Headers
   providerId?: string; // models.dev 中的 Provider ID（用于获取特定配置）
 }
-
-/**
- * Thinking 模型的 reasoning 字段名
- * 不同 API 代理使用不同的字段名：
- * - DeepSeek 官方 API: reasoning_content
- * - zenmux.ai 等代理: reasoning
- */
-export type ReasoningFieldName =
-  | 'reasoning_content'
-  | 'reasoning'
-  | 'reasoningContent'
-  | 'thinking_content';
 
 /**
  * 聊天响应

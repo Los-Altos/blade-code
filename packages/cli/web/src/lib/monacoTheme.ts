@@ -157,7 +157,3 @@ export function registerMonacoTheme(monaco: Monaco, themeName: string): string {
   
   return normalizedName
 }
-
-export function getAvailableThemes(): string[] {
-  return Object.keys(themePresets)
-}

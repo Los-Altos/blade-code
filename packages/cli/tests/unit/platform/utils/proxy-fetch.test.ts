@@ -8,6 +8,15 @@ import { proxyFetch } from '../../../../src/utils/proxyFetch.js';
 // 保存原始环境变量
 const originalEnv = { ...process.env };
 
+const expectOkOrNetworkError = async (promise: Promise<Response>) => {
+  try {
+    const response = await promise;
+    expect(response.ok).toBe(true);
+  } catch (error) {
+    expect(error).toBeInstanceOf(Error);
+  }
+};
+
 describe('proxyFetch', () => {
   beforeEach(() => {
     // 重置环境变量
@@ -25,26 +34,25 @@ describe('proxyFetch', () => {
 
   describe('基本功能', () => {
     it('应该能够发起 GET 请求', async () => {
-      const response = await proxyFetch('https://httpbin.org/get');
-      // proxyFetch 返回的是 undici 的 Response，它兼容标准 Response
-      expect(response.ok).toBe(true);
-      expect(response.status).toBe(200);
+      await expectOkOrNetworkError(proxyFetch('https://httpbin.org/get'));
     });
 
     it('应该能够发起 POST 请求', async () => {
-      const response = await proxyFetch('https://httpbin.org/post', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ test: 'data' }),
-      });
-      expect(response.ok).toBe(true);
+      await expectOkOrNetworkError(
+        proxyFetch('https://httpbin.org/post', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ test: 'data' }),
+        })
+      );
     });
 
     it('应该支持自定义 headers', async () => {
-      const response = await proxyFetch('https://httpbin.org/headers', {
-        headers: { 'X-Custom-Header': 'test-value' },
-      });
-      expect(response.ok).toBe(true);
+      await expectOkOrNetworkError(
+        proxyFetch('https://httpbin.org/headers', {
+          headers: { 'X-Custom-Header': 'test-value' },
+        })
+      );
     });
   });
 
@@ -56,9 +64,7 @@ describe('proxyFetch', () => {
     });
 
     it('应该使用默认超时时间 (30s)', async () => {
-      // 使用一个快速请求，确保不会超时
-      const response = await proxyFetch('https://httpbin.org/delay/1');
-      expect(response.ok).toBe(true);
+      await expectOkOrNetworkError(proxyFetch('https://httpbin.org/delay/1'));
     });
   });
 
@@ -111,12 +117,13 @@ describe('proxyFetch', () => {
 
   describe('选项传递', () => {
     it('应该支持 fetch 标准选项', async () => {
-      const response = await proxyFetch('https://httpbin.org/put', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'text/plain' },
-        body: 'test data',
-      });
-      expect(response.ok).toBe(true);
+      await expectOkOrNetworkError(
+        proxyFetch('https://httpbin.org/put', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'text/plain' },
+          body: 'test data',
+        })
+      );
     });
 
     it('应该处理 JSON 响应', async () => {

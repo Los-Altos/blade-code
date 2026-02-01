@@ -66,10 +66,6 @@ function createBuiltinModelConfig(
   };
 }
 
-export function getDefaultBuiltinModel(): ModelConfig {
-  return createBuiltinModelConfig(BUILTIN_MODELS[0], BUILTIN_GLM_MODEL_ID);
-}
-
 export function getAllBuiltinModels(): ModelConfig[] {
   return [createBuiltinModelConfig(BUILTIN_MODELS[0], BUILTIN_GLM_MODEL_ID)];
 }

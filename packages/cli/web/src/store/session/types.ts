@@ -143,19 +143,3 @@ export interface UiSlice {
 export type SessionStoreState = SessionSlice & MessageSlice & StreamingSlice & UiSlice
 
 export type SliceCreator<T> = StateCreator<SessionStoreState, [], [], T>
-
-export interface ToolStartProps {
-  toolCallId?: string
-  toolName?: string
-  arguments?: string
-  toolKind?: string
-}
-
-export interface ToolResultProps {
-  toolCallId?: string
-  toolName?: string
-  success?: boolean
-  output?: string
-  summary?: string
-  metadata?: Record<string, unknown>
-}

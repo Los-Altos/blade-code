@@ -19,8 +19,8 @@ vi.mock('../../../../src/logging/Logger.js', () => ({
   }),
   LogCategory: { AGENT: 'agent' },
 }));
-vi.mock('node:crypto', () => ({
-  randomUUID: () => 'test-uuid-1234',
+vi.mock('nanoid', () => ({
+  nanoid: () => 'session_test-uuid-1234',
 }));
 
 import { Agent } from '../../../../src/agent/Agent.js';
@@ -84,12 +84,12 @@ describe('BackgroundAgentManager', () => {
         prompt: 'Do something',
       });
 
-      expect(agentId).toBe('agent_test-uuid-1234');
+      expect(agentId).toBe('session_test-uuid-1234');
 
       const mockStore = AgentSessionStore.getInstance();
       expect(mockStore.saveSession).toHaveBeenCalledWith(
         expect.objectContaining({
-          id: 'agent_test-uuid-1234',
+          id: 'session_test-uuid-1234',
           subagentType: 'Explore',
           description: 'Test task',
           status: 'running',
@@ -143,7 +143,7 @@ describe('BackgroundAgentManager', () => {
         prompt: 'Do something',
       });
 
-      expect(manager.isRunning('agent_test-uuid-1234')).toBe(true);
+      expect(manager.isRunning('session_test-uuid-1234')).toBe(true);
     });
 
     it('不存在的 agent 应返回 false', () => {

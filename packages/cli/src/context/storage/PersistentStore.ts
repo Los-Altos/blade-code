@@ -3,10 +3,13 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { JsonValue, MessageRole } from '../../store/types.js';
 import type {
-    BladeJSONLEntry,
     ContextData,
     ConversationContext,
+    MessageInfo,
+    PartInfo,
     SessionContext,
+    SessionEvent,
+    SessionInfo,
 } from '../types.js';
 import { JSONLStore } from './JSONLStore.js';
 import {
@@ -33,6 +36,64 @@ export class PersistentStore {
     this.projectPath = projectPath;
     this.maxSessions = maxSessions;
     this.version = version;
+  }
+
+  private createEvent<T extends SessionEvent['type']>(
+    type: T,
+    sessionId: string,
+    data: Extract<SessionEvent, { type: T }>['data']
+  ): SessionEvent {
+    return {
+      id: nanoid(),
+      sessionId,
+      timestamp: new Date().toISOString(),
+      type,
+      cwd: this.projectPath,
+      gitBranch: detectGitBranch(this.projectPath),
+      version: this.version,
+      data,
+    } as SessionEvent;
+  }
+
+  private async ensureSessionCreated(
+    sessionId: string,
+    subagentInfo?: { parentSessionId: string; subagentType: string; isSidechain: boolean }
+  ): Promise<void> {
+    const filePath = getSessionFilePath(this.projectPath, sessionId);
+    const store = new JSONLStore(filePath);
+    const stats = await store.getStats();
+    if (stats.lineCount > 0) return;
+    const now = new Date().toISOString();
+    const sessionInfo: SessionInfo = {
+      sessionId,
+      rootId: subagentInfo?.parentSessionId ?? sessionId,
+      parentId: subagentInfo?.parentSessionId,
+      relationType: subagentInfo ? 'subagent' : undefined,
+      title: undefined,
+      status: 'running',
+      agentType: subagentInfo?.subagentType,
+      model: undefined,
+      permission: undefined,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const entry = this.createEvent('session_created', sessionId, sessionInfo);
+    await store.append(entry);
+  }
+
+  private buildCompactionMetadata(metadata: {
+    trigger: 'auto' | 'manual';
+    preTokens: number;
+    postTokens?: number;
+    filesIncluded?: string[];
+  }): JsonValue {
+    const result: Record<string, JsonValue> = {
+      trigger: metadata.trigger,
+      preTokens: metadata.preTokens,
+    };
+    if (metadata.postTokens !== undefined) result.postTokens = metadata.postTokens;
+    if (metadata.filesIncluded) result.filesIncluded = metadata.filesIncluded;
+    return result;
   }
 
   /**
@@ -69,37 +130,28 @@ export class PersistentStore {
     try {
       const filePath = getSessionFilePath(this.projectPath, sessionId);
       const store = new JSONLStore(filePath);
-
-      const entry: BladeJSONLEntry = {
-        uuid: nanoid(),
-        parentUuid,
-        sessionId,
-        timestamp: new Date().toISOString(),
-        type:
-          messageRole === 'user'
-            ? 'user'
-            : messageRole === 'assistant'
-              ? 'assistant'
-              : messageRole === 'tool'
-                ? 'tool_result'
-                : 'system',
-        cwd: this.projectPath,
-        gitBranch: detectGitBranch(this.projectPath),
-        version: this.version,
-        message: {
-          role: messageRole,
-          content,
-          ...(metadata || {}),
-        },
-        ...(subagentInfo && {
-          parentSessionId: subagentInfo.parentSessionId,
-          isSidechain: subagentInfo.isSidechain,
-          subagentType: subagentInfo.subagentType,
-        }),
+      await this.ensureSessionCreated(sessionId, subagentInfo);
+      const now = new Date().toISOString();
+      const messageId = nanoid();
+      const messageInfo: MessageInfo = {
+        messageId,
+        role: messageRole,
+        parentMessageId: parentUuid ?? undefined,
+        createdAt: now,
+        model: metadata?.model,
+        usage: metadata?.usage,
       };
-
-      await store.append(entry);
-      return entry.uuid;
+      const messageEntry = this.createEvent('message_created', sessionId, messageInfo);
+      const partInfo: PartInfo = {
+        partId: nanoid(),
+        messageId,
+        partType: 'text',
+        payload: { text: content },
+        createdAt: now,
+      };
+      const partEntry = this.createEvent('part_created', sessionId, partInfo);
+      await store.appendBatch([messageEntry, partEntry]);
+      return messageId;
     } catch (error) {
       console.error(`[PersistentStore] 保存消息失败 (session: ${sessionId}):`, error);
       throw error;
@@ -123,34 +175,30 @@ export class PersistentStore {
     try {
       const filePath = getSessionFilePath(this.projectPath, sessionId);
       const store = new JSONLStore(filePath);
-
-      const entry: BladeJSONLEntry = {
-        uuid: nanoid(),
-        parentUuid,
-        sessionId,
-        timestamp: new Date().toISOString(),
-        type: 'tool_use',
-        cwd: this.projectPath,
-        gitBranch: detectGitBranch(this.projectPath),
-        version: this.version,
-        message: {
+      await this.ensureSessionCreated(sessionId, subagentInfo);
+      const now = new Date().toISOString();
+      const messageId = parentUuid ?? nanoid();
+      const entries: SessionEvent[] = [];
+      if (!parentUuid) {
+        const messageInfo: MessageInfo = {
+          messageId,
           role: 'assistant',
-          content: '',
-        },
-        tool: {
-          id: nanoid(),
-          name: toolName,
-          input: toolInput,
-        },
-        ...(subagentInfo && {
-          parentSessionId: subagentInfo.parentSessionId,
-          isSidechain: subagentInfo.isSidechain,
-          subagentType: subagentInfo.subagentType,
-        }),
+          parentMessageId: undefined,
+          createdAt: now,
+        };
+        entries.push(this.createEvent('message_created', sessionId, messageInfo));
+      }
+      const toolCallId = nanoid();
+      const partInfo: PartInfo = {
+        partId: toolCallId,
+        messageId,
+        partType: 'tool_call',
+        payload: { toolCallId, toolName, input: toolInput },
+        createdAt: now,
       };
-
-      await store.append(entry);
-      return entry.uuid;
+      entries.push(this.createEvent('part_created', sessionId, partInfo));
+      await store.appendBatch(entries);
+      return toolCallId;
     } catch (error) {
       console.error(
         `[PersistentStore] 保存工具调用失败 (session: ${sessionId}):`,
@@ -185,45 +233,46 @@ export class PersistentStore {
     try {
       const filePath = getSessionFilePath(this.projectPath, sessionId);
       const store = new JSONLStore(filePath);
-
-      const entry: BladeJSONLEntry = {
-        uuid: nanoid(),
-        parentUuid,
-        sessionId,
-        timestamp: new Date().toISOString(),
-        type: 'tool_result',
-        cwd: this.projectPath,
-        gitBranch: detectGitBranch(this.projectPath),
-        version: this.version,
-        message: {
+      await this.ensureSessionCreated(sessionId, subagentInfo);
+      const now = new Date().toISOString();
+      const messageId = parentUuid ?? nanoid();
+      const entries: SessionEvent[] = [];
+      if (!parentUuid) {
+        const messageInfo: MessageInfo = {
+          messageId,
           role: 'assistant',
-          content: '',
-        },
-        tool: {
-          id: toolId,
-          name: toolName,
-          input: {},
-        },
-        toolResult: {
-          id: toolId,
-          output: toolOutput,
-          error,
-        },
-        ...(subagentInfo && {
-          parentSessionId: subagentInfo.parentSessionId,
-          isSidechain: subagentInfo.isSidechain,
-          subagentType: subagentInfo.subagentType,
-        }),
-        ...(subagentRef && {
-          subagentSessionId: subagentRef.subagentSessionId,
-          subagentType: subagentRef.subagentType,
-          subagentStatus: subagentRef.subagentStatus,
-          subagentSummary: subagentRef.subagentSummary,
-        }),
+          parentMessageId: undefined,
+          createdAt: now,
+        };
+        entries.push(this.createEvent('message_created', sessionId, messageInfo));
+      }
+      const toolResultPart: PartInfo = {
+        partId: toolId,
+        messageId,
+        partType: 'tool_result',
+        payload: { toolCallId: toolId, toolName, output: toolOutput, error: error ?? null },
+        createdAt: now,
       };
-
-      await store.append(entry);
-      return entry.uuid;
+      entries.push(this.createEvent('part_created', sessionId, toolResultPart));
+      if (subagentRef) {
+        const subtaskPart: PartInfo = {
+          partId: nanoid(),
+          messageId,
+          partType: 'subtask_ref',
+          payload: {
+            childSessionId: subagentRef.subagentSessionId,
+            agentType: subagentRef.subagentType,
+            status: subagentRef.subagentStatus,
+            summary: subagentRef.subagentSummary ?? '',
+            startedAt: now,
+            finishedAt: now,
+          },
+          createdAt: now,
+        };
+        entries.push(this.createEvent('part_created', sessionId, subtaskPart));
+      }
+      await store.appendBatch(entries);
+      return toolId;
     } catch (error) {
       console.error(
         `[PersistentStore] 保存工具结果失败 (session: ${sessionId}):`,
@@ -257,51 +306,29 @@ export class PersistentStore {
     try {
       const filePath = getSessionFilePath(this.projectPath, sessionId);
       const store = new JSONLStore(filePath);
-
-      // 1. 保存压缩边界标记（compact_boundary）
-      const boundaryEntry: BladeJSONLEntry = {
-        uuid: nanoid(),
-        parentUuid,
-        sessionId,
-        timestamp: new Date().toISOString(),
-        type: 'system',
-        subtype: 'compact_boundary',
-        cwd: this.projectPath,
-        gitBranch: detectGitBranch(this.projectPath),
-        version: this.version,
-        message: {
-          role: 'system',
-          content: '=== 上下文压缩边界 ===',
-        },
-        compactMetadata: metadata,
+      await this.ensureSessionCreated(sessionId);
+      const now = new Date().toISOString();
+      const messageId = nanoid();
+      const messageInfo: MessageInfo = {
+        messageId,
+        role: 'system',
+        parentMessageId: parentUuid ?? undefined,
+        createdAt: now,
       };
-
-      await store.append(boundaryEntry);
-      console.log('[PersistentStore] 保存压缩边界标记');
-
-      // 2. 保存压缩总结消息（isCompactSummary: true）
-      const summaryEntry: BladeJSONLEntry = {
-        uuid: nanoid(),
-        parentUuid: boundaryEntry.uuid, // 链接到边界消息
-        logicalParentUuid: parentUuid ?? undefined, // 逻辑上链接到最后一条保留消息
-        sessionId,
-        timestamp: new Date().toISOString(),
-        type: 'user',
-        isCompactSummary: true,
-        cwd: this.projectPath,
-        gitBranch: detectGitBranch(this.projectPath),
-        version: this.version,
-        message: {
-          role: 'user',
-          content: summary,
-        },
-        compactMetadata: metadata,
+      const compactMetadata = this.buildCompactionMetadata(metadata);
+      const partInfo: PartInfo = {
+        partId: nanoid(),
+        messageId,
+        partType: 'summary',
+        payload: { text: summary, metadata: compactMetadata },
+        createdAt: now,
       };
-
-      await store.append(summaryEntry);
-      console.log('[PersistentStore] 保存压缩总结消息');
-
-      return summaryEntry.uuid;
+      const entries = [
+        this.createEvent('message_created', sessionId, messageInfo),
+        this.createEvent('part_created', sessionId, partInfo),
+      ];
+      await store.appendBatch(entries);
+      return messageId;
     } catch (error) {
       console.error(`[PersistentStore] 保存压缩失败 (session: ${sessionId}):`, error);
       throw error;
@@ -315,8 +342,6 @@ export class PersistentStore {
   async saveContext(sessionId: string, contextData: ContextData): Promise<void> {
     try {
       const { conversation } = contextData.layers;
-
-      // 将每条消息转为 JSONL 条目并批量保存
       for (const msg of conversation.messages) {
         await this.saveMessage(sessionId, msg.role, msg.content, null);
       }
@@ -329,7 +354,6 @@ export class PersistentStore {
    * 保存会话上下文（向后兼容方法 - 已废弃）
    */
   async saveSession(sessionId: string, sessionContext: SessionContext): Promise<void> {
-    // JSONL 格式中会话元数据已包含在每条消息中，此方法为空实现
     console.warn('[PersistentStore] saveSession 方法已废弃，请使用 saveMessage');
   }
 
@@ -340,7 +364,6 @@ export class PersistentStore {
     sessionId: string,
     conversation: ConversationContext
   ): Promise<void> {
-    // JSONL 格式中对话已包含在消息流中，此方法为空实现
     console.warn('[PersistentStore] saveConversation 方法已废弃，请使用 saveMessage');
   }
 
@@ -354,16 +377,14 @@ export class PersistentStore {
 
       const entries = await store.readAll();
       if (entries.length === 0) return null;
-
-      // 从第一条消息提取会话信息
-      const firstEntry = entries[0];
+      const firstEntry = entries.find((entry) => entry.type === 'session_created');
 
       return {
         sessionId,
         userId: undefined,
         preferences: {},
         configuration: {},
-        startTime: new Date(firstEntry.timestamp).getTime(),
+        startTime: new Date(firstEntry?.timestamp ?? entries[0].timestamp).getTime(),
       };
     } catch {
       return null;
@@ -380,18 +401,25 @@ export class PersistentStore {
 
       const entries = await store.readAll();
       if (entries.length === 0) return null;
-
-      // 提取所有消息
-      const messages = entries
-        .filter((entry) => ['user', 'assistant', 'system'].includes(entry.type))
-        .map((entry) => ({
-          id: entry.uuid,
-          role: entry.message.role,
-          content: entry.message.content as string,
-          timestamp: new Date(entry.timestamp).getTime(),
-        }));
-
-      // 获取最后活动时间
+      const messageMap = new Map<string, { id: string; role: MessageRole; content: string; timestamp: number }>();
+      for (const entry of entries) {
+        if (entry.type === 'message_created') {
+          messageMap.set(entry.data.messageId, {
+            id: entry.data.messageId,
+            role: entry.data.role,
+            content: '',
+            timestamp: new Date(entry.timestamp).getTime(),
+          });
+        }
+        if (entry.type === 'part_created' && entry.data.partType === 'text') {
+          const message = messageMap.get(entry.data.messageId);
+          if (message) {
+            const payload = entry.data.payload as { text?: string };
+            message.content = payload.text ?? '';
+          }
+        }
+      }
+      const messages = Array.from(messageMap.values());
       const lastEntry = entries[entries.length - 1];
       const lastActivity = new Date(lastEntry.timestamp).getTime();
 
@@ -441,12 +469,14 @@ export class PersistentStore {
       if (entries.length === 0) return null;
 
       const lastEntry = entries[entries.length - 1];
+      const messageCount = entries.filter(
+        (entry) => entry.type === 'message_created' && ['user', 'assistant'].includes(entry.data.role)
+      ).length;
 
       return {
         sessionId,
         lastActivity: new Date(lastEntry.timestamp).getTime(),
-        messageCount: entries.filter((e) => ['user', 'assistant'].includes(e.type))
-          .length,
+        messageCount,
         topics: [],
       };
     } catch {

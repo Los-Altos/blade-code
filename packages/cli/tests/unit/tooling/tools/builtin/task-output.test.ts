@@ -170,7 +170,7 @@ describe('TaskOutput Tool', () => {
       });
 
       expect(result.success).toBe(false);
-      expect(result.error?.message).toContain('Agent 会话不存在');
+      expect(result.error?.message).toContain('Unknown task ID');
     });
 
     it('block=true 时应等待 agent 完成', async () => {

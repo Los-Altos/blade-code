@@ -36,12 +36,6 @@ export class BadRequestError extends BladeServerError {
   }
 }
 
-export class UnauthorizedError extends BladeServerError {
-  constructor(message = 'Unauthorized') {
-    super('UNAUTHORIZED', message, 401);
-  }
-}
-
 export const ErrorResponse = z.object({
   error: z.object({
     code: z.string(),

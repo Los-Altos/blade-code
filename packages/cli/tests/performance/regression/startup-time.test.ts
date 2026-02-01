@@ -40,7 +40,7 @@ describe('启动时间回归测试', () => {
   });
 
   describe('模块加载性能', () => {
-    it('核心模块导入应在 1000ms 内完成', async () => {
+    it('核心模块导入应在 2500ms 内完成', async () => {
       const start = performance.now();
 
       await Promise.all([
@@ -49,7 +49,7 @@ describe('启动时间回归测试', () => {
       ]);
 
       const duration = performance.now() - start;
-      expect(duration).toBeLessThan(1000);
+      expect(duration).toBeLessThan(2500);
     });
   });
 

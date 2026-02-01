@@ -10,9 +10,10 @@ import {
   getSessionFilePath,
   unescapeProjectPath,
 } from '../context/storage/pathUtils.js';
-import type { BladeJSONLEntry } from '../context/types.js';
+import type { SessionEvent } from '../context/types.js';
 import { createLogger, LogCategory } from '../logging/Logger.js';
 import type { Message } from './ChatServiceInterface.js';
+import type { JsonValue } from '../store/types.js';
 
 const logger = createLogger(LogCategory.SERVICE);
 
@@ -23,6 +24,11 @@ export interface SessionMetadata {
   sessionId: string;
   projectPath: string;
   gitBranch?: string;
+  parentId?: string;
+  relationType?: 'subagent';
+  status?: 'running' | 'completed' | 'failed';
+  agentType?: string;
+  model?: string;
   messageCount: number;
   firstMessageTime: string;
   lastMessageTime: string;
@@ -52,11 +58,9 @@ export class SessionService {
         const projectDirPath = path.join(projectsDir, dir.name);
         const projectPath = unescapeProjectPath(dir.name);
 
-        // 读取项目目录下的所有 JSONL 文件（排除子代理会话文件）
+        // 读取项目目录下的所有 JSONL 文件
         const files = await readdir(projectDirPath);
-        const jsonlFiles = files.filter(
-          (f) => f.endsWith('.jsonl') && !f.startsWith('agent_')
-        );
+        const jsonlFiles = files.filter((f) => f.endsWith('.jsonl'));
 
         for (const file of jsonlFiles) {
           const filePath = path.join(projectDirPath, file);
@@ -106,25 +110,31 @@ export class SessionService {
       throw new Error('空的 JSONL 文件');
     }
 
-    // 解析第一行和最后一行
-    const firstEntry = JSON.parse(lines[0]) as BladeJSONLEntry;
-    const lastEntry = JSON.parse(lines[lines.length - 1]) as BladeJSONLEntry;
+    const entries = lines.map((line) => JSON.parse(line) as SessionEvent);
+    const firstEntry = entries[0];
+    const lastEntry = entries[entries.length - 1];
+    const sessionCreated = entries.find((entry) => entry.type === 'session_created');
 
-    // 检查是否有错误消息
-    const hasErrors = lines.some((line) => {
-      try {
-        const entry = JSON.parse(line) as BladeJSONLEntry;
-        return entry.type === 'tool_result' && entry.toolResult?.error;
-      } catch {
-        return false;
-      }
-    });
+    const messageCount = entries.filter(
+      (entry) => entry.type === 'message_created' && ['user', 'assistant'].includes(entry.data.role)
+    ).length;
+    const hasErrors = entries.some(
+      (entry) =>
+        entry.type === 'part_created' &&
+        entry.data.partType === 'tool_result' &&
+        typeof (entry.data.payload as { error?: unknown }).error === 'string'
+    );
 
     return {
       sessionId,
       projectPath,
-      gitBranch: firstEntry.gitBranch,
-      messageCount: lines.length,
+      gitBranch: sessionCreated?.gitBranch ?? firstEntry.gitBranch,
+      parentId: sessionCreated?.data.parentId,
+      relationType: sessionCreated?.data.relationType,
+      status: sessionCreated?.data.status,
+      agentType: sessionCreated?.data.agentType,
+      model: sessionCreated?.data.model,
+      messageCount,
       firstMessageTime: firstEntry.timestamp,
       lastMessageTime: lastEntry.timestamp,
       hasErrors,
@@ -173,8 +183,8 @@ export class SessionService {
       .split('\n')
       .filter((line) => line.trim());
 
-    const entries: BladeJSONLEntry[] = lines.map(
-      (line) => JSON.parse(line) as BladeJSONLEntry
+    const entries: SessionEvent[] = lines.map(
+      (line) => JSON.parse(line) as SessionEvent
     );
 
     return this.convertJSONLToMessages(entries);
@@ -182,96 +192,67 @@ export class SessionService {
 
   /**
    * 将 JSONL 条目转换为 OpenAI Message 格式
-   *
-   * 转换规则:
-   * - user/assistant/system 消息直接转换
-   * - tool_use 跳过（工具调用包含在 assistant 的 tool_calls 中）
-   * - tool_result 转换为 tool 角色消息
-   * - compact_boundary 作为分界点：清空之前的消息，只保留总结
-   * - isCompactSummary 消息作为压缩总结保留
    */
-  static convertJSONLToMessages(entries: BladeJSONLEntry[]): Message[] {
+  static convertJSONLToMessages(entries: SessionEvent[]): Message[] {
     const messages: Message[] = [];
-    let lastCompactBoundaryIndex = -1;
-
-    // 第一步：找到最后一个压缩边界
-    for (let i = entries.length - 1; i >= 0; i--) {
-      if (entries[i].subtype === 'compact_boundary') {
-        lastCompactBoundaryIndex = i;
-        logger.debug(`[SessionService] 检测到压缩边界 at index ${i}`);
-        break;
+    const messageMap = new Map<string, Message>();
+    for (const entry of entries) {
+      if (entry.type === 'message_created') {
+        const message: Message = {
+          role: entry.data.role,
+          content: '',
+        };
+        messageMap.set(entry.data.messageId, message);
+        messages.push(message);
       }
-    }
-
-    // 第二步：转换消息
-    // 如果有压缩边界，从边界开始转换；否则转换全部
-    const startIndex = lastCompactBoundaryIndex >= 0 ? lastCompactBoundaryIndex : 0;
-
-    for (let i = startIndex; i < entries.length; i++) {
-      const entry = entries[i];
-
-      // 跳过 compact_boundary 本身（它只是标记，不是实际消息）
-      if (entry.subtype === 'compact_boundary') {
-        logger.debug('[SessionService] 跳过 compact_boundary 消息');
-        continue;
-      }
-
-      switch (entry.type) {
-        case 'user':
-        case 'assistant':
-        case 'system': {
-          // 直接转换用户/助手/系统消息
-          const message: Message = {
-            role: entry.message.role,
-            content:
-              typeof entry.message.content === 'string'
-                ? entry.message.content
-                : JSON.stringify(entry.message.content),
-          };
-
-          // 如果是压缩总结，记录日志（metadata 在 JSONL 中已保存）
-          if (entry.isCompactSummary) {
-            logger.debug('[SessionService] 加载压缩总结消息');
+      if (entry.type === 'part_created') {
+        if (entry.data.partType === 'text') {
+          const message = messageMap.get(entry.data.messageId);
+          if (message) {
+            const payload = entry.data.payload as { text?: string };
+            message.content = payload.text ?? '';
           }
-
-          messages.push(message);
-          break;
         }
-
-        case 'tool_result':
-          // 转换工具结果为 tool 消息
-          if (entry.toolResult) {
-            const content = entry.toolResult.error
-              ? `Error: ${entry.toolResult.error}`
-              : typeof entry.toolResult.output === 'string'
-                ? entry.toolResult.output
-                : JSON.stringify(entry.toolResult.output);
-
-            messages.push({
-              role: 'tool',
-              content,
-              tool_call_id: entry.toolResult.id,
-              name: entry.tool?.name,
-            });
+        if (entry.data.partType === 'tool_result') {
+          const payload = entry.data.payload as {
+            toolCallId?: string;
+            toolName?: string;
+            output?: unknown;
+            error?: unknown;
+          };
+          const content =
+            typeof payload.error === 'string'
+              ? `Error: ${payload.error}`
+              : typeof payload.output === 'string'
+                ? payload.output
+                : JSON.stringify(payload.output ?? '');
+          const metadata = payload as unknown as JsonValue;
+          messages.push({
+            role: 'tool',
+            content,
+            tool_call_id: payload.toolCallId,
+            name: payload.toolName,
+            metadata,
+          });
+        }
+        if (entry.data.partType === 'summary') {
+          const payload = entry.data.payload as { text?: string };
+          const metadata = entry.data.payload as unknown as JsonValue;
+          messages.push({
+            role: 'system',
+            content: payload.text ?? '',
+            metadata,
+          });
+        }
+        if (entry.data.partType === 'subtask_ref') {
+          const message = messageMap.get(entry.data.messageId);
+          if (message) {
+            const metadata = entry.data.payload as unknown as JsonValue;
+            const base = (message.metadata ?? {}) as Record<string, JsonValue>;
+            message.metadata = { ...base, subtaskRef: metadata } as JsonValue;
           }
-          break;
-
-        case 'tool_use':
-          // 跳过 tool_use，因为工具调用应该包含在 assistant 消息的 tool_calls 中
-          // 注意：我们的实现将 tool_use 作为独立条目保存，与 Claude Code 不同
-          // 这里简化处理，恢复会话时跳过工具调用详情
-          break;
-
-        default:
-          // 跳过其他类型（如 file-history-snapshot）
-          break;
+        }
       }
-    }
-
-    if (lastCompactBoundaryIndex >= 0) {
-      logger.debug(
-        `[SessionService] 会话已压缩，跳过前 ${lastCompactBoundaryIndex} 条历史，加载 ${messages.length} 条消息`
-      );
     }
 
     return messages;

@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { nanoid } from 'nanoid';
 import { Agent } from '../Agent.js';
 import type { SubagentConfig, SubagentContext, SubagentResult } from './types.js';
 
@@ -21,7 +21,7 @@ export class SubagentExecutor {
    */
   async execute(context: SubagentContext): Promise<SubagentResult> {
     const startTime = Date.now();
-    const agentId = `agent_${randomUUID()}`;
+    const agentId = nanoid();
 
     try {
       const systemPrompt = this.buildSystemPrompt(context);
@@ -46,7 +46,7 @@ export class SubagentExecutor {
           subagentInfo: {
             parentSessionId: context.parentSessionId || '',
             subagentType: this.config.name,
-            isSidechain: true,
+          isSidechain: false,
           },
         },
         {

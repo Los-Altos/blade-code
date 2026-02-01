@@ -273,6 +273,10 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
         content:
           typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
         timestamp: Date.now() - (messages.length - index) * 1000,
+        metadata:
+          msg.metadata && typeof msg.metadata === 'object'
+            ? (msg.metadata as Record<string, unknown>)
+            : undefined,
       }));
 
       sessionActions.restoreSession(mostRecentSession.sessionId, sessionMessages);
@@ -294,6 +298,10 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
           content:
             typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
           timestamp: Date.now() - (messages.length - index) * 1000,
+          metadata:
+            msg.metadata && typeof msg.metadata === 'object'
+              ? (msg.metadata as Record<string, unknown>)
+              : undefined,
         }));
 
         sessionActions.restoreSession(otherProps.resume, sessionMessages);
@@ -374,6 +382,10 @@ export const BladeInterface: React.FC<BladeInterfaceProps> = ({
         content:
           typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
         timestamp: Date.now() - (messages.length - index) * 1000,
+        metadata:
+          msg.metadata && typeof msg.metadata === 'object'
+            ? (msg.metadata as Record<string, unknown>)
+            : undefined,
       }));
 
       sessionActions.restoreSession(sessionId, sessionMessages);

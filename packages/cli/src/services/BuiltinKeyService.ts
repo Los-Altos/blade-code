@@ -21,7 +21,6 @@ interface ZhipuKeyResponse {
 }
 
 let cachedApiKey: string | null = null;
-let cachedBaseUrl: string | null = null;
 
 /**
  * 从代理服务获取真实的智谱 API Key
@@ -62,7 +61,6 @@ export async function resolveBuiltinApiKey(apiKey: string): Promise<string> {
     }
 
     cachedApiKey = data.apiKey;
-    cachedBaseUrl = data.baseUrl;
 
     logger.info('✅ 成功获取内置 API Key');
     if (data.message) {
@@ -78,19 +76,3 @@ export async function resolveBuiltinApiKey(apiKey: string): Promise<string> {
     );
   }
 }
-
-/**
- * 获取缓存的 baseUrl（用于更新模型配置）
- */
-export function getCachedBaseUrl(): string | null {
-  return cachedBaseUrl;
-}
-
-/**
- * 清除缓存（用于测试或重新获取）
- */
-export function clearBuiltinKeyCache(): void {
-  cachedApiKey = null;
-  cachedBaseUrl = null;
-}
-

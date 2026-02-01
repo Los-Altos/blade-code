@@ -27,6 +27,7 @@ export function aggregateMessages(rawMessages: RawMessage[]): Message[] {
         role: raw.role,
         content: raw.content,
         timestamp: raw.timestamp || Date.now(),
+        metadata: raw.metadata as Record<string, unknown> | undefined,
       })
     } else if (raw.role === 'assistant') {
       if (currentAssistant) {
@@ -58,6 +59,7 @@ export function aggregateMessages(rawMessages: RawMessage[]): Message[] {
         role: 'assistant',
         content: raw.content || '',
         timestamp: raw.timestamp || Date.now(),
+        metadata: raw.metadata as Record<string, unknown> | undefined,
         agentContent,
       }
     } else if (raw.role === 'tool') {

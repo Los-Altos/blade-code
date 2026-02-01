@@ -239,6 +239,32 @@ function SubagentSection({ subagent }: { subagent: AgentResponseContent['subagen
   )
 }
 
+function SubtaskRefSection({ subtaskRef }: { subtaskRef: Record<string, unknown> }) {
+  const status = typeof subtaskRef.status === 'string' ? subtaskRef.status : undefined
+  const summary = typeof subtaskRef.summary === 'string' ? subtaskRef.summary : ''
+  const agentType = typeof subtaskRef.agentType === 'string' ? subtaskRef.agentType : 'subagent'
+  const sessionId = typeof subtaskRef.childSessionId === 'string' ? subtaskRef.childSessionId : undefined
+  const pillStatus =
+    status === 'completed' ? 'success' : status === 'failed' ? 'error' : status === 'running' ? 'running' : 'info'
+
+  return (
+    <div className="bg-[#F9FAFB] dark:bg-[#18181b] border border-[#E5E7EB] dark:border-[#27272a] rounded-lg px-3 py-2 space-y-1">
+      <div className="flex gap-2 items-center">
+        <span className="text-[12px] text-[#6B7280] dark:text-[#71717a] font-mono">
+          Subtask @{agentType}
+        </span>
+        <StatusPill status={pillStatus} />
+      </div>
+      {summary && (
+        <div className="text-[12px] text-[#374151] dark:text-[#d4d4d8] whitespace-pre-wrap">{summary}</div>
+      )}
+      {sessionId && (
+        <div className="text-[11px] text-[#6B7280] dark:text-[#71717a] font-mono">Session {sessionId}</div>
+      )}
+    </div>
+  )
+}
+
 function ConfirmationSection({ confirmation, messageId }: { confirmation: AgentResponseContent['confirmation'], messageId: string }) {
   const [submitting, setSubmitting] = useState(false)
   const { currentSessionId, setConfirmation } = useSessionStore()
@@ -393,7 +419,11 @@ function AgentMessageContent({ message }: { message: Message }) {
   }
 
   const { textBefore, toolCalls, textAfter, thinkingContent, todos, subagent, confirmation, question } = agentContent
-  const hasContent = textBefore || toolCalls.length > 0 || textAfter || thinkingContent || todos.length > 0 || subagent || confirmation || question
+  const subtaskRef =
+    message.metadata && typeof message.metadata === 'object' && 'subtaskRef' in message.metadata
+      ? (message.metadata.subtaskRef as Record<string, unknown>)
+      : null
+  const hasContent = textBefore || toolCalls.length > 0 || textAfter || thinkingContent || todos.length > 0 || subagent || confirmation || question || subtaskRef
 
   if (!hasContent && isCurrentMessage && isStreaming) {
     return (
@@ -413,6 +443,7 @@ function AgentMessageContent({ message }: { message: Message }) {
       {textBefore && <MarkdownRenderer content={textBefore} />}
       {todos.length > 0 && <TodoSection todos={todos} />}
       {subagent && <SubagentSection subagent={subagent} />}
+      {subtaskRef && <SubtaskRefSection subtaskRef={subtaskRef} />}
       <ToolCallsList toolCalls={toolCalls} />
       {confirmation && <ConfirmationSection confirmation={confirmation} messageId={message.id} />}
       {question && <QuestionSection question={question} />}

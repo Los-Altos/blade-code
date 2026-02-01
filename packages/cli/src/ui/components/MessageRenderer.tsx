@@ -405,6 +405,13 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
     );
     const { color, prefix } = roleStyle;
     const prefixIndent = prefix.length + 1;
+    const subtaskRef = useMemo(() => {
+      if (!metadata || typeof metadata !== 'object') return null;
+      if (!('subtaskRef' in metadata)) return null;
+      const value = (metadata as Record<string, unknown>).subtaskRef;
+      if (!value || typeof value !== 'object') return null;
+      return value as Record<string, unknown>;
+    }, [metadata]);
 
     // 决定是否需要底部间距：
     // - tool 消息的 'start' 阶段不需要（等待结果）
@@ -743,6 +750,23 @@ export const MessageRenderer: React.FC<MessageRendererProps> = React.memo(
             )}
             <Box flexGrow={1} flexShrink={0}>
               <Text wrap="wrap">{currentLine}</Text>
+            </Box>
+          </Box>
+        )}
+        {subtaskRef && (
+          <Box flexDirection="row" flexShrink={0}>
+            <Box width={prefixIndent} flexShrink={0} />
+            <Box flexDirection="column" flexGrow={1} flexShrink={0}>
+              <Text color={theme.colors.text.muted}>
+                Subtask {typeof subtaskRef.agentType === 'string' ? `@${subtaskRef.agentType}` : ''}
+                {typeof subtaskRef.status === 'string' ? ` · ${subtaskRef.status}` : ''}
+              </Text>
+              {typeof subtaskRef.summary === 'string' && subtaskRef.summary.trim() !== '' && (
+                <Text wrap="wrap">{subtaskRef.summary}</Text>
+              )}
+              {typeof subtaskRef.childSessionId === 'string' && (
+                <Text color={theme.colors.text.muted}>Session {subtaskRef.childSessionId}</Text>
+              )}
             </Box>
           </Box>
         )}

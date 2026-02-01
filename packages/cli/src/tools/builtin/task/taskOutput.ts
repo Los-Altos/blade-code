@@ -3,7 +3,7 @@
  *
  * 支持获取：
  * - 后台 shell 输出 (bash_xxx)
- * - 后台 agent 输出 (agent_xxx)
+ * - 后台 agent 输出
  */
 
 import { z } from 'zod';
@@ -18,7 +18,7 @@ import { BackgroundShellManager } from '../shell/BackgroundShellManager.js';
  *
  * 统一接口获取后台任务输出，支持：
  * - background shells (bash_id)
- * - async agents (agent_id)
+ * - async agents
  */
 export const taskOutputTool = createTool({
   name: 'TaskOutput',
@@ -65,7 +65,7 @@ export const taskOutputTool = createTool({
       {
         description: 'Check agent status without blocking',
         params: {
-          task_id: 'agent_xyz789',
+          task_id: 'session_xyz789',
           block: false,
         },
       },
@@ -78,29 +78,26 @@ export const taskOutputTool = createTool({
     // 根据 task_id 前缀判断类型
     if (task_id.startsWith('bash_')) {
       return handleShellOutput(task_id, block, timeout);
-    } else if (task_id.startsWith('agent_')) {
-      return handleAgentOutput(task_id, block, timeout);
-    } else {
-      // 尝试两种类型
-      const shellManager = BackgroundShellManager.getInstance();
-      const agentManager = BackgroundAgentManager.getInstance();
-
-      if (shellManager.getProcess(task_id)) {
-        return handleShellOutput(task_id, block, timeout);
-      } else if (agentManager.getAgent(task_id)) {
-        return handleAgentOutput(task_id, block, timeout);
-      }
-
-      return {
-        success: false,
-        llmContent: `Unknown task ID: ${task_id}. Task IDs start with 'bash_' for shells or 'agent_' for agents.`,
-        displayContent: `❌ 未知的任务 ID: ${task_id}\n\n任务 ID 格式：\n- bash_xxx: 后台 shell\n- agent_xxx: 后台 agent`,
-        error: {
-          type: ToolErrorType.VALIDATION_ERROR,
-          message: `Unknown task ID: ${task_id}`,
-        },
-      };
     }
+    const shellManager = BackgroundShellManager.getInstance();
+    const agentManager = BackgroundAgentManager.getInstance();
+
+    if (shellManager.getProcess(task_id)) {
+      return handleShellOutput(task_id, block, timeout);
+    }
+    if (agentManager.getAgent(task_id)) {
+      return handleAgentOutput(task_id, block, timeout);
+    }
+
+    return {
+      success: false,
+      llmContent: `Unknown task ID: ${task_id}.`,
+      displayContent: `❌ 未知的任务 ID: ${task_id}\n\n任务 ID 格式：\n- bash_xxx: 后台 shell\n- agent: 后台 agent`,
+      error: {
+        type: ToolErrorType.VALIDATION_ERROR,
+        message: `Unknown task ID: ${task_id}`,
+      },
+    };
   },
 
   version: '1.0.0',

@@ -8,6 +8,3 @@ export type {
   Session,
   StreamEvent,
 } from './sessionService'
-
-export { configService } from './configService'
-export type { GeneralSettings, ModelConfig, ModelsResponse } from './configService'

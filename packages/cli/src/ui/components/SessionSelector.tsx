@@ -153,9 +153,10 @@ export const SessionSelector: React.FC<SessionSelectorProps> = ({
       const timeStr = formatTimestamp(session.lastMessageTime);
       const branchStr = session.gitBranch ? ` (${session.gitBranch})` : '';
       const errorStr = session.hasErrors ? ' ⚠️' : '';
+      const relationStr = session.relationType === 'subagent' ? ' ↳ subagent' : '';
 
       return {
-        label: `📅 ${timeStr} | ${projectName}${branchStr} | ${session.messageCount} 条消息${errorStr}`,
+        label: `📅 ${timeStr} | ${projectName}${branchStr} | ${session.messageCount} 条消息${errorStr}${relationStr}`,
         value: session.sessionId,
       };
     });

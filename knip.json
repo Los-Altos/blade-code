@@ -6,23 +6,18 @@
       "project": ["src/**/*.{ts,tsx}"],
       "ignore": ["**/*.test.ts", "**/*.spec.ts", "tests/**/*"]
     },
-    "packages/web": {
+    "packages/cli/web": {
       "entry": ["src/main.tsx"],
       "project": ["src/**/*.{ts,tsx}"],
       "ignore": ["**/*.test.ts", "**/*.spec.ts"]
     },
     "packages/vscode": {
-      "entry": ["src/extension.ts"],
-      "project": ["src/**/*.ts"],
-      "ignore": ["**/*.test.ts", "**/*.spec.ts"]
-    },
-    "packages/shared": {
-      "entry": ["src/index.ts"],
       "project": ["src/**/*.ts"],
       "ignore": ["**/*.test.ts", "**/*.spec.ts"]
     }
   },
-  "ignoreDependencies": ["@azure/identity", "pino-pretty", "vscode"],
+  "ignoreBinaries": ["vite"],
+  "ignoreDependencies": [],
   "ignoreExportsUsedInFile": true,
   "rules": {
     "enumMembers": "off"

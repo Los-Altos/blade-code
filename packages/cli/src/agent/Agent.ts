@@ -1245,6 +1245,35 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
           try {
             const contextMgr = this.executionEngine?.getContextManager();
             if (contextMgr && context.sessionId) {
+              const metadata =
+                result.metadata && typeof result.metadata === 'object'
+                  ? (result.metadata as Record<string, unknown>)
+                  : undefined;
+              const isSubagentStatus = (
+                value: unknown
+              ): value is 'running' | 'completed' | 'failed' | 'cancelled' =>
+                value === 'running' ||
+                value === 'completed' ||
+                value === 'failed' ||
+                value === 'cancelled';
+              const subagentStatus = isSubagentStatus(metadata?.subagentStatus)
+                ? metadata.subagentStatus
+                : 'completed';
+              const subagentRef =
+                metadata && typeof metadata.subagentSessionId === 'string'
+                  ? {
+                      subagentSessionId: metadata.subagentSessionId,
+                      subagentType:
+                        typeof metadata.subagentType === 'string'
+                          ? metadata.subagentType
+                          : toolCall.function.name,
+                      subagentStatus,
+                      subagentSummary:
+                        typeof metadata.subagentSummary === 'string'
+                          ? metadata.subagentSummary
+                          : undefined,
+                    }
+                  : undefined;
               lastMessageUuid = await contextMgr.saveToolResult(
                 context.sessionId,
                 toolCall.id,
@@ -1252,7 +1281,8 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
                 result.success ? toJsonValue(result.llmContent) : null,
                 toolUseUuid,
                 result.success ? undefined : result.error?.message,
-                context.subagentInfo
+                context.subagentInfo,
+                subagentRef
               );
             }
           } catch (err) {

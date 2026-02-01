@@ -7,7 +7,7 @@
  * - 支持等待完成、恢复、终止
  */
 
-import { randomUUID } from 'crypto';
+import { nanoid } from 'nanoid';
 import type { PermissionMode } from '../../config/types.js';
 import { createLogger, LogCategory } from '../../logging/Logger.js';
 import type { Message } from '../../services/ChatServiceInterface.js';
@@ -129,7 +129,7 @@ export class BackgroundAgentManager {
     } = options;
 
     // 生成或使用已有的 agent ID
-    const id = agentId || `agent_${randomUUID()}`;
+    const id = agentId || nanoid();
 
     // 创建 AbortController 用于取消
     const abortController = new AbortController();
@@ -213,7 +213,7 @@ export class BackgroundAgentManager {
         subagentInfo: {
           parentSessionId: parentSessionId || '',
           subagentType: config.name,
-          isSidechain: true,
+          isSidechain: false,
         },
       };
 
@@ -437,5 +437,3 @@ export class BackgroundAgentManager {
     return this.sessionStore.cleanupExpiredSessions(maxAgeMs);
   }
 }
-
-

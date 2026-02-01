@@ -3,7 +3,7 @@ import { createReadStream } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { createInterface } from 'node:readline';
-import type { BladeJSONLEntry } from '../types.js';
+import type { SessionEvent } from '../types.js';
 
 /**
  * JSONL 存储类 - 处理 JSONL 格式的读写
@@ -19,7 +19,7 @@ export class JSONLStore {
    * 追加一条 JSONL 记录到文件
    * @param entry JSONL 条目
    */
-  async append(entry: BladeJSONLEntry): Promise<void> {
+  async append(entry: SessionEvent): Promise<void> {
     try {
       // 确保父目录存在
       await fs.mkdir(path.dirname(this.filePath), { recursive: true, mode: 0o755 });
@@ -39,7 +39,7 @@ export class JSONLStore {
    * 批量追加多条 JSONL 记录
    * @param entries JSONL 条目数组
    */
-  async appendBatch(entries: BladeJSONLEntry[]): Promise<void> {
+  async appendBatch(entries: SessionEvent[]): Promise<void> {
     try {
       // 确保父目录存在
       await fs.mkdir(path.dirname(this.filePath), { recursive: true, mode: 0o755 });
@@ -59,7 +59,7 @@ export class JSONLStore {
    * 读取所有 JSONL 记录
    * @returns JSONL 条目数组
    */
-  async readAll(): Promise<BladeJSONLEntry[]> {
+  async readAll(): Promise<SessionEvent[]> {
     try {
       // 检查文件是否存在
       if (!fsSync.existsSync(this.filePath)) {
@@ -69,10 +69,10 @@ export class JSONLStore {
       const content = await fs.readFile(this.filePath, 'utf-8');
       const lines = content.split('\n').filter((line) => line.trim().length > 0);
 
-      const entries: BladeJSONLEntry[] = [];
+      const entries: SessionEvent[] = [];
       for (const line of lines) {
         try {
-          entries.push(JSON.parse(line) as BladeJSONLEntry);
+          entries.push(JSON.parse(line) as SessionEvent);
         } catch (parseError) {
           console.warn(`[JSONLStore] 解析 JSON 行失败: ${line}`, parseError);
         }
@@ -90,7 +90,7 @@ export class JSONLStore {
    * @param callback 每条记录的回调函数
    */
   async readStream(
-    callback: (entry: BladeJSONLEntry) => void | Promise<void>
+    callback: (entry: SessionEvent) => void | Promise<void>
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!fsSync.existsSync(this.filePath)) {
@@ -109,7 +109,7 @@ export class JSONLStore {
         if (trimmed.length === 0) return;
 
         try {
-          const entry = JSON.parse(trimmed) as BladeJSONLEntry;
+          const entry = JSON.parse(trimmed) as SessionEvent;
           await callback(entry);
         } catch (error) {
           console.warn(`[JSONLStore] 解析 JSON 行失败: ${trimmed}`, error);
@@ -128,9 +128,9 @@ export class JSONLStore {
    * @returns 符合条件的 JSONL 条目数组
    */
   async filter(
-    predicate: (entry: BladeJSONLEntry) => boolean
-  ): Promise<BladeJSONLEntry[]> {
-    const results: BladeJSONLEntry[] = [];
+    predicate: (entry: SessionEvent) => boolean
+  ): Promise<SessionEvent[]> {
+    const results: SessionEvent[] = [];
     await this.readStream((entry) => {
       if (predicate(entry)) {
         results.push(entry);
@@ -144,7 +144,7 @@ export class JSONLStore {
    * @param count 记录数量
    * @returns JSONL 条目数组
    */
-  async readLast(count: number): Promise<BladeJSONLEntry[]> {
+  async readLast(count: number): Promise<SessionEvent[]> {
     const all = await this.readAll();
     return all.slice(-count);
   }
@@ -214,5 +214,4 @@ export class JSONLStore {
     return this.filePath;
   }
 }
-
 

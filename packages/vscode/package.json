@@ -65,7 +65,7 @@
     "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --watch",
     "build": "pnpm run compile",
     "package": "pnpm run compile && vsce package --no-dependencies",
-    "lint": "eslint src --ext ts"
+    "lint": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "^22.15.24",

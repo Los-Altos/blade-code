@@ -49,29 +49,106 @@ describe('SessionService with mocked filesystem', () => {
       if (filePath.endsWith('session-a.jsonl')) {
         return [
           JSON.stringify({
-            type: 'user',
-            message: { role: 'user', content: 'hello' },
+            id: 'e1',
+            sessionId: 'session-a',
+            type: 'session_created',
             timestamp: '2024-01-01T00:00:00Z',
+            cwd: '/projects/encodedA',
             gitBranch: 'main',
+            version: '0.0.0',
+            data: {
+              sessionId: 'session-a',
+              rootId: 'session-a',
+              createdAt: '2024-01-01T00:00:00Z',
+              updatedAt: '2024-01-01T00:00:00Z',
+              status: 'running',
+            },
           }),
           JSON.stringify({
-            type: 'assistant',
-            message: { role: 'assistant', content: 'hi' },
+            id: 'e2',
+            sessionId: 'session-a',
+            type: 'message_created',
             timestamp: '2024-01-01T00:01:00Z',
+            cwd: '/projects/encodedA',
+            version: '0.0.0',
+            data: {
+              messageId: 'm1',
+              role: 'user',
+              createdAt: '2024-01-01T00:01:00Z',
+            },
+          }),
+          JSON.stringify({
+            id: 'e3',
+            sessionId: 'session-a',
+            type: 'message_created',
+            timestamp: '2024-01-01T00:01:30Z',
+            cwd: '/projects/encodedA',
+            version: '0.0.0',
+            data: {
+              messageId: 'm2',
+              role: 'assistant',
+              createdAt: '2024-01-01T00:01:30Z',
+            },
           }),
         ].join('\n');
       }
       if (filePath.endsWith('session-b.jsonl')) {
         return [
           JSON.stringify({
-            type: 'assistant',
-            message: { role: 'assistant', content: 'later' },
+            id: 'e4',
+            sessionId: 'session-b',
+            type: 'session_created',
             timestamp: '2024-02-01T00:00:00Z',
+            cwd: '/projects/encodedA',
+            version: '0.0.0',
+            data: {
+              sessionId: 'session-b',
+              rootId: 'session-b',
+              createdAt: '2024-02-01T00:00:00Z',
+              updatedAt: '2024-02-01T00:00:00Z',
+              status: 'running',
+            },
           }),
           JSON.stringify({
-            type: 'tool_result',
-            toolResult: { id: 'call-9', error: 'boom' },
+            id: 'e5',
+            sessionId: 'session-b',
+            type: 'message_created',
             timestamp: '2024-02-01T00:01:00Z',
+            cwd: '/projects/encodedA',
+            version: '0.0.0',
+            data: {
+              messageId: 'm3',
+              role: 'assistant',
+              createdAt: '2024-02-01T00:01:00Z',
+            },
+          }),
+          JSON.stringify({
+            id: 'e6',
+            sessionId: 'session-b',
+            type: 'message_created',
+            timestamp: '2024-02-01T00:01:30Z',
+            cwd: '/projects/encodedA',
+            version: '0.0.0',
+            data: {
+              messageId: 'm4',
+              role: 'assistant',
+              createdAt: '2024-02-01T00:01:30Z',
+            },
+          }),
+          JSON.stringify({
+            id: 'e7',
+            sessionId: 'session-b',
+            type: 'part_created',
+            timestamp: '2024-02-01T00:01:40Z',
+            cwd: '/projects/encodedA',
+            version: '0.0.0',
+            data: {
+              partId: 'p1',
+              messageId: 'm4',
+              partType: 'tool_result',
+              payload: { toolCallId: 'call-9', error: 'boom' },
+              createdAt: '2024-02-01T00:01:40Z',
+            },
           }),
         ].join('\n');
       }
@@ -98,10 +175,48 @@ describe('SessionService with mocked filesystem', () => {
     readdirMock.mockResolvedValue([]);
     readFileMock.mockResolvedValue(
       [
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hi' } }),
         JSON.stringify({
-          type: 'tool_result',
-          toolResult: { id: 'tool-1', output: { status: 'ok' } },
+          id: 'e1',
+          sessionId: 'session-x',
+          type: 'message_created',
+          timestamp: '2024-01-01T00:00:00Z',
+          cwd: '/project/demo',
+          version: '0.0.0',
+          data: {
+            messageId: 'm1',
+            role: 'user',
+            createdAt: '2024-01-01T00:00:00Z',
+          },
+        }),
+        JSON.stringify({
+          id: 'e2',
+          sessionId: 'session-x',
+          type: 'part_created',
+          timestamp: '2024-01-01T00:00:01Z',
+          cwd: '/project/demo',
+          version: '0.0.0',
+          data: {
+            partId: 'p1',
+            messageId: 'm1',
+            partType: 'text',
+            payload: { text: 'Hi' },
+            createdAt: '2024-01-01T00:00:01Z',
+          },
+        }),
+        JSON.stringify({
+          id: 'e3',
+          sessionId: 'session-x',
+          type: 'part_created',
+          timestamp: '2024-01-01T00:00:02Z',
+          cwd: '/project/demo',
+          version: '0.0.0',
+          data: {
+            partId: 'p2',
+            messageId: 'm1',
+            partType: 'tool_result',
+            payload: { toolCallId: 'tool-1', output: { status: 'ok' } },
+            createdAt: '2024-01-01T00:00:02Z',
+          },
         }),
       ].join('\n')
     );
@@ -119,7 +234,7 @@ describe('SessionService with mocked filesystem', () => {
       '/project/demo/sessions/session-x.jsonl',
       'utf-8'
     );
-    expect(messages).toEqual([
+    expect(messages).toMatchObject([
       { role: 'user', content: 'Hi' },
       {
         role: 'tool',
@@ -130,31 +245,58 @@ describe('SessionService with mocked filesystem', () => {
     ]);
   });
 
-  it('convertJSONLToMessages 应处理压缩边界与工具结果', async () => {
+  it('convertJSONLToMessages 应处理消息与工具结果', async () => {
     const { SessionService } = await import('../../../../src/services/SessionService.js');
     const messages = SessionService.convertJSONLToMessages([
       {
-        type: 'user',
-        message: { role: 'user', content: 'old' },
+        id: 'e1',
+        sessionId: 'session-y',
+        type: 'message_created',
+        timestamp: '2024-01-01T00:00:00Z',
+        cwd: '/project/demo',
+        version: '0.0.0',
+        data: { messageId: 'm1', role: 'assistant', createdAt: '2024-01-01T00:00:00Z' },
       },
       {
-        type: 'system',
-        subtype: 'compact_boundary',
-        message: { role: 'system', content: '' },
+        id: 'e2',
+        sessionId: 'session-y',
+        type: 'part_created',
+        timestamp: '2024-01-01T00:00:01Z',
+        cwd: '/project/demo',
+        version: '0.0.0',
+        data: {
+          partId: 'p1',
+          messageId: 'm1',
+          partType: 'text',
+          payload: { text: 'latest' },
+          createdAt: '2024-01-01T00:00:01Z',
+        },
       },
       {
-        type: 'assistant',
-        message: { role: 'assistant', content: 'latest' },
-      },
-      {
-        type: 'tool_result',
-        toolResult: { id: 'call', output: 'result' },
+        id: 'e3',
+        sessionId: 'session-y',
+        type: 'part_created',
+        timestamp: '2024-01-01T00:00:02Z',
+        cwd: '/project/demo',
+        version: '0.0.0',
+        data: {
+          partId: 'p2',
+          messageId: 'm1',
+          partType: 'tool_result',
+          payload: { toolCallId: 'call', output: 'result' },
+          createdAt: '2024-01-01T00:00:02Z',
+        },
       },
     ] as any);
 
-    expect(messages).toEqual([
+    expect(messages).toMatchObject([
       { role: 'assistant', content: 'latest' },
-      { role: 'tool', content: 'result', tool_call_id: 'call', name: undefined },
+      {
+        role: 'tool',
+        content: 'result',
+        tool_call_id: 'call',
+        name: undefined,
+      },
     ]);
   });
 });
