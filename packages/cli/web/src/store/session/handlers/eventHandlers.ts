@@ -176,12 +176,14 @@ const handleToolStart: EventHandler = (props, get, set) => {
   
   let subagentType: string | undefined
   let description = ''
+  let subagentSessionId: string | undefined
   
   if (toolName === 'Task') {
     try {
       const parsed = JSON.parse(args)
       subagentType = parsed.subagent_type
       description = parsed.description || parsed.query || subagentType || ''
+      subagentSessionId = parsed.subagent_session_id
     } catch {
       // ignore
     }
@@ -194,6 +196,9 @@ const handleToolStart: EventHandler = (props, get, set) => {
       description,
       status: 'running',
       startTime: Date.now(),
+      sessionId: subagentSessionId,
+      output: '',
+      thinking: '',
     })
     return
   }
@@ -361,14 +366,19 @@ const handleSubagentStart: EventHandler = (props, get) => {
 const handleSubagentUpdate: EventHandler = (props, get, set) => {
   const { currentSessionId, currentAssistantMessageId, messages } = get()
   if (props.sessionId !== currentSessionId) return
-  if (!currentAssistantMessageId) return
-
-  const message = messages.find((m) => m.id === currentAssistantMessageId)
+  const subagentSessionId = props.subagentSessionId as string | undefined
+  const targetMessageId =
+    subagentSessionId
+      ? messages.find((m) => m.agentContent?.subagent?.sessionId === subagentSessionId)?.id
+      : currentAssistantMessageId ||
+        [...messages].reverse().find((m) => m.agentContent?.subagent)?.id
+  if (!targetMessageId) return
+  const message = messages.find((m) => m.id === targetMessageId)
   if (!message?.agentContent?.subagent) return
 
   set((state) => ({
     messages: state.messages.map((m) => {
-      if (m.id !== currentAssistantMessageId) return m
+      if (m.id !== targetMessageId) return m
       if (!m.agentContent?.subagent) return m
       return {
         ...m,
@@ -376,7 +386,80 @@ const handleSubagentUpdate: EventHandler = (props, get, set) => {
           ...m.agentContent,
           subagent: {
             ...m.agentContent.subagent,
+            sessionId: m.agentContent.subagent.sessionId || subagentSessionId,
             currentTool: props.toolName as string,
+          },
+        },
+      }
+    }),
+  }))
+}
+
+const handleSubagentDelta: EventHandler = (props, get, set) => {
+  const { currentSessionId, currentAssistantMessageId, messages } = get()
+  if (props.sessionId !== currentSessionId) return
+
+  const delta = props.delta as string
+  if (!delta) return
+
+  const subagentSessionId = props.subagentSessionId as string | undefined
+  const targetMessageId =
+    subagentSessionId
+      ? messages.find((m) => m.agentContent?.subagent?.sessionId === subagentSessionId)?.id ||
+        messages.find((m) => m.agentContent?.subagent?.status === 'running')?.id
+      : currentAssistantMessageId ||
+        [...messages].reverse().find((m) => m.agentContent?.subagent)?.id
+
+  if (!targetMessageId) return
+
+  set((state) => ({
+    messages: state.messages.map((m) => {
+      if (m.id !== targetMessageId) return m
+      if (!m.agentContent?.subagent) return m
+      return {
+        ...m,
+        agentContent: {
+          ...m.agentContent,
+          subagent: {
+            ...m.agentContent.subagent,
+            sessionId: m.agentContent.subagent.sessionId || subagentSessionId,
+            output: (m.agentContent.subagent.output || '') + delta,
+          },
+        },
+      }
+    }),
+  }))
+}
+
+const handleSubagentThinkingDelta: EventHandler = (props, get, set) => {
+  const { currentSessionId, currentAssistantMessageId, messages } = get()
+  if (props.sessionId !== currentSessionId) return
+
+  const delta = props.delta as string
+  if (!delta) return
+
+  const subagentSessionId = props.subagentSessionId as string | undefined
+  const targetMessageId =
+    subagentSessionId
+      ? messages.find((m) => m.agentContent?.subagent?.sessionId === subagentSessionId)?.id ||
+        messages.find((m) => m.agentContent?.subagent?.status === 'running')?.id
+      : currentAssistantMessageId ||
+        [...messages].reverse().find((m) => m.agentContent?.subagent)?.id
+
+  if (!targetMessageId) return
+
+  set((state) => ({
+    messages: state.messages.map((m) => {
+      if (m.id !== targetMessageId) return m
+      if (!m.agentContent?.subagent) return m
+      return {
+        ...m,
+        agentContent: {
+          ...m.agentContent,
+          subagent: {
+            ...m.agentContent.subagent,
+            sessionId: m.agentContent.subagent.sessionId || subagentSessionId,
+            thinking: (m.agentContent.subagent.thinking || '') + delta,
           },
         },
       }
@@ -387,14 +470,20 @@ const handleSubagentUpdate: EventHandler = (props, get, set) => {
 const handleSubagentComplete: EventHandler = (props, get, set) => {
   const { currentSessionId, currentAssistantMessageId, messages } = get()
   if (props.sessionId !== currentSessionId) return
-  if (!currentAssistantMessageId) return
-
-  const message = messages.find((m) => m.id === currentAssistantMessageId)
+  const subagentSessionId = props.subagentSessionId as string | undefined
+  const targetMessageId =
+    subagentSessionId
+      ? messages.find((m) => m.agentContent?.subagent?.sessionId === subagentSessionId)?.id ||
+        messages.find((m) => m.agentContent?.subagent?.status === 'running')?.id
+      : currentAssistantMessageId ||
+        [...messages].reverse().find((m) => m.agentContent?.subagent)?.id
+  if (!targetMessageId) return
+  const message = messages.find((m) => m.id === targetMessageId)
   if (!message?.agentContent?.subagent) return
 
   set((state) => ({
     messages: state.messages.map((m) => {
-      if (m.id !== currentAssistantMessageId) return m
+      if (m.id !== targetMessageId) return m
       if (!m.agentContent?.subagent) return m
       return {
         ...m,
@@ -402,7 +491,111 @@ const handleSubagentComplete: EventHandler = (props, get, set) => {
           ...m.agentContent,
           subagent: {
             ...m.agentContent.subagent,
+            sessionId: m.agentContent.subagent.sessionId || subagentSessionId,
             status: props.success ? 'completed' : 'failed',
+          },
+        },
+      }
+    }),
+  }))
+}
+
+const handleSubagentToolStart: EventHandler = (props, get, set) => {
+  const { currentSessionId, currentAssistantMessageId, messages } = get()
+  if (props.sessionId !== currentSessionId) return
+
+  const toolCallId = props.toolCallId as string
+  const toolName = props.toolName as string
+  if (!toolCallId || !toolName) return
+
+  const subagentSessionId = props.subagentSessionId as string | undefined
+  const targetMessageId =
+    subagentSessionId
+      ? messages.find((m) => m.agentContent?.subagent?.sessionId === subagentSessionId)?.id ||
+        messages.find((m) => m.agentContent?.subagent?.status === 'running')?.id
+      : currentAssistantMessageId ||
+        [...messages].reverse().find((m) => m.agentContent?.subagent)?.id
+
+  if (!targetMessageId) return
+
+  const toolCall: ToolCallInfo = {
+    toolCallId,
+    toolName,
+    arguments: props.arguments as string,
+    toolKind: props.toolKind as string,
+    status: 'running',
+    startTime: Date.now(),
+  }
+
+  set((state) => ({
+    messages: state.messages.map((m) => {
+      if (m.id !== targetMessageId) return m
+      if (!m.agentContent?.subagent) return m
+      const existing = m.agentContent.subagent.toolCalls || []
+      if (existing.some((tc) => tc.toolCallId === toolCallId)) return m
+      return {
+        ...m,
+        agentContent: {
+          ...m.agentContent,
+          subagent: {
+            ...m.agentContent.subagent,
+            sessionId: m.agentContent.subagent.sessionId || subagentSessionId,
+            toolCalls: [...existing, toolCall],
+          },
+        },
+      }
+    }),
+  }))
+}
+
+const handleSubagentToolResult: EventHandler = (props, get, set) => {
+  const { currentSessionId, currentAssistantMessageId, messages } = get()
+  if (props.sessionId !== currentSessionId) return
+
+  const toolCallId = props.toolCallId as string
+  if (!toolCallId) return
+
+  const subagentSessionId = props.subagentSessionId as string | undefined
+  const targetMessageId =
+    subagentSessionId
+      ? messages.find((m) => m.agentContent?.subagent?.sessionId === subagentSessionId)?.id ||
+        messages.find((m) => m.agentContent?.subagent?.status === 'running')?.id
+      : currentAssistantMessageId ||
+        [...messages].reverse().find((m) => m.agentContent?.subagent)?.id
+
+  if (!targetMessageId) return
+
+  const output = props.output as string
+  const success = props.success === true
+  const status: ToolCallInfo['status'] = success ? 'success' : 'error'
+  const summary =
+    (props.summary as string) ||
+    (output && output.trim() ? output.trim().split('\n')[0].slice(0, 120) : success ? '执行成功' : '执行失败')
+
+  set((state) => ({
+    messages: state.messages.map((m) => {
+      if (m.id !== targetMessageId) return m
+      if (!m.agentContent?.subagent) return m
+      const existing = m.agentContent.subagent.toolCalls || []
+      const updated = existing.map((tc) =>
+        tc.toolCallId === toolCallId
+          ? {
+              ...tc,
+              status,
+              summary,
+              output,
+              metadata: props.metadata as Record<string, unknown>,
+            }
+          : tc
+      )
+      return {
+        ...m,
+        agentContent: {
+          ...m.agentContent,
+          subagent: {
+            ...m.agentContent.subagent,
+            sessionId: m.agentContent.subagent.sessionId || subagentSessionId,
+            toolCalls: updated,
           },
         },
       }
@@ -477,6 +670,30 @@ const handleSessionStatus: EventHandler = (props, get, set) => {
   }
 }
 
+const handleRunCancelled: EventHandler = (props, get, set) => {
+  const { currentSessionId, endAgentResponse } = get()
+  if (props.sessionId !== currentSessionId) return
+
+  set((state) => ({
+    isStreaming: false,
+    messages: state.messages.map((m) => {
+      if (!m.agentContent?.subagent) return m
+      if (m.agentContent.subagent.status !== 'running') return m
+      return {
+        ...m,
+        agentContent: {
+          ...m.agentContent,
+          subagent: {
+            ...m.agentContent.subagent,
+            status: 'failed',
+          },
+        },
+      }
+    }),
+  }))
+  endAgentResponse()
+}
+
 const eventHandlers: Record<string, EventHandler> = {
   'message.created': handleMessageCreated,
   'message.delta': handleMessageDelta,
@@ -489,12 +706,17 @@ const eventHandlers: Record<string, EventHandler> = {
   'todo.update': handleTodoUpdate,
   'subagent.start': handleSubagentStart,
   'subagent.update': handleSubagentUpdate,
+  'subagent.delta': handleSubagentDelta,
+  'subagent.thinking.delta': handleSubagentThinkingDelta,
+  'subagent.tool.start': handleSubagentToolStart,
+  'subagent.tool.result': handleSubagentToolResult,
   'subagent.complete': handleSubagentComplete,
   'permission.asked': handlePermissionAsked,
   'question.required': handleQuestionRequired,
   'session.completed': handleSessionCompleted,
   'session.error': handleSessionError,
   'session.status': handleSessionStatus,
+  'run.cancelled': handleRunCancelled,
 }
 
 export const createEventDispatcher = (get: GetState, set: SetState) => {

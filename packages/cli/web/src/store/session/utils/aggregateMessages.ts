@@ -1,5 +1,5 @@
 import type { Message as RawMessage } from '@/services'
-import type { AgentResponseContent, Message, ToolCallInfo } from '../types'
+import type { AgentResponseContent, Message, SubagentProgress, ToolCallInfo } from '../types'
 
 const createEmptyAgentContent = (): AgentResponseContent => ({
   textBefore: '',
@@ -11,6 +11,25 @@ const createEmptyAgentContent = (): AgentResponseContent => ({
   confirmation: null,
   question: null,
 })
+
+const parseSubtaskRef = (metadata: Record<string, unknown> | undefined): SubagentProgress | null => {
+  if (!metadata || typeof metadata !== 'object' || !('subtaskRef' in metadata)) {
+    return null
+  }
+  const ref = metadata.subtaskRef as Record<string, unknown>
+  if (!ref || typeof ref !== 'object') return null
+
+  const status = ref.status === 'completed' ? 'completed' : ref.status === 'failed' ? 'failed' : 'completed'
+  
+  return {
+    id: (ref.childSessionId as string) || `subagent-${Date.now()}`,
+    type: (ref.agentType as string) || 'subagent',
+    description: (ref.description as string) || (ref.summary as string) || '',
+    status,
+    startTime: Date.now(),
+    sessionId: ref.childSessionId as string | undefined,
+  }
+}
 
 export function aggregateMessages(rawMessages: RawMessage[]): Message[] {
   const result: Message[] = []
@@ -33,11 +52,14 @@ export function aggregateMessages(rawMessages: RawMessage[]): Message[] {
       if (currentAssistant) {
         result.push(currentAssistant)
       }
+      const metadata = raw.metadata as Record<string, unknown> | undefined
       const agentContent = createEmptyAgentContent()
       agentContent.textBefore = raw.content || ''
       if (raw.thinkingContent) {
         agentContent.thinkingContent = raw.thinkingContent
       }
+      
+      agentContent.subagent = parseSubtaskRef(metadata)
       
       if (raw.tool_calls && Array.isArray(raw.tool_calls)) {
         for (const tc of raw.tool_calls) {
@@ -59,7 +81,7 @@ export function aggregateMessages(rawMessages: RawMessage[]): Message[] {
         role: 'assistant',
         content: raw.content || '',
         timestamp: raw.timestamp || Date.now(),
-        metadata: raw.metadata as Record<string, unknown> | undefined,
+        metadata,
         agentContent,
       }
     } else if (raw.role === 'tool') {

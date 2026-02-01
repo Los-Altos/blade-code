@@ -2,7 +2,9 @@
  * Subagent 系统类型定义
  */
 
+import type { ChatCompletionMessageToolCall } from 'openai/resources/chat';
 import { PermissionMode } from '../../config/types.js';
+import type { ToolResult } from '../../tools/types/index.js';
 
 /**
  * Claude Code permissionMode 类型
@@ -125,7 +127,18 @@ export interface SubagentContext {
   subagentSessionId?: string;
 
   /** 工具执行开始回调（用于 UI 进度显示） */
-  onToolStart?: (toolName: string) => void;
+  onToolStart?: (
+    toolCall: ChatCompletionMessageToolCall,
+    toolKind?: 'readonly' | 'write' | 'execute'
+  ) => void;
+  onToolResult?: (
+    toolCall: ChatCompletionMessageToolCall,
+    result: ToolResult
+  ) => void;
+
+  onContentDelta?: (delta: string) => void;
+  onThinkingDelta?: (delta: string) => void;
+  onStreamEnd?: () => void;
 }
 
 /**

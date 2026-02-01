@@ -5,7 +5,7 @@ import type { AgentResponseContent, Message, ToolCallInfo } from '@/store/sessio
 import { useSessionStore } from '@/store/session'
 import { aggregateMessages } from '@/store/session/utils/aggregateMessages'
 import { ChevronDown, ChevronRight, FileText, Loader2 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MarkdownRenderer } from './MarkdownRenderer'
 
 export type { Message }
@@ -225,107 +225,83 @@ function ChangedFilesSection({ toolCalls }: { toolCalls: ToolCallInfo[] }) {
 }
 
 function SubagentSection({ subagent }: { subagent: AgentResponseContent['subagent'] }) {
+  const [manualToggle, setManualToggle] = useState<boolean | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [loadedToolCalls, setLoadedToolCalls] = useState<ToolCallInfo[] | null>(null)
+  
   if (!subagent) return null
+
+  const isRunning = subagent.status === 'running'
+  const expanded = manualToggle !== null ? manualToggle : isRunning
+  const toolCalls = subagent.toolCalls || loadedToolCalls || []
+  const hasContent = subagent.output || subagent.thinking || toolCalls.length > 0 || subagent.sessionId
+
+  useEffect(() => {
+    if (!expanded || isRunning || !subagent.sessionId || loadedToolCalls !== null || (subagent.toolCalls && subagent.toolCalls.length > 0)) return
+    let mounted = true
+    setLoading(true)
+    sessionService.getMessages(subagent.sessionId).then((rawMessages) => {
+      if (!mounted) return
+      const aggregated = aggregateMessages(rawMessages)
+      const toolCallsMap = new Map<string, ToolCallInfo>()
+      for (const message of aggregated) {
+        if (message.agentContent?.toolCalls?.length) {
+          for (const tc of message.agentContent.toolCalls) {
+            if (!toolCallsMap.has(tc.toolCallId)) {
+              toolCallsMap.set(tc.toolCallId, tc)
+            }
+          }
+        }
+      }
+      setLoadedToolCalls(Array.from(toolCallsMap.values()))
+    }).finally(() => {
+      if (mounted) setLoading(false)
+    })
+    return () => { mounted = false }
+  }, [expanded, isRunning, subagent.sessionId, subagent.toolCalls, loadedToolCalls])
 
   return (
     <div className="bg-[#F9FAFB] dark:bg-[#18181b] border border-[#E5E7EB] dark:border-[#27272a] rounded-lg px-3 py-2">
-      <div className="flex gap-2 items-center">
-        {subagent.status === 'running' && <Loader2 className="h-3 w-3 animate-spin text-[#6B7280]" />}
-        <span className="text-[12px] text-[#6B7280] dark:text-[#71717a] font-mono">
-          {subagent.type}: {subagent.description}
-        </span>
-        <StatusPill status={subagent.status === 'completed' ? 'success' : subagent.status === 'failed' ? 'error' : 'running'} />
-      </div>
-    </div>
-  )
-}
-
-function SubtaskRefSection({ subtaskRef }: { subtaskRef: Record<string, unknown> }) {
-  const { currentSessionId } = useSessionStore()
-  const [expanded, setExpanded] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [subagentToolCalls, setSubagentToolCalls] = useState<ToolCallInfo[] | null>(null)
-  const status = typeof subtaskRef.status === 'string' ? subtaskRef.status : undefined
-  const summary = typeof subtaskRef.summary === 'string' ? subtaskRef.summary : ''
-  const agentType = typeof subtaskRef.agentType === 'string' ? subtaskRef.agentType : 'subagent'
-  const sessionId = typeof subtaskRef.childSessionId === 'string' ? subtaskRef.childSessionId : undefined
-  const pillStatus =
-    status === 'completed' ? 'success' : status === 'failed' ? 'error' : status === 'running' ? 'running' : 'info'
-  const isActive = sessionId && sessionId === currentSessionId
-  const canExpand = !!sessionId
-
-  const handleToggleExpand = async () => {
-    if (!sessionId) return
-    const next = !expanded
-    setExpanded(next)
-    if (next && subagentToolCalls === null) {
-      setLoading(true)
-      try {
-        const rawMessages = await sessionService.getMessages(sessionId)
-        const aggregated = aggregateMessages(rawMessages)
-        const toolCalls: ToolCallInfo[] = []
-        for (const message of aggregated) {
-          if (message.agentContent?.toolCalls?.length) {
-            toolCalls.push(...message.agentContent.toolCalls)
-          }
-        }
-        setSubagentToolCalls(toolCalls)
-      } finally {
-        setLoading(false)
-      }
-    }
-  }
-
-  return (
-    <div
-      className={cn(
-        'bg-[#F9FAFB] dark:bg-[#18181b] border border-[#E5E7EB] dark:border-[#27272a] rounded-lg px-3 py-2 space-y-1',
-        isActive ? 'ring-1 ring-[#22C55E]/60' : ''
-      )}
-    >
-      <div className="flex gap-2 justify-between items-center">
+      <button
+        type="button"
+        onClick={() => setManualToggle(!expanded)}
+        className="flex gap-2 justify-between items-center w-full transition-opacity cursor-pointer hover:opacity-80"
+      >
         <div className="flex gap-2 items-center">
+          {isRunning && <Loader2 className="h-3 w-3 animate-spin text-[#6B7280]" />}
           <span className="text-[12px] text-[#6B7280] dark:text-[#71717a] font-mono">
-            Subtask @{agentType}
+            {subagent.type}: {subagent.description}
           </span>
-          <StatusPill status={pillStatus} />
+          <StatusPill status={subagent.status === 'completed' ? 'success' : subagent.status === 'failed' ? 'error' : 'running'} />
         </div>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation()
-            void handleToggleExpand()
-          }}
-          disabled={!canExpand}
-          className={cn(
-            'flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded',
-            canExpand
-              ? 'text-[#6B7280] hover:text-[#111827] hover:bg-[#E5E7EB] dark:text-[#71717a] dark:hover:text-[#E5E5E5] dark:hover:bg-[#27272a]'
-              : 'text-[#9CA3AF] dark:text-[#52525b] cursor-not-allowed'
-          )}
-        >
-          {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-          Logs
-        </button>
-      </div>
-      {summary && (
-        <div className="text-[12px] text-[#374151] dark:text-[#d4d4d8] whitespace-pre-wrap">{summary}</div>
-      )}
+        {hasContent && (
+          <ChevronDown className={cn('h-3.5 w-3.5 text-[#6B7280] transition-transform', expanded && 'rotate-180')} />
+        )}
+      </button>
       {expanded && (
-        <div className="pt-2">
+        <div className="mt-2 space-y-2">
+          {(subagent.output || subagent.thinking) && (
+            <>
+              {subagent.output && (
+                <pre className="text-[11px] text-[#374151] dark:text-[#d4d4d8] bg-[#F3F4F6] dark:bg-[#111113] border border-[#E5E7EB] dark:border-[#27272a] rounded-md p-2 overflow-x-auto whitespace-pre-wrap font-mono max-h-[160px] overflow-y-auto">
+                  {subagent.output}
+                </pre>
+              )}
+              {subagent.thinking && (
+                <pre className="text-[11px] text-[#6B7280] dark:text-[#a1a1aa] bg-[#F3F4F6] dark:bg-[#111113] border border-[#E5E7EB] dark:border-[#27272a] rounded-md p-2 overflow-x-auto whitespace-pre-wrap font-mono max-h-[120px] overflow-y-auto">
+                  {subagent.thinking}
+                </pre>
+              )}
+            </>
+          )}
           {loading && (
             <div className="flex items-center gap-2 text-[11px] text-[#6B7280] dark:text-[#71717a] font-mono">
               <Loader2 className="w-3 h-3 animate-spin" />
               Loading subagent logs...
             </div>
           )}
-          {!loading && subagentToolCalls && subagentToolCalls.length > 0 && (
-            <ToolCallsList toolCalls={subagentToolCalls} />
-          )}
-          {!loading && subagentToolCalls && subagentToolCalls.length === 0 && (
-            <div className="text-[11px] text-[#6B7280] dark:text-[#71717a] font-mono">
-              No tool calls recorded.
-            </div>
+          {!loading && toolCalls.length > 0 && (
+            <ToolCallsList toolCalls={toolCalls} />
           )}
         </div>
       )}
@@ -487,11 +463,7 @@ function AgentMessageContent({ message }: { message: Message }) {
   }
 
   const { textBefore, toolCalls, textAfter, thinkingContent, todos, subagent, confirmation, question } = agentContent
-  const subtaskRef =
-    message.metadata && typeof message.metadata === 'object' && 'subtaskRef' in message.metadata
-      ? (message.metadata.subtaskRef as Record<string, unknown>)
-      : null
-  const hasContent = textBefore || toolCalls.length > 0 || textAfter || thinkingContent || todos.length > 0 || subagent || confirmation || question || subtaskRef
+  const hasContent = textBefore || toolCalls.length > 0 || textAfter || thinkingContent || todos.length > 0 || subagent || confirmation || question
 
   if (!hasContent && isCurrentMessage && isStreaming) {
     return (
@@ -511,7 +483,6 @@ function AgentMessageContent({ message }: { message: Message }) {
       {textBefore && <MarkdownRenderer content={textBefore} />}
       {todos.length > 0 && <TodoSection todos={todos} />}
       {subagent && <SubagentSection subagent={subagent} />}
-      {subtaskRef && <SubtaskRefSection subtaskRef={subtaskRef} />}
       <ToolCallsList toolCalls={toolCalls} />
       {confirmation && <ConfirmationSection confirmation={confirmation} messageId={message.id} />}
       {question && <QuestionSection question={question} />}

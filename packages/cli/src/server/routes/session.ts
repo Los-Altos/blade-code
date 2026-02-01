@@ -254,6 +254,11 @@ export const SessionRoutes = () => {
         activeRuns.delete(session.currentRunId);
       }
     }
+    try {
+      await SessionService.deleteSession(sessionId);
+    } catch (error) {
+      logger.warn('[SessionRoutes] Failed to delete session file:', error);
+    }
     sessions.delete(sessionId);
 
     return c.json({ success: true });

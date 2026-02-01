@@ -3,7 +3,7 @@
  * 负责加载和恢复历史会话
  */
 
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, rm } from 'node:fs/promises';
 import * as path from 'node:path';
 import {
   getBladeStorageRoot,
@@ -171,6 +171,18 @@ export class SessionService {
       logger.error(`[SessionService] 加载会话失败 (${sessionId}):`, error);
       throw error;
     }
+  }
+
+  static async deleteSession(sessionId: string): Promise<number> {
+    const sessions = await this.listSessions();
+    const matches = sessions.filter((s) => s.sessionId === sessionId);
+    if (matches.length === 0) return 0;
+    await Promise.all(
+      matches.map((s) =>
+        rm(s.filePath, { force: true })
+      )
+    );
+    return matches.length;
   }
 
   /**

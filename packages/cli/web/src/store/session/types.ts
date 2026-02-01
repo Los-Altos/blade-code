@@ -25,6 +25,10 @@ export interface SubagentProgress {
   status: 'running' | 'completed' | 'failed'
   currentTool?: string
   startTime: number
+  sessionId?: string
+  output?: string
+  thinking?: string
+  toolCalls?: ToolCallInfo[]
 }
 
 export interface ToolCallInfo {

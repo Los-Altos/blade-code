@@ -52,13 +52,15 @@ export class SubagentExecutor {
           subagentInfo,
         },
         {
-          onToolStart: context.onToolStart
-            ? (toolCall) => {
-                const name =
-                  'function' in toolCall ? toolCall.function.name : 'unknown';
-                context.onToolStart!(name);
+          onToolStart: context.onToolStart,
+          onToolResult: context.onToolResult
+            ? async (toolCall, result) => {
+                context.onToolResult?.(toolCall, result);
               }
             : undefined,
+          onContentDelta: context.onContentDelta,
+          onThinkingDelta: context.onThinkingDelta,
+          onStreamEnd: context.onStreamEnd,
         }
       );
 
