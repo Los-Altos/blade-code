@@ -46,7 +46,7 @@ vi.mock('../../../../src/acp/AcpServiceContext.js', () => ({
 }));
 
 // Mock slash commands
-vi.mock('../../../src/slash-commands/index.js', () => ({
+vi.mock('../../../../src/slash-commands/index.js', () => ({
   executeSlashCommand: vi.fn().mockResolvedValue({
     success: true,
     message: 'Command executed',

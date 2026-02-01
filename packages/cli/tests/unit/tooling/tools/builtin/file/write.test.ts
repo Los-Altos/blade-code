@@ -68,6 +68,14 @@ describe('WriteTool', () => {
 
     // 重置 FileAccessTracker
     FileAccessTracker.resetInstance();
+
+    vi.mocked(fs.stat).mockResolvedValue({
+      mtimeMs: Date.now(),
+      mtime: new Date(),
+      size: 0,
+      isFile: () => true,
+      isDirectory: () => false,
+    } as any);
   });
 
   afterEach(async () => {
@@ -119,6 +127,8 @@ describe('WriteTool', () => {
 
       // 先创建文件
       mockFS.setFile(filePath, oldContent);
+      const tracker = FileAccessTracker.getInstance();
+      await tracker.recordFileRead(filePath, 'test-session');
 
       const context = {
         sessionId: 'test-session',
@@ -355,7 +365,7 @@ describe('WriteTool', () => {
         file_path: filePath,
         content_size: content.length,
         encoding: 'utf8',
-        created_directories: true,
+        created_directories: false,
         kind: 'edit',
       });
       // 检查 metadata 中是否包含这些字段

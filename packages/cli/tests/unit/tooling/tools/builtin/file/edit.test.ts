@@ -2,13 +2,13 @@
  * EditTool 测试
  */
 
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { editTool } from '../../../../../../src/tools/builtin/file/edit.js';
-import { createMockFileSystem } from '../../../../../support/mocks/mockFileSystem.js';
-import { FileAccessTracker } from '../../../../../../src/tools/builtin/file/FileAccessTracker.js';
-import { getFileSystemService, setFileSystemService } from '../../../../../../src/services/FileSystemService.js';
-import { ToolErrorType } from '../../../../../../src/tools/types/index.js';
 import { promises as fs } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setFileSystemService } from '../../../../../../src/services/FileSystemService.js';
+import { editTool } from '../../../../../../src/tools/builtin/file/edit.js';
+import { FileAccessTracker } from '../../../../../../src/tools/builtin/file/FileAccessTracker.js';
+import { ToolErrorType } from '../../../../../../src/tools/types/index.js';
+import { createMockFileSystem } from '../../../../../support/mocks/mockFileSystem.js';
 
 // Mock AcpServiceContext at module level
 vi.mock('../../../../../../src/acp/AcpServiceContext.js', () => ({
@@ -59,6 +59,14 @@ describe('EditTool', () => {
 
     // 重置 FileAccessTracker
     FileAccessTracker.resetInstance();
+
+    vi.mocked(fs.stat).mockResolvedValue({
+      mtimeMs: Date.now(),
+      mtime: new Date(),
+      size: 0,
+      isFile: () => true,
+      isDirectory: () => false,
+    } as any);
   });
 
   afterEach(async () => {
@@ -80,6 +88,8 @@ describe('EditTool', () => {
       const newContent = 'Hello, Everyone!';
 
       mockFS.setFile(filePath, oldContent);
+      const tracker = FileAccessTracker.getInstance();
+      await tracker.recordFileRead(filePath, 'test-session');
 
       const context = {
         sessionId: 'test-session',
@@ -113,6 +123,8 @@ describe('EditTool', () => {
       const newContent = 'bar bar bar';
 
       mockFS.setFile(filePath, oldContent);
+      const tracker = FileAccessTracker.getInstance();
+      await tracker.recordFileRead(filePath, 'test-session');
 
       const context = {
         sessionId: 'test-session',
@@ -145,6 +157,8 @@ describe('EditTool', () => {
       const newContent = 'Hello, !';
 
       mockFS.setFile(filePath, oldContent);
+      const tracker = FileAccessTracker.getInstance();
+      await tracker.recordFileRead(filePath, 'test-session');
 
       const context = {
         sessionId: 'test-session',

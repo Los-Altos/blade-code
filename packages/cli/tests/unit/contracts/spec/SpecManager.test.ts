@@ -46,7 +46,7 @@ const mockFileManager = {
   getArchiveDir: vi.fn().mockReturnValue('/mock/.blade/archive'),
 };
 
-vi.mock('../../../src/spec/SpecFileManager.js', () => ({
+vi.mock('../../../../src/spec/SpecFileManager.js', () => ({
   SpecFileManager: vi.fn().mockImplementation(() => mockFileManager),
 }));
 
@@ -75,7 +75,7 @@ const resetMockState = () => {
   };
 };
 
-vi.mock('../../../src/store/vanilla.js', () => ({
+vi.mock('../../../../src/store/vanilla.js', () => ({
   specActions: () => ({
     reset: vi.fn(),
     setCurrentSpec: vi.fn(),
