@@ -23,10 +23,30 @@ const testTypes = {
     project: 'cli',
     timeout: 60000,
   },
+  e2e: {
+    name: 'E2E 测试',
+    project: 'e2e',
+    timeout: 180000,
+  },
+  performance: {
+    name: '性能测试',
+    project: 'performance',
+    timeout: 300000,
+  },
+  snapshot: {
+    name: '快照测试',
+    project: 'snapshot',
+    timeout: 45000,
+  },
+  security: {
+    name: '安全测试',
+    project: 'security',
+    timeout: 90000,
+  },
   all: {
     name: '所有测试',
     project: null,
-    timeout: 180000,
+    timeout: 600000,
   },
 };
 
@@ -41,6 +61,10 @@ function printUsage() {
   unit        运行单元测试
   integration 运行集成测试
   cli         运行 CLI 行为测试
+  e2e         运行端到端测试
+  performance 运行性能测试
+  snapshot    运行快照测试
+  security    运行安全测试
   all         运行所有项目
 
 选项:
@@ -48,6 +72,7 @@ function printUsage() {
   --watch     监听模式运行测试
   --debug     启用调试模式
   --verbose   详细输出
+  --update    更新快照
   --help      显示此帮助信息
 
 示例:
@@ -55,6 +80,8 @@ function printUsage() {
   npm run test integration --coverage
   npm run test all --watch
   npm run test cli --debug
+  npm run test snapshot --update
+  npm run test security
 `);
 }
 
@@ -88,6 +115,10 @@ function runTest(testType, options = {}) {
 
   if (options.coverage) {
     baseArgs.push('--coverage');
+  }
+
+  if (options.update) {
+    baseArgs.push('--update');
   }
 
   if (options.debug) {
@@ -132,9 +163,9 @@ function main() {
     watch: args.includes('--watch'),
     debug: args.includes('--debug'),
     verbose: args.includes('--verbose'),
+    update: args.includes('--update'),
   };
   
-  // 验证测试类型
   if (!testTypes[testType]) {
     console.error(`❌ 未知的测试类型: ${testType}`);
     printUsage();
@@ -144,7 +175,6 @@ function main() {
   runTest(testType, options);
 }
 
-// 处理未捕获的异常
 process.on('uncaughtException', (error) => {
   console.error('❌ 未捕获的异常:', error.message);
   process.exit(1);

@@ -7,7 +7,7 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html', 'json'],
+      reporter: ['text', 'html', 'json', 'lcov'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         '**/node_modules/**',
@@ -28,10 +28,10 @@ export default defineConfig({
       ],
       thresholds: {
         global: {
-          branches: 0,
-          functions: 0,
-          lines: 0,
-          statements: 0,
+          branches: 80,
+          functions: 80,
+          lines: 80,
+          statements: 80,
         },
       },
     },
@@ -40,7 +40,6 @@ export default defineConfig({
       NODE_ENV: 'test',
       TEST_MODE: 'true',
     },
-    // 全局池配置
     poolOptions: {
       threads: {
         singleThread: false,
@@ -53,7 +52,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           include: ['tests/unit/**/*.{test,spec}.{js,ts,jsx,tsx}'],
-          setupFiles: ['./tests/setup.ts'],
+          setupFiles: ['./tests/support/setup.ts'],
           typecheck: {
             tsconfig: './tsconfig.json',
           },
@@ -65,7 +64,7 @@ export default defineConfig({
         test: {
           name: 'integration',
           include: ['tests/integration/**/*.{test,spec}.{js,ts,jsx,tsx}'],
-          setupFiles: ['./tests/setup.ts'],
+          setupFiles: ['./tests/support/setup.ts'],
           testTimeout: 30000,
           hookTimeout: 30000,
           poolOptions: {
@@ -78,8 +77,59 @@ export default defineConfig({
       {
         test: {
           name: 'cli',
-          include: ['tests/cli/**/*.{test,spec}.{js,ts,jsx,tsx}'],
-          setupFiles: ['./tests/setup.ts'],
+          include: ['tests/integration/cli/**/*.{test,spec}.{js,ts,jsx,tsx}'],
+          setupFiles: ['./tests/support/setup.ts'],
+          testTimeout: 30000,
+          hookTimeout: 30000,
+          poolOptions: {
+            threads: {
+              singleThread: true,
+            },
+          },
+        },
+      },
+      {
+        test: {
+          name: 'e2e',
+          include: ['tests/e2e/**/*.{test,spec}.{js,ts,jsx,tsx}'],
+          setupFiles: ['./tests/support/setup.ts', './tests/support/setup.e2e.ts'],
+          testTimeout: 60000,
+          hookTimeout: 60000,
+          poolOptions: {
+            threads: {
+              singleThread: true,
+            },
+          },
+        },
+      },
+      {
+        test: {
+          name: 'performance',
+          include: ['tests/performance/**/*.{test,spec,bench}.{js,ts,jsx,tsx}'],
+          setupFiles: ['./tests/support/setup.ts'],
+          testTimeout: 120000,
+          hookTimeout: 120000,
+          poolOptions: {
+            threads: {
+              singleThread: true,
+            },
+          },
+        },
+      },
+      {
+        test: {
+          name: 'snapshot',
+          include: ['tests/snapshots/**/*.{test,spec}.{js,ts,jsx,tsx}'],
+          setupFiles: ['./tests/support/setup.ts'],
+          testTimeout: 15000,
+          hookTimeout: 15000,
+        },
+      },
+      {
+        test: {
+          name: 'security',
+          include: ['tests/security/**/*.{test,spec}.{js,ts,jsx,tsx}'],
+          setupFiles: ['./tests/support/setup.ts'],
           testTimeout: 30000,
           hookTimeout: 30000,
           poolOptions: {
@@ -95,7 +145,11 @@ export default defineConfig({
     alias: {
       '@': resolve(__dirname, 'src'),
       '@tests': resolve(__dirname, 'tests'),
-      '@fixtures': resolve(__dirname, 'tests/fixtures'),
+      '@fixtures': resolve(__dirname, 'tests/support/fixtures'),
+      '@mocks': resolve(__dirname, 'tests/support/mocks'),
+      '@helpers': resolve(__dirname, 'tests/support/helpers'),
+      '@factories': resolve(__dirname, 'tests/support/factories'),
+      '@support': resolve(__dirname, 'tests/support'),
     },
   },
 });

@@ -2,10 +2,10 @@
  * 调试脚本 - 了解 MockFileSystem 和 readTool 的交互
  */
 
-import { readTool } from './src/tools/builtin/file/read.js';
-import { createMockFileSystem } from './tests/mocks/mockFileSystem.js';
 import { getFileSystemService, setFileSystemService } from './src/services/FileSystemService.js';
 import { FileAccessTracker } from './src/tools/builtin/file/FileAccessTracker.js';
+import { readTool } from './src/tools/builtin/file/read.js';
+import { createMockFileSystem } from './tests/support/mocks/mockFileSystem.js';
 
 async function main() {
   console.log('=== 调试开始 ===\n');
