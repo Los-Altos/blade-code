@@ -121,6 +121,9 @@ export interface SubagentContext {
   /** 父 Agent 的权限模式（继承给子 Agent） */
   permissionMode?: PermissionMode;
 
+  /** 子代理会话 ID（用于与主会话关联） */
+  subagentSessionId?: string;
+
   /** 工具执行开始回调（用于 UI 进度显示） */
   onToolStart?: (toolName: string) => void;
 }

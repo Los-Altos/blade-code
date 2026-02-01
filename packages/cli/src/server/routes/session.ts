@@ -56,6 +56,7 @@ interface SessionInfo {
   createdAt: Date;
   messages: Message[];
   currentRunId?: string;
+  relationType?: 'subagent';
 }
 
 const sessions = new Map<string, SessionInfo>();
@@ -95,7 +96,13 @@ export const SessionRoutes = () => {
     try {
       const persistedSessions = await SessionService.listSessions();
       
-      const activeSessionsList = Array.from(sessions.values()).map((s) => ({
+      const subagentSessionIds = new Set(
+        persistedSessions.filter((s) => s.relationType === 'subagent').map((s) => s.sessionId)
+      );
+
+      const activeSessionsList = Array.from(sessions.values())
+        .filter((s) => !subagentSessionIds.has(s.id) && s.relationType !== 'subagent')
+        .map((s) => ({
         sessionId: s.id,
         projectPath: s.projectPath,
         title: s.title,
@@ -111,11 +118,22 @@ export const SessionRoutes = () => {
         isActive: true,
       }));
 
+      const activeSessionIds = new Set(activeSessionsList.map((s) => s.sessionId));
+      const filteredPersisted = persistedSessions.filter(
+        (s) => !sessions.has(s.sessionId) && !activeSessionIds.has(s.sessionId) && s.relationType !== 'subagent'
+      );
+
+      const seenSessionIds = new Set(activeSessionIds);
+      const deduplicatedPersisted = filteredPersisted.filter((s) => {
+        if (seenSessionIds.has(s.sessionId)) return false;
+        seenSessionIds.add(s.sessionId);
+        return true;
+      });
+
       const allSessions = [
         ...activeSessionsList,
-        ...persistedSessions.filter((s) => !sessions.has(s.sessionId)),
+        ...deduplicatedPersisted,
       ];
-
       return c.json(allSessions);
     } catch (error) {
       logger.error('[SessionRoutes] Failed to list sessions:', error);
@@ -472,6 +490,7 @@ async function executeRunAsync(
       onToolStart: async (toolCall, toolKind) => {
         if (toolCall.type !== 'function') return;
         emit('tool.start', {
+          messageId: assistantMessageId,
           toolName: toolCall.function.name,
           toolCallId: toolCall.id,
           arguments: toolCall.function.arguments,
@@ -481,6 +500,7 @@ async function executeRunAsync(
       onToolResult: async (toolCall, result) => {
         if (toolCall.type !== 'function') return;
         emit('tool.result', {
+          messageId: assistantMessageId,
           toolName: toolCall.function.name,
           toolCallId: toolCall.id,
           success: !result.error,

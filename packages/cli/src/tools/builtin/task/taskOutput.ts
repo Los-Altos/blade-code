@@ -241,6 +241,13 @@ async function handleAgentOutput(
     stats: session.stats,
   };
 
+  const subagentStatus =
+    session.status === 'completed'
+      ? 'completed'
+      : session.status === 'failed'
+        ? 'failed'
+        : 'running';
+
   const statusEmoji = getStatusEmoji(session.status);
   const displayContent =
     `${statusEmoji} TaskOutput(${taskId}) - Agent\n` +
@@ -256,7 +263,16 @@ async function handleAgentOutput(
     success: true,
     llmContent: payload,
     displayContent,
-    metadata: payload,
+    metadata: {
+      ...payload,
+      subagentSessionId: session.id,
+      subagentType: session.subagentType,
+      subagentStatus,
+      subagentSummary:
+        typeof session.result?.message === 'string'
+          ? session.result.message.slice(0, 500)
+          : undefined,
+    },
   };
 }
 

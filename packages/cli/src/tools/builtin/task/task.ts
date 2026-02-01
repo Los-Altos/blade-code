@@ -157,6 +157,10 @@ export const taskTool = createTool({
       .describe(
         'Optional agent ID to resume from. If provided, the agent will continue from the previous execution transcript.'
       ),
+    subagent_session_id: z
+      .string()
+      .optional()
+      .describe('Internal subagent session id for tracking'),
   }),
 
   // 工具描述
@@ -202,8 +206,15 @@ export const taskTool = createTool({
       prompt,
       run_in_background = false,
       resume,
+      subagent_session_id,
     } = params;
     const { updateOutput } = context;
+    const subagentSessionId =
+      typeof subagent_session_id === 'string' && subagent_session_id.length > 0
+        ? subagent_session_id
+        : typeof resume === 'string' && resume.length > 0
+          ? resume
+          : nanoid();
 
     try {
       // 1. 获取 subagent 配置
@@ -229,7 +240,13 @@ export const taskTool = createTool({
 
       // 3. 处理后台执行模式
       if (run_in_background) {
-        return handleBackgroundExecution(subagentConfig, description, prompt, context);
+        return handleBackgroundExecution(
+          subagentConfig,
+          description,
+          prompt,
+          context,
+          subagentSessionId
+        );
       }
 
       // 4. 同步执行模式（原有逻辑）
@@ -249,6 +266,7 @@ export const taskTool = createTool({
         prompt,
         parentSessionId: context.sessionId,
         permissionMode: context.permissionMode, // 继承父 Agent 的权限模式
+        subagentSessionId,
         onToolStart: (toolName) => {
           vanillaStore.getState().app.actions.updateSubagentTool(toolName);
         },
@@ -330,7 +348,7 @@ export const taskTool = createTool({
             description,
             duration,
             stats: result.stats,
-            subagentSessionId: result.agentId,
+            subagentSessionId,
             subagentType: subagent_type,
             subagentStatus: 'completed' as const,
             subagentSummary: result.message.slice(0, 500),
@@ -352,7 +370,7 @@ export const taskTool = createTool({
             message: result.error || 'Unknown error',
           },
           metadata: {
-            subagentSessionId: result.agentId,
+            subagentSessionId,
             subagentType: subagent_type,
             subagentStatus: 'failed' as const,
           },
@@ -398,7 +416,8 @@ function handleBackgroundExecution(
   },
   description: string,
   prompt: string,
-  context: ExecutionContext
+  context: ExecutionContext,
+  subagentSessionId: string
 ): ToolResult {
   const manager = BackgroundAgentManager.getInstance();
 
@@ -409,6 +428,7 @@ function handleBackgroundExecution(
     prompt,
     parentSessionId: context.sessionId,
     permissionMode: context.permissionMode,
+    agentId: subagentSessionId,
   });
 
   return {

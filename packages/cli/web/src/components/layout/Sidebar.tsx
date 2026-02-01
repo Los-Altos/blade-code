@@ -23,7 +23,13 @@ export function Sidebar({ className }: SidebarProps) {
     yesterday.setDate(yesterday.getDate() - 1)
 
     const groups: { label: string; sessions: typeof sessions }[] = []
-    const validSessions = sessions.filter(s => s != null)
+    const uniqueSessions = new Map<string, (typeof sessions)[number]>()
+    for (const session of sessions) {
+      if (session && !uniqueSessions.has(session.sessionId)) {
+        uniqueSessions.set(session.sessionId, session)
+      }
+    }
+    const validSessions = Array.from(uniqueSessions.values())
     const getSessionDate = (s: typeof sessions[0]) => {
       const time = s?.lastMessageTime || s?.firstMessageTime || 0
       return new Date(time)

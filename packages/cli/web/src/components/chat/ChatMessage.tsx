@@ -3,6 +3,7 @@ import { sessionService } from '@/services'
 import { useAppStore } from '@/store/AppStore'
 import type { AgentResponseContent, Message, ToolCallInfo } from '@/store/session'
 import { useSessionStore } from '@/store/session'
+import { aggregateMessages } from '@/store/session/utils/aggregateMessages'
 import { ChevronDown, ChevronRight, FileText, Loader2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { MarkdownRenderer } from './MarkdownRenderer'
@@ -240,26 +241,93 @@ function SubagentSection({ subagent }: { subagent: AgentResponseContent['subagen
 }
 
 function SubtaskRefSection({ subtaskRef }: { subtaskRef: Record<string, unknown> }) {
+  const { currentSessionId } = useSessionStore()
+  const [expanded, setExpanded] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [subagentToolCalls, setSubagentToolCalls] = useState<ToolCallInfo[] | null>(null)
   const status = typeof subtaskRef.status === 'string' ? subtaskRef.status : undefined
   const summary = typeof subtaskRef.summary === 'string' ? subtaskRef.summary : ''
   const agentType = typeof subtaskRef.agentType === 'string' ? subtaskRef.agentType : 'subagent'
   const sessionId = typeof subtaskRef.childSessionId === 'string' ? subtaskRef.childSessionId : undefined
   const pillStatus =
     status === 'completed' ? 'success' : status === 'failed' ? 'error' : status === 'running' ? 'running' : 'info'
+  const isActive = sessionId && sessionId === currentSessionId
+  const canExpand = !!sessionId
+
+  const handleToggleExpand = async () => {
+    if (!sessionId) return
+    const next = !expanded
+    setExpanded(next)
+    if (next && subagentToolCalls === null) {
+      setLoading(true)
+      try {
+        const rawMessages = await sessionService.getMessages(sessionId)
+        const aggregated = aggregateMessages(rawMessages)
+        const toolCalls: ToolCallInfo[] = []
+        for (const message of aggregated) {
+          if (message.agentContent?.toolCalls?.length) {
+            toolCalls.push(...message.agentContent.toolCalls)
+          }
+        }
+        setSubagentToolCalls(toolCalls)
+      } finally {
+        setLoading(false)
+      }
+    }
+  }
 
   return (
-    <div className="bg-[#F9FAFB] dark:bg-[#18181b] border border-[#E5E7EB] dark:border-[#27272a] rounded-lg px-3 py-2 space-y-1">
-      <div className="flex gap-2 items-center">
-        <span className="text-[12px] text-[#6B7280] dark:text-[#71717a] font-mono">
-          Subtask @{agentType}
-        </span>
-        <StatusPill status={pillStatus} />
+    <div
+      className={cn(
+        'bg-[#F9FAFB] dark:bg-[#18181b] border border-[#E5E7EB] dark:border-[#27272a] rounded-lg px-3 py-2 space-y-1',
+        isActive ? 'ring-1 ring-[#22C55E]/60' : ''
+      )}
+    >
+      <div className="flex gap-2 justify-between items-center">
+        <div className="flex gap-2 items-center">
+          <span className="text-[12px] text-[#6B7280] dark:text-[#71717a] font-mono">
+            Subtask @{agentType}
+          </span>
+          <StatusPill status={pillStatus} />
+        </div>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            void handleToggleExpand()
+          }}
+          disabled={!canExpand}
+          className={cn(
+            'flex items-center gap-1 text-[11px] font-mono px-2 py-1 rounded',
+            canExpand
+              ? 'text-[#6B7280] hover:text-[#111827] hover:bg-[#E5E7EB] dark:text-[#71717a] dark:hover:text-[#E5E5E5] dark:hover:bg-[#27272a]'
+              : 'text-[#9CA3AF] dark:text-[#52525b] cursor-not-allowed'
+          )}
+        >
+          {expanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+          Logs
+        </button>
       </div>
       {summary && (
         <div className="text-[12px] text-[#374151] dark:text-[#d4d4d8] whitespace-pre-wrap">{summary}</div>
       )}
-      {sessionId && (
-        <div className="text-[11px] text-[#6B7280] dark:text-[#71717a] font-mono">Session {sessionId}</div>
+      {expanded && (
+        <div className="pt-2">
+          {loading && (
+            <div className="flex items-center gap-2 text-[11px] text-[#6B7280] dark:text-[#71717a] font-mono">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              Loading subagent logs...
+            </div>
+          )}
+          {!loading && subagentToolCalls && subagentToolCalls.length > 0 && (
+            <ToolCallsList toolCalls={subagentToolCalls} />
+          )}
+          {!loading && subagentToolCalls && subagentToolCalls.length === 0 && (
+            <div className="text-[11px] text-[#6B7280] dark:text-[#71717a] font-mono">
+              No tool calls recorded.
+            </div>
+          )}
+        </div>
       )}
     </div>
   )

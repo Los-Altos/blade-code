@@ -30,13 +30,21 @@ const createEmptyAgentContent = (): AgentResponseContent => ({
 const ensureAssistantMessage = (
   get: GetState,
   set: SetState,
-  _fallbackId?: string
+  fallbackId?: string
 ): string | null => {
   const { currentAssistantMessageId, messages, addMessage, startAgentResponse } = get()
   
   // 验证 currentAssistantMessageId 是否是有效的消息 ID（不是 toolCallId）
   if (currentAssistantMessageId && !currentAssistantMessageId.startsWith('call_')) {
     return currentAssistantMessageId
+  }
+
+  if (fallbackId) {
+    const existing = messages.find((m) => m.id === fallbackId && m.role === 'assistant')
+    if (existing) {
+      startAgentResponse(existing.id)
+      return existing.id
+    }
   }
 
   // 只有当最后一条消息是 assistant 时才复用，否则创建新的
@@ -46,7 +54,7 @@ const ensureAssistantMessage = (
   }
 
   // 创建新的 assistant 消息
-  const id = `assistant-${Date.now()}`
+  const id = fallbackId || `assistant-${Date.now()}`
   const message: Message = {
     id,
     role: 'assistant',
@@ -65,11 +73,12 @@ const ensureAssistantMessage = (
 }
 
 const handleMessageCreated: EventHandler = (props, get, _set) => {
-  const { currentSessionId, addMessage, startAgentResponse } = get()
+  const { currentSessionId, addMessage, startAgentResponse, messages, updateMessage } = get()
   if (props.sessionId !== currentSessionId) return
 
   const messageId = props.messageId as string
   const role = (props.role as 'user' | 'assistant') || 'assistant'
+  const existing = messages.find((m) => m.id === messageId)
 
   const message: Message = {
     id: messageId,
@@ -78,8 +87,17 @@ const handleMessageCreated: EventHandler = (props, get, _set) => {
     timestamp: Date.now(),
     agentContent: role === 'assistant' ? createEmptyAgentContent() : undefined,
   }
-  console.log('[handleMessageCreated] Adding message:', message)
-  addMessage(message)
+  if (existing) {
+    updateMessage(messageId, {
+      role,
+      content: message.content,
+      agentContent: role === 'assistant'
+        ? { ...(existing.agentContent || createEmptyAgentContent()) }
+        : undefined,
+    })
+  } else {
+    addMessage(message)
+  }
 
   if (role === 'assistant') {
     startAgentResponse(messageId)
@@ -144,7 +162,11 @@ const handleThinkingCompleted: EventHandler = () => {}
 const handleToolStart: EventHandler = (props, get, set) => {
   const { currentSessionId, appendToolCall, setHasToolCalls, setSubagent } = get()
   if (props.sessionId !== currentSessionId) return
-  const targetMessageId = ensureAssistantMessage(get, set, props.toolCallId as string)
+  const targetMessageId = ensureAssistantMessage(
+    get,
+    set,
+    (props.messageId as string) || (props.toolCallId as string)
+  )
   if (!targetMessageId) return
 
   setHasToolCalls(true)
@@ -207,7 +229,9 @@ const handleToolResult: EventHandler = (props, get, set) => {
     success: props.success,
   })
   
-  const targetMessageId = messageWithTool?.id ||
+  const targetMessageId =
+    (props.messageId as string) ||
+    messageWithTool?.id ||
     [...messages].reverse().find((m) => m.role === 'assistant')?.id
 
   if (!targetMessageId) {
@@ -242,6 +266,52 @@ const handleToolResult: EventHandler = (props, get, set) => {
               ...m.agentContent.subagent,
               status: props.success ? 'completed' : 'failed',
             },
+          },
+        }
+      }),
+    }))
+  }
+
+  const metadata = props.metadata as Record<string, unknown> | undefined
+  const subagentSessionId =
+    metadata && typeof metadata.subagentSessionId === 'string'
+      ? metadata.subagentSessionId
+      : undefined
+  const subagentStatus =
+    metadata && typeof metadata.subagentStatus === 'string'
+      ? metadata.subagentStatus
+      : undefined
+  const subagentType =
+    metadata && typeof metadata.subagentType === 'string'
+      ? metadata.subagentType
+      : undefined
+  const subagentSummary =
+    metadata && typeof metadata.subagentSummary === 'string'
+      ? metadata.subagentSummary
+      : undefined
+
+  if (subagentSessionId && subagentStatus) {
+    set((state) => ({
+      messages: state.messages.map((m) => {
+        if (m.id !== targetMessageId) return m
+        const baseMetadata = (m.metadata ?? {}) as Record<string, unknown>
+        const existing = baseMetadata.subtaskRef as Record<string, unknown> | undefined
+        const nextRef = {
+          ...(existing ?? {}),
+          childSessionId: subagentSessionId,
+          agentType:
+            subagentType ||
+            (typeof existing?.agentType === 'string' ? existing.agentType : 'subagent'),
+          status: subagentStatus,
+          summary:
+            subagentSummary ||
+            (typeof existing?.summary === 'string' ? existing.summary : ''),
+        }
+        return {
+          ...m,
+          metadata: {
+            ...baseMetadata,
+            subtaskRef: nextRef,
           },
         }
       }),

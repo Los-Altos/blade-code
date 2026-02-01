@@ -3,20 +3,20 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import type { JsonValue, MessageRole } from '../../store/types.js';
 import type {
-    ContextData,
-    ConversationContext,
-    MessageInfo,
-    PartInfo,
-    SessionContext,
-    SessionEvent,
-    SessionInfo,
+  ContextData,
+  ConversationContext,
+  MessageInfo,
+  PartInfo,
+  SessionContext,
+  SessionEvent,
+  SessionInfo,
 } from '../types.js';
 import { JSONLStore } from './JSONLStore.js';
 import {
-    detectGitBranch,
-    getProjectStoragePath,
-    getSessionFilePath,
-    listProjectDirectories,
+  detectGitBranch,
+  getProjectStoragePath,
+  getSessionFilePath,
+  listProjectDirectories,
 } from './pathUtils.js';
 
 /**
@@ -197,6 +197,36 @@ export class PersistentStore {
         createdAt: now,
       };
       entries.push(this.createEvent('part_created', sessionId, partInfo));
+      if (toolName === 'Task' && toolInput && typeof toolInput === 'object') {
+        const subtaskInput = toolInput as Record<string, unknown>;
+        const childSessionId =
+          typeof subtaskInput.subagent_session_id === 'string'
+            ? subtaskInput.subagent_session_id
+            : undefined;
+        const agentType =
+          typeof subtaskInput.subagent_type === 'string'
+            ? subtaskInput.subagent_type
+            : undefined;
+        if (childSessionId && agentType) {
+          const subtaskPart: PartInfo = {
+            partId: nanoid(),
+            messageId,
+            partType: 'subtask_ref',
+            payload: {
+              childSessionId,
+              agentType,
+              status: 'running',
+              summary:
+                typeof subtaskInput.description === 'string'
+                  ? subtaskInput.description
+                  : '',
+              startedAt: now,
+            },
+            createdAt: now,
+          };
+          entries.push(this.createEvent('part_created', sessionId, subtaskPart));
+        }
+      }
       await store.appendBatch(entries);
       return toolCallId;
     } catch (error) {
@@ -255,6 +285,8 @@ export class PersistentStore {
       };
       entries.push(this.createEvent('part_created', sessionId, toolResultPart));
       if (subagentRef) {
+        const finishedAt =
+          subagentRef.subagentStatus === 'running' ? null : now;
         const subtaskPart: PartInfo = {
           partId: nanoid(),
           messageId,
@@ -265,7 +297,7 @@ export class PersistentStore {
             status: subagentRef.subagentStatus,
             summary: subagentRef.subagentSummary ?? '',
             startedAt: now,
-            finishedAt: now,
+            finishedAt,
           },
           createdAt: now,
         };

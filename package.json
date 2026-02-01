@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "dev:cli": "pnpm --filter blade-code dev",
-    "dev:web": "cd packages/cli/web && pnpm dev",
+    "dev:web": "pnpm --filter blade-code dev:serve & VITE_API_TARGET=http://localhost:4097 pnpm -C packages/cli/web dev",
     "build": "pnpm -r build",
     "build:cli": "pnpm --filter blade-code build",
     "build:vscode": "pnpm --filter blade-vscode build",

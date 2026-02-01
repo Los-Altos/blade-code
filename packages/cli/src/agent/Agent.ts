@@ -10,6 +10,7 @@
  * 负责：LLM 交互、工具执行、循环检测
  */
 
+import { nanoid } from 'nanoid';
 import * as os from 'os';
 import * as path from 'path';
 import {
@@ -1104,6 +1105,16 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
           try {
             // 解析工具参数
             const params = JSON.parse(toolCall.function.arguments);
+            if (
+              toolCall.function.name === 'Task' &&
+              (typeof params.subagent_session_id !== 'string' ||
+                params.subagent_session_id.length === 0)
+            ) {
+              params.subagent_session_id =
+                typeof params.resume === 'string' && params.resume.length > 0
+                  ? params.resume
+                  : nanoid();
+            }
 
             // 智能修复: 如果 todos 参数被错误地序列化为字符串,自动解析
             if (params.todos && typeof params.todos === 'string') {
@@ -1729,7 +1740,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
     }
 
     // 规范化上下文为 ChatContext
-    // 🔧 修复：确保复制 systemPrompt 和 permissionMode，避免子代理行为回归
+    // 🔧 修复：确保复制 systemPrompt、permissionMode 和 subagentInfo，避免子代理行为回归
     const chatContext: ChatContext = {
       messages: context.messages as Message[],
       userId: (context.userId as string) || 'subagent',
@@ -1739,6 +1750,7 @@ IMPORTANT: Execute according to the approved plan above. Follow the steps exactl
       confirmationHandler: context.confirmationHandler,
       permissionMode: context.permissionMode, // 继承权限模式
       systemPrompt: context.systemPrompt, // 🆕 继承系统提示词（无状态设计关键）
+      subagentInfo: context.subagentInfo, // 🆕 继承 subagent 信息（用于 JSONL 写入）
     };
 
     // 调用重构后的 runLoop

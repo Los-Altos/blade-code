@@ -21,7 +21,7 @@ export class SubagentExecutor {
    */
   async execute(context: SubagentContext): Promise<SubagentResult> {
     const startTime = Date.now();
-    const agentId = nanoid();
+    const agentId = context.subagentSessionId ?? nanoid();
 
     try {
       const systemPrompt = this.buildSystemPrompt(context);
@@ -34,6 +34,12 @@ export class SubagentExecutor {
       let toolCallCount = 0;
       let tokensUsed = 0;
 
+      const subagentInfo = {
+        parentSessionId: context.parentSessionId || '',
+        subagentType: this.config.name,
+        isSidechain: false,
+      };
+      
       const loopResult = await agent.runAgenticLoop(
         context.prompt,
         {
@@ -43,11 +49,7 @@ export class SubagentExecutor {
           workspaceRoot: process.cwd(),
           permissionMode: context.permissionMode,
           systemPrompt,
-          subagentInfo: {
-            parentSessionId: context.parentSessionId || '',
-            subagentType: this.config.name,
-          isSidechain: false,
-          },
+          subagentInfo,
         },
         {
           onToolStart: context.onToolStart
