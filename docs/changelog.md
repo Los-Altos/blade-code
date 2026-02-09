@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.4] - 2026-02-09
+
+### 🐛 问题修复
+
+- allow root execution in container/sandbox/CI environments (9f02561)
+
+### ♻️ 代码重构
+
+- 重构依赖项结构，将web相关依赖移动到cli/web目录 (1b2a17a)
+
+
 ## [0.2.3] - 2026-02-03
 
 ### 📝 文档更新
